@@ -58,6 +58,8 @@
 <!--                                  WHY                                      -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 
+ **Note:** This project was originally developed in **Jul 2026**. I am publishing it here in **Aug 2026** as part of sharing my past work.
+
 ## ✦ Why Christopher
 
 Language apps make you tap flashcards. **Christopher makes you _talk_.**
