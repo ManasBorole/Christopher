@@ -1,0 +1,12 @@
+node_modules/
+.next/
+dist/
+.claude/
+.impeccable/
+**/.impeccable/
+*.tsbuildinfo
+.env
+.env.local
+backend/.env
+frontend/.env.local
+prisma/*.db

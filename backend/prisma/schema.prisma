@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// A learner's ongoing study of one language (accumulating memory).
+model Course {
+  id                 String    @id @default(cuid())
+  ownerId            String // "clerk:<userId>" or "guest:<uuid>"
+  language           String
+  userName           String    @default("")
+  nativeLanguage     String    @default("")
+  level              String    @default("A1")
+  vocabulary         String[]  @default([])
+  pronunciationNotes String[]  @default([])
+  sessions           Session[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([ownerId, language]) // one course per (owner, language)
+}
+
+// One conversation. Fresh transcript each time; its own timestamp + summary.
+model Session {
+  id        String    @id @default(cuid())
+  course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId  String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  summary   Json? // saved Summary object once the session ends
+  turns     Turn[]
+
+  @@index([courseId])
+}
+
+model Turn {
+  id        String   @id @default(cuid())
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+  role      String // "user" | "agent"
+  text      String
+  at        BigInt // epoch ms
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+}
+
+// Free-trial usage, tracked per owner (clerk:<id> or guest:<uuid>) server-side.
+model Usage {
+  ownerId      String   @id
+  sessionsUsed Int      @default(0)
+  secondsUsed  Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Waitlist email + feedback collected when a trial ends.
+model Feedback {
+  id        String   @id @default(cuid())
+  ownerId   String
+  email     String
+  message   String
+  createdAt DateTime @default(now())
+}
