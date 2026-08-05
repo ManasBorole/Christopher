@@ -100,7 +100,7 @@ pick, no gates to unlock - it adapts on its own as you improve.
 
 ## 🏗 Architecture
 
-A tidy npm-workspaces monorepo. Every model call is behind a **swappable seam** — the
+A tidy npm-workspaces monorepo. Every model call is behind a **swappable seam** - the
 `ConversationEngine` interface lets Phase 2 drop in a custom `STT → LLM → TTS` pipeline
 without touching the UI.
 
@@ -163,7 +163,7 @@ Voice Agent/
 | **Backend** | Express · tsx (no compile step) · Multer · Zod |
 | **AI** | OpenAI Realtime (voice) · `gpt-4o-mini-audio-preview` (pronunciation) · `gpt-4o-mini` (summaries) |
 | **Data** | Prisma ORM · Neon Postgres |
-| **Auth** | Clerk _(optional — guest-first by default)_ |
+| **Auth** | Clerk _(optional - guest-first by default)_ |
 | **Shared** | `@vta/shared` workspace - Zod contracts across the wire |
 
 <img src="./.github/assets/divider.svg" width="100%" alt="" />
@@ -215,13 +215,13 @@ Open <b><a href="http://localhost:3000">localhost:3000</a></b> → tap <b>Speak<
 | :------- | :------: | :---------- |
 | `OPENAI_API_KEY` | ✅ | Key with Realtime + audio access. |
 | `DATABASE_URL` | ✅ | Neon Postgres connection string. |
-| `OPENAI_REALTIME_MODEL` | — | Voice model. Default `gpt-realtime-mini`. |
-| `OPENAI_REALTIME_VOICE` | — | Voice preset. Default `alloy`. |
-| `OPENAI_PRONUNCIATION_MODEL` | — | Audio scorer. Default `gpt-4o-mini-audio-preview`. |
-| `OPENAI_SUMMARY_MODEL` | — | Summary LLM. Default `gpt-4o-mini`. |
-| `FREE_SESSIONS` / `FREE_SECONDS` | — | Per-owner free-trial gate. Defaults `1` / `60`. |
-| `FRONTEND_ORIGIN` | — | CORS origin. Default `http://localhost:3000`. |
-| `CLERK_SECRET_KEY` | — | Omit to run guest-only. |
+| `OPENAI_REALTIME_MODEL` | - | Voice model. Default `gpt-realtime-mini`. |
+| `OPENAI_REALTIME_VOICE` | - | Voice preset. Default `alloy`. |
+| `OPENAI_PRONUNCIATION_MODEL` | - | Audio scorer. Default `gpt-4o-mini-audio-preview`. |
+| `OPENAI_SUMMARY_MODEL` | - | Summary LLM. Default `gpt-4o-mini`. |
+| `FREE_SESSIONS` / `FREE_SECONDS` | - | Per-owner free-trial gate. Defaults `1` / `60`. |
+| `FRONTEND_ORIGIN` | - | CORS origin. Default `http://localhost:3000`. |
+| `CLERK_SECRET_KEY` | - | Omit to run guest-only. |
 
 </details>
 
@@ -231,7 +231,7 @@ Open <b><a href="http://localhost:3000">localhost:3000</a></b> → tap <b>Speak<
 | Variable | Required | Description |
 | :------- | :------: | :---------- |
 | `NEXT_PUBLIC_BACKEND_URL` | ✅ | Backend base URL. |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | — | Enables the Sign-in button. Omit for guest-only. |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | - | Enables the Sign-in button. Omit for guest-only. |
 
 </details>
 
@@ -242,8 +242,8 @@ Open <b><a href="http://localhost:3000">localhost:3000</a></b> → tap <b>Speak<
 | `npm run dev:backend` | Express API with hot reload |
 | `npm run dev:frontend` | Next.js dev server |
 | `npm run build` | Build all workspaces |
-| `npx tsx backend/src/pronounce.selfcheck.ts` | Coaching-threshold self-check — _no keys/DB needed_ |
-| `npx tsx frontend/lib/recorder.selfcheck.ts` | Audio downsample + PCM self-check — _no keys/DB needed_ |
+| `npx tsx backend/src/pronounce.selfcheck.ts` | Coaching-threshold self-check - _no keys/DB needed_ |
+| `npx tsx frontend/lib/recorder.selfcheck.ts` | Audio downsample + PCM self-check - _no keys/DB needed_ |
 
 <img src="./.github/assets/divider.svg" width="100%" alt="" />
 
@@ -269,7 +269,7 @@ sequenceDiagram
     Tutor-->>You: voices the feedback + banner
 ```
 
-`/pronounce` is a **swappable seam** — drop in Azure Pronunciation Assessment or Speechace
+`/pronounce` is a **swappable seam** - drop in Azure Pronunciation Assessment or Speechace
 for true phoneme-level scores by rewriting only `backend/src/routes/pronounce.ts`.
 
 <img src="./.github/assets/divider.svg" width="100%" alt="" />
