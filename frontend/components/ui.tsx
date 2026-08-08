@@ -85,15 +85,25 @@ function SumList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-// Flag emoji for a language name (falls back to a book).
+// Country flag beside a language name. Central map (keyed by the English language
+// name the picker stores), falls back to a book for anything not listed. Names
+// match Intl.DisplayNames("en"), which is what LanguagePicker uses.
+const LANGUAGE_FLAGS: Record<string, string> = {
+  spanish: "🇪🇸", french: "🇫🇷", german: "🇩🇪", italian: "🇮🇹", portuguese: "🇧🇷",
+  english: "🇬🇧", japanese: "🇯🇵", hindi: "🇮🇳", mandarin: "🇨🇳", chinese: "🇨🇳",
+  korean: "🇰🇷", arabic: "🇸🇦", russian: "🇷🇺", dutch: "🇳🇱", turkish: "🇹🇷",
+  mongolian: "🇲🇳", polish: "🇵🇱", swedish: "🇸🇪", greek: "🇬🇷", hebrew: "🇮🇱",
+  vietnamese: "🇻🇳", thai: "🇹🇭", indonesian: "🇮🇩", malay: "🇲🇾", filipino: "🇵🇭",
+  tagalog: "🇵🇭", ukrainian: "🇺🇦", czech: "🇨🇿", romanian: "🇷🇴", hungarian: "🇭🇺",
+  finnish: "🇫🇮", danish: "🇩🇰", norwegian: "🇳🇴", "norwegian bokmål": "🇳🇴",
+  bulgarian: "🇧🇬", croatian: "🇭🇷", serbian: "🇷🇸", slovak: "🇸🇰", slovenian: "🇸🇮",
+  persian: "🇮🇷", urdu: "🇵🇰", bengali: "🇧🇩", tamil: "🇮🇳", telugu: "🇮🇳",
+  punjabi: "🇮🇳", swahili: "🇰🇪", catalan: "🇪🇸", welsh: "🏴󠁧󠁢󠁷󠁬󠁳󠁿", irish: "🇮🇪",
+  icelandic: "🇮🇸", estonian: "🇪🇪", latvian: "🇱🇻", lithuanian: "🇱🇹",
+};
+
 export function langFlag(language: string): string {
-  const m: Record<string, string> = {
-    spanish: "🇪🇸", french: "🇫🇷", german: "🇩🇪", italian: "🇮🇹", portuguese: "🇧🇷",
-    english: "🇬🇧", japanese: "🇯🇵", hindi: "🇮🇳", mandarin: "🇨🇳", chinese: "🇨🇳",
-    korean: "🇰🇷", arabic: "🇸🇦", russian: "🇷🇺", dutch: "🇳🇱", turkish: "🇹🇷",
-    mongolian: "🇲🇳", polish: "🇵🇱", swedish: "🇸🇪", greek: "🇬🇷", hebrew: "🇮🇱",
-  };
-  return m[language.toLowerCase()] ?? "📘";
+  return LANGUAGE_FLAGS[language.toLowerCase()] ?? "📘";
 }
 
 // "3h ago" style relative time.

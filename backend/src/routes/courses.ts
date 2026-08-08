@@ -18,6 +18,21 @@ function learnedWords(base: string[], sessions: { summary: unknown }[]): string[
   return Array.from(new Set([...base, ...fromSummaries].map((w) => w.trim()).filter(Boolean)));
 }
 
+// term -> English meaning, harvested from the session summaries (the only place a
+// translation is recorded). First non-empty translation for a term wins.
+function wordMeanings(sessions: { summary: unknown }[]): Record<string, string> {
+  const m: Record<string, string> = {};
+  for (const s of sessions) {
+    const sum = s.summary as Summary | null;
+    for (const v of sum?.vocabulary ?? []) {
+      const term = v.term?.trim();
+      const translation = v.translation?.trim();
+      if (term && translation && !m[term]) m[term] = translation;
+    }
+  }
+  return m;
+}
+
 // Home screen: one card per language the owner is studying.
 coursesRouter.get(
   "/courses",
@@ -92,6 +107,7 @@ coursesRouter.get(
       nativeLanguage: c.nativeLanguage,
       level: c.level,
       vocabulary: learnedWords(c.vocabulary, c.sessions),
+      meanings: wordMeanings(c.sessions),
       pronunciationNotes: c.pronunciationNotes,
       createdAt: c.createdAt.toISOString(),
       sessions: c.sessions.map((s) => ({

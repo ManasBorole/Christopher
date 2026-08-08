@@ -54,9 +54,7 @@ export default function Dashboard({
         <div className="text-6xl">{langFlag(c.language)}</div>
         <div>
           <h1 className="font-display text-4xl font-semibold tracking-tight">{c.language}</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {c.userName ? `${c.userName} · ` : ""}Level {c.level}
-          </p>
+          {c.userName && <p className="mt-1 text-sm text-[var(--muted)]">{c.userName}</p>}
         </div>
       </div>
 
@@ -111,6 +109,7 @@ export default function Dashboard({
         <WordsDialog
           language={c.language}
           words={c.vocabulary}
+          meanings={c.meanings}
           notes={c.pronunciationNotes}
           onClose={() => setWordsOpen(false)}
         />
@@ -122,11 +121,13 @@ export default function Dashboard({
 function WordsDialog({
   language,
   words,
+  meanings,
   notes,
   onClose,
 }: {
   language: string;
   words: string[];
+  meanings: Record<string, string>;
   notes: string[];
   onClose: () => void;
 }) {
@@ -153,6 +154,7 @@ function WordsDialog({
           {words.map((w) => (
             <span key={w} className="glass rounded-full px-3 py-1 text-sm">
               {w}
+              {meanings[w] && <span className="text-[var(--muted)]"> — {meanings[w]}</span>}
             </span>
           ))}
         </div>

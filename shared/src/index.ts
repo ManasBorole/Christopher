@@ -42,6 +42,10 @@ export type CourseDetail = {
   nativeLanguage: string;
   level: string;
   vocabulary: string[];
+  // term -> English meaning, derived from session summaries. Not every learned
+  // word has one (the pronunciation scorer records words without a translation),
+  // so this is a partial map keyed by term.
+  meanings: Record<string, string>;
   pronunciationNotes: string[];
   createdAt: string;
   sessions: SessionMeta[];
