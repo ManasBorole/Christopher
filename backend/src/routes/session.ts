@@ -47,7 +47,20 @@ sessionRouter.post("/session", owner, async (req: OwnedRequest, res) => {
               // Server VAD detects turn boundaries but does NOT auto-reply - the
               // client calls response.create explicitly, avoiding a double reply
               // during the pronunciation loop. interrupt_response keeps barge-in.
-              turn_detection: { type: "server_vad", create_response: false, interrupt_response: true },
+              //
+              // Tuned against background-noise false triggers and mid-sentence
+              // cut-offs (the two things that made the tutor mishear / respond to
+              // nothing): a higher threshold ignores ambient noise, and a longer
+              // silence window lets a learner finish their sentence before the turn
+              // ends. prefix_padding keeps the word onset so short words aren't clipped.
+              turn_detection: {
+                type: "server_vad",
+                threshold: 0.6,
+                prefix_padding_ms: 300,
+                silence_duration_ms: 700,
+                create_response: false,
+                interrupt_response: true,
+              },
             },
             output: { voice: env.realtimeVoice },
           },

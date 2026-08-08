@@ -6,6 +6,12 @@ import { ownerHeaders } from "../auth";
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8787";
 const OPENAI_RT = "https://api.openai.com/v1/realtime/calls";
 
+// A real utterance lasts longer than this; anything shorter that VAD flagged is
+// almost certainly a noise blip, so we don't ask the tutor to respond to it.
+// Kept well below the length of even a one-word answer ("hi", "네") so genuine
+// short speech still gets a reply.
+const MIN_SPEECH_MS = 250;
+
 type Pending = { callId: string; phrase: string; language: string };
 
 // Friendlier mic errors - the most common first-run failure is a denied prompt.
@@ -44,6 +50,8 @@ export class RealtimeEngine implements ConversationEngine {
   private pending?: Pending; // armed assessment, waiting for the learner to speak
   private recorder?: TurnRecorder; // active only while capturing the repeat
   private agentSpeaking = false; // guard: ignore turn-ends that fire mid-tutor-speech
+  private greeted = false; // the tutor's opening line is requested exactly once
+  private speechStartedAt = 0; // epoch ms of the current utterance's VAD onset
 
   async connect(events: ConversationEvents, sessionId?: string): Promise<void> {
     this.ev = events;
@@ -73,9 +81,16 @@ export class RealtimeEngine implements ConversationEngine {
       pc.ontrack = (e) => {
         this.audioEl!.srcObject = e.streams[0];
       };
-      // surface mid-session drops instead of silently going dead
+      // Only report "live" once the transport is actually CONNECTED. Emitting it
+      // right after the SDP answer (as before) lit up "Listening…" while ICE/DTLS
+      // was still negotiating, so the learner's first utterance went nowhere and
+      // they had to speak again. Gating on `connected` means the mic is really
+      // flowing before we say we're listening - and it's where we greet.
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+        if (pc.connectionState === "connected") {
+          this.ev.onStatus?.("live");
+          this.maybeGreet();
+        } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
           this.ev.onStatus?.("error", `connection ${pc.connectionState}`);
         }
       };
@@ -85,6 +100,8 @@ export class RealtimeEngine implements ConversationEngine {
 
       this.dc = pc.createDataChannel("oai-events");
       this.dc.onmessage = (m) => this.onEvent(JSON.parse(m.data));
+      // The channel and the transport can finish in either order; greet when both are ready.
+      this.dc.onopen = () => this.maybeGreet();
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -97,8 +114,8 @@ export class RealtimeEngine implements ConversationEngine {
       });
       if (!sdpRes.ok) throw new Error(`realtime sdp ${sdpRes.status}`);
       await pc.setRemoteDescription({ type: "answer", sdp: await sdpRes.text() });
-
-      this.ev.onStatus?.("live");
+      // "live" is now emitted from onconnectionstatechange once the transport is
+      // truly connected, not here where the media path may not be up yet.
     } catch (e) {
       this.ev.onStatus?.("error", String(e));
       this.disconnect();
@@ -146,6 +163,7 @@ export class RealtimeEngine implements ConversationEngine {
 
       // Server VAD bounds the learner's utterance -> our capture window.
       case "input_audio_buffer.speech_started":
+        this.speechStartedAt = Date.now();
         if (this.pending && !this.recorder && this.mic) {
           this.recorder = new TurnRecorder(this.mic);
           this.recorder.start();
@@ -165,10 +183,12 @@ export class RealtimeEngine implements ConversationEngine {
           // the tutor's own voice echoing back into the mic. Ignore it; responding
           // here is what creates the runaway self-reply loop.
           break;
-        } else {
+        } else if (Date.now() - this.speechStartedAt >= MIN_SPEECH_MS) {
           // normal turn: let the tutor respond
           this.requestResponse();
         }
+        // else: too brief to be real speech (noise blip VAD misfired on) - ignore,
+        // so the tutor doesn't answer a cough or a door.
         break;
     }
   }
@@ -177,6 +197,18 @@ export class RealtimeEngine implements ConversationEngine {
     if (this.dc?.readyState === "open") {
       this.dc.send(JSON.stringify({ type: "response.create" }));
     }
+  }
+
+  // Tutor speaks first. Fire exactly once, and only when BOTH the transport is
+  // connected and the data channel is open (they can finish in either order).
+  // Without an opening line the tutor stayed silent until the learner spoke,
+  // which - combined with the old premature "live" - is what made the first
+  // utterance feel ignored.
+  private maybeGreet() {
+    if (this.greeted) return;
+    if (this.pc?.connectionState !== "connected" || this.dc?.readyState !== "open") return;
+    this.greeted = true;
+    this.dc.send(JSON.stringify({ type: "response.create" }));
   }
 
   private arm(callId: string, argsJson: string) {
@@ -246,6 +278,8 @@ export class RealtimeEngine implements ConversationEngine {
     this.pc = this.dc = this.mic = this.audioEl = undefined;
     this.pending = this.recorder = undefined;
     this.agentSpeaking = false;
+    this.greeted = false;
+    this.speechStartedAt = 0;
     this.ev.onStatus?.("idle");
   }
 }
