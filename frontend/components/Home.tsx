@@ -2,21 +2,27 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CourseCard } from "@vta/shared";
-import { listCourses, createCourse, deleteCourse } from "../lib/api";
+import { listCourses, createCourse, deleteCourse, cachedCourses } from "../lib/api";
 import { langFlag, timeAgo } from "./ui";
 import { useReveal } from "../hooks/useReveal";
 import LanguagePicker from "./LanguagePicker";
 import DeleteLanguageModal from "./DeleteLanguageModal";
 
 export default function Home({ onOpenCourse }: { onOpenCourse: (id: string) => void }) {
-  const [courses, setCourses] = useState<CourseCard[] | null>(null);
+  // Seed from the cache so a revisit (backing out of a course) paints the grid
+  // immediately instead of flashing skeletons; still revalidate on mount.
+  const [courses, setCourses] = useState<CourseCard[] | null>(() => cachedCourses());
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<CourseCard | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    listCourses().then(setCourses);
+    let alive = true;
+    listCourses().then((c) => alive && setCourses(c));
+    return () => {
+      alive = false;
+    };
   }, []);
   useReveal([courses]);
 

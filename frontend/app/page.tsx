@@ -18,17 +18,20 @@ export default function Page() {
 
   // Brand cold-open, then seed history: landing (base) [+ app home for returning
   // visitors this session]. Back button walks this stack, never off the tab.
+  //
+  // For a returning visitor we mount the app home RIGHT AWAY (not after the timer)
+  // so its data fetch runs *during* the brand splash instead of only starting once
+  // the splash clears - and the splash itself is shorter. The splash renders as an
+  // overlay on top, so the grid is usually populated by the time it lifts.
   useEffect(() => {
     const entered = sessionStorage.getItem("vta_entered");
-    const t = setTimeout(() => {
-      history.replaceState({ nav: "landing" } satisfies Nav, "");
-      if (entered) {
-        const home: Nav = { nav: "app", screen: { v: "home" } };
-        history.pushState(home, "");
-        setCurrent(home);
-      }
-      setBooting(false);
-    }, 1900);
+    history.replaceState({ nav: "landing" } satisfies Nav, "");
+    if (entered) {
+      const home: Nav = { nav: "app", screen: { v: "home" } };
+      history.pushState(home, "");
+      setCurrent(home);
+    }
+    const t = setTimeout(() => setBooting(false), entered ? 900 : 1900);
 
     const onPop = (e: PopStateEvent) => {
       setAuthOpen(false);
@@ -53,7 +56,10 @@ export default function Page() {
     push({ nav: "app", screen: { v: "home" } });
   }
 
-  if (booting) return <Splash />;
+  // Fresh visitor: show the brand splash alone until it clears, then the landing
+  // page. Returning visitor: the app home is already mounted and fetching, so the
+  // splash sits on top as an overlay instead of blocking that work.
+  if (booting && current.nav === "landing") return <Splash />;
 
   return (
     <>
@@ -75,6 +81,7 @@ export default function Page() {
       )}
 
       {authOpen && <AuthOverlay onEnter={enterApp} />}
+      {booting && <Splash />}
     </>
   );
 }
