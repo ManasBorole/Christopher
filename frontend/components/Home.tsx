@@ -19,7 +19,11 @@ export default function Home({ onOpenCourse }: { onOpenCourse: (id: string) => v
 
   useEffect(() => {
     let alive = true;
-    listCourses().then((c) => alive && setCourses(c));
+    // Always reach a terminal state: a rejected load (backend down, network) must
+    // drop the skeleton to an actionable empty grid, never hang on skeletons.
+    listCourses()
+      .then((c) => alive && setCourses(c))
+      .catch(() => alive && setCourses([]));
     return () => {
       alive = false;
     };

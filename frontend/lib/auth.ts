@@ -22,7 +22,16 @@ export function guestId(): string {
 export async function ownerHeaders(): Promise<Record<string, string>> {
   const h: Record<string, string> = { "x-guest-id": guestId() };
   try {
-    const t = await tokenGetter?.();
+    // Clerk's getToken() can hang (Clerk still loading, or its API unreachable).
+    // try/catch only handles a *rejected* token, not one that never settles - a
+    // hang here would block every backend call and freeze the app on skeletons.
+    // Guest is a valid identity, so cap the wait and fall back to it.
+    // ponytail: 2s cap. If a valid token lands later, subsequent calls use it and
+    // the home list revalidates, so a signed-in user self-corrects to their data.
+    const t = await Promise.race([
+      Promise.resolve(tokenGetter?.() ?? null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+    ]);
     if (t) h["Authorization"] = `Bearer ${t}`;
   } catch {
     /* not signed in / token unavailable -> stay guest */
