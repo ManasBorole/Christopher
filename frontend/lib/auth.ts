@@ -4,6 +4,22 @@
 
 let tokenGetter: (() => Promise<string | null>) | null = null;
 
+// Clerk loads asynchronously. Until it has, getToken() can hang or return null, so
+// a request fired on mount would go out as a guest and load the WRONG account's
+// data (signed-in user sees no cards; opening a course 404s). Gate backend requests
+// on Clerk being ready so the very first request already carries the real token.
+// When Clerk isn't configured there is nothing to wait for.
+const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+let markReady: (() => void) | undefined;
+const authReadyPromise: Promise<void> = hasClerk
+  ? new Promise<void>((resolve) => (markReady = resolve))
+  : Promise.resolve();
+
+// Called by the Clerk bridge (AuthBar) once Clerk has finished loading.
+export function authReady() {
+  markReady?.();
+}
+
 // Set once from a client component that has Clerk's useAuth().getToken.
 export function setTokenGetter(fn: (() => Promise<string | null>) | null) {
   tokenGetter = fn;
@@ -21,16 +37,15 @@ export function guestId(): string {
 // Headers identifying the owner. Include as `headers` on every backend fetch.
 export async function ownerHeaders(): Promise<Record<string, string>> {
   const h: Record<string, string> = { "x-guest-id": guestId() };
+  // Wait for Clerk to load so getToken() yields the real token instead of null
+  // mid-load. Bounded so a broken/unreachable Clerk can never hang the app - it
+  // falls back to guest. Once ready resolves (after first load) this is instant.
+  // ponytail: 4s ceiling; raise it only if Clerk cold-load is measurably slower.
+  await Promise.race([authReadyPromise, delay(4000)]);
   try {
-    // Clerk's getToken() can hang (Clerk still loading, or its API unreachable).
-    // try/catch only handles a *rejected* token, not one that never settles - a
-    // hang here would block every backend call and freeze the app on skeletons.
-    // Guest is a valid identity, so cap the wait and fall back to it.
-    // ponytail: 2s cap. If a valid token lands later, subsequent calls use it and
-    // the home list revalidates, so a signed-in user self-corrects to their data.
     const t = await Promise.race([
       Promise.resolve(tokenGetter?.() ?? null),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+      delay(4000).then(() => null),
     ]);
     if (t) h["Authorization"] = `Bearer ${t}`;
   } catch {
@@ -38,3 +53,5 @@ export async function ownerHeaders(): Promise<Record<string, string>> {
   }
   return h;
 }
+
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
