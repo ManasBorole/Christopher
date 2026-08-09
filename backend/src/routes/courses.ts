@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../db.js";
+import { env } from "../env.js";
 import { ah } from "../http.js";
 import { owner, type OwnedRequest } from "../owner.js";
 import type { CourseCard, CourseDetail, Summary } from "@vta/shared";
@@ -18,19 +19,81 @@ function learnedWords(base: string[], sessions: { summary: unknown }[]): string[
   return Array.from(new Set([...base, ...fromSummaries].map((w) => w.trim()).filter(Boolean)));
 }
 
-// term -> English meaning, harvested from the session summaries (the only place a
-// translation is recorded). First non-empty translation for a term wins.
-function wordMeanings(sessions: { summary: unknown }[]): Record<string, string> {
-  const m: Record<string, string> = {};
-  for (const s of sessions) {
-    const sum = s.summary as Summary | null;
-    for (const v of sum?.vocabulary ?? []) {
+// Translate target-language terms to concise English via one batched LLM call.
+// Best-effort: returns {} on any failure so a hiccup never blocks the dashboard.
+async function translateTerms(terms: string[], language: string): Promise<Record<string, string>> {
+  if (!terms.length) return {};
+  const sys =
+    `You translate ${language} words and phrases into natural English. ` +
+    `Return JSON {"translations": {"<term>": "<English meaning>"}} covering EVERY term given. ` +
+    `Use the natural meaning of a phrase (not word-by-word); for an ambiguous word use its most common meaning. ` +
+    `Keep each meaning short (1-4 words), no trailing punctuation.`;
+  const user = `Translate these ${language} terms:\n${terms.map((t) => `- ${t}`).join("\n")}`;
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.openaiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: env.summaryModel,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+    if (!r.ok) return {};
+    const data = (await r.json()) as { choices: { message: { content: string } }[] };
+    const parsed = JSON.parse(data.choices[0].message.content) as { translations?: Record<string, unknown> };
+    const map = (parsed.translations ?? parsed) as Record<string, unknown>;
+    const out: Record<string, string> = {};
+    for (const term of terms) {
+      const v = map[term];
+      if (typeof v === "string" && v.trim()) out[term] = v.trim();
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+type CourseForMeanings = {
+  id: string;
+  language: string;
+  vocabulary: string[];
+  meanings: unknown;
+  sessions: { summary: unknown }[];
+};
+
+// Full term -> English meaning map for a course's learned words. Sources, in order:
+//   1. the cached Course.meanings column (already translated, free)
+//   2. session summaries (translations the tutor recorded at lesson end, free)
+//   3. an LLM translation for anything still missing (e.g. pronunciation-scorer words,
+//      which are stored with no translation)
+// Newly resolved terms are written back to Course.meanings so any word is translated
+// at most once. ponytail: translation happens on dashboard read; a word added
+// mid-session shows its meaning on the next open, not instantly. Move to a write-time
+// hook if that lag matters.
+async function ensureMeanings(c: CourseForMeanings): Promise<Record<string, string>> {
+  const meanings: Record<string, string> =
+    c.meanings && typeof c.meanings === "object" ? { ...(c.meanings as Record<string, string>) } : {};
+  const before = Object.keys(meanings).length;
+
+  for (const s of c.sessions) {
+    for (const v of (s.summary as Summary | null)?.vocabulary ?? []) {
       const term = v.term?.trim();
       const translation = v.translation?.trim();
-      if (term && translation && !m[term]) m[term] = translation;
+      if (term && translation && !meanings[term]) meanings[term] = translation;
     }
   }
-  return m;
+
+  const missing = learnedWords(c.vocabulary, c.sessions).filter((t) => !meanings[t]);
+  if (missing.length) Object.assign(meanings, await translateTerms(missing, c.language));
+
+  if (Object.keys(meanings).length !== before) {
+    await prisma.course.update({ where: { id: c.id }, data: { meanings } });
+  }
+  return meanings;
 }
 
 // Home screen: one card per language the owner is studying.
@@ -107,7 +170,7 @@ coursesRouter.get(
       nativeLanguage: c.nativeLanguage,
       level: c.level,
       vocabulary: learnedWords(c.vocabulary, c.sessions),
-      meanings: wordMeanings(c.sessions),
+      meanings: await ensureMeanings(c),
       pronunciationNotes: c.pronunciationNotes,
       createdAt: c.createdAt.toISOString(),
       sessions: c.sessions.map((s) => ({
