@@ -5,6 +5,7 @@ import { RealtimeEngine } from "../lib/engine/RealtimeEngine";
 import type { ConversationEngine } from "../lib/engine/ConversationEngine";
 import { useSession } from "../store/useSession";
 import { addTurn as persistTurn, patchCourse, endSession, getUsage, reportSpent, consumeUsage } from "../lib/api";
+import { isMeaningfulTranscript } from "../lib/transcript";
 import { MicIcon, Dots, Bubble } from "./ui";
 import TrialModal from "./TrialModal";
 
@@ -80,9 +81,11 @@ export default function SessionView({
         onSpeaking: (b) => s.setSpeaking(b),
         onTranscript: (role, text, done) => {
           if (role === "agent" && !done) return setPartial((p) => p + text);
-          const finalText = role === "agent" ? text || partial : text;
+          const finalText = (role === "agent" ? text || partial : text).trim();
           if (role === "agent") setPartial("");
-          if (!finalText) return;
+          // Drop empty / punctuation-only artefacts (noise mis-transcribed as speech)
+          // so they never become a chat message or get persisted.
+          if (!isMeaningfulTranscript(finalText)) return;
           s.addTurn({ role, text: finalText, at: Date.now() });
           void persistTurn(sessionId, role, finalText, Date.now()).catch(() => {});
         },

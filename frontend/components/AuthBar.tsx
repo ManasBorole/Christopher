@@ -2,16 +2,21 @@
 
 import { useEffect } from "react";
 import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from "@clerk/nextjs";
-import { setTokenGetter } from "../lib/auth";
+import { setTokenGetter, authReady } from "../lib/auth";
 
 // Rendered only when Clerk is configured. Bridges Clerk's token to the api layer
 // and shows sign-in / account controls. Guest still works without signing in.
 export default function AuthBar() {
-  const { getToken } = useAuth();
+  const { isLoaded, getToken } = useAuth();
   useEffect(() => {
     setTokenGetter(() => getToken());
     return () => setTokenGetter(null);
   }, [getToken]);
+  // Unblock backend requests once Clerk has resolved the session (signed in ->
+  // real token; signed out -> guest). Until then ownerHeaders() waits.
+  useEffect(() => {
+    if (isLoaded) authReady();
+  }, [isLoaded]);
 
   return (
     <div className="flex items-center gap-2">
