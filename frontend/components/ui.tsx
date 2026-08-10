@@ -1,6 +1,14 @@
 "use client";
 
 import type { Summary } from "@vta/shared";
+// Real SVG flags. Flag EMOJI don't render on Windows (they show as "JP", "KR"...),
+// which defeats the whole point; these are cross-platform and bundled locally.
+// Named imports so the bundler only ships the flags we actually reference.
+import {
+  ES, FR, DE, IT, BR, GB, JP, IN, CN, KR, SA, RU, NL, TR, MN, PL, SE, GR, IL,
+  VN, TH, ID, MY, PH, UA, CZ, RO, HU, FI, DK, NO, BG, HR, RS, SK, SI, IR, PK,
+  BD, KE, IE, IS, EE, LV, LT,
+} from "country-flag-icons/react/3x2";
 
 export function MicIcon() {
   return (
@@ -85,15 +93,35 @@ function SumList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-// Flag emoji for a language name (falls back to a book).
-export function langFlag(language: string): string {
-  const m: Record<string, string> = {
-    spanish: "🇪🇸", french: "🇫🇷", german: "🇩🇪", italian: "🇮🇹", portuguese: "🇧🇷",
-    english: "🇬🇧", japanese: "🇯🇵", hindi: "🇮🇳", mandarin: "🇨🇳", chinese: "🇨🇳",
-    korean: "🇰🇷", arabic: "🇸🇦", russian: "🇷🇺", dutch: "🇳🇱", turkish: "🇹🇷",
-    mongolian: "🇲🇳", polish: "🇵🇱", swedish: "🇸🇪", greek: "🇬🇷", hebrew: "🇮🇱",
-  };
-  return m[language.toLowerCase()] ?? "📘";
+// Language (English name the picker stores) -> ISO 3166-1 alpha-2 country whose
+// flag represents it. Names match Intl.DisplayNames("en"), used by LanguagePicker.
+const LANGUAGE_COUNTRY: Record<string, string> = {
+  spanish: "ES", french: "FR", german: "DE", italian: "IT", portuguese: "BR",
+  english: "GB", japanese: "JP", hindi: "IN", mandarin: "CN", chinese: "CN",
+  korean: "KR", arabic: "SA", russian: "RU", dutch: "NL", turkish: "TR",
+  mongolian: "MN", polish: "PL", swedish: "SE", greek: "GR", hebrew: "IL",
+  vietnamese: "VN", thai: "TH", indonesian: "ID", malay: "MY", filipino: "PH",
+  tagalog: "PH", ukrainian: "UA", czech: "CZ", romanian: "RO", hungarian: "HU",
+  finnish: "FI", danish: "DK", norwegian: "NO", "norwegian bokmål": "NO",
+  bulgarian: "BG", croatian: "HR", serbian: "RS", slovak: "SK", slovenian: "SI",
+  persian: "IR", urdu: "PK", bengali: "BD", tamil: "IN", telugu: "IN",
+  punjabi: "IN", swahili: "KE", catalan: "ES", welsh: "GB", irish: "IE",
+  icelandic: "IS", estonian: "EE", latvian: "LV", lithuanian: "LT",
+  bhojpuri: "IN",
+};
+
+const FLAGS: Record<string, typeof JP> = {
+  ES, FR, DE, IT, BR, GB, JP, IN, CN, KR, SA, RU, NL, TR, MN, PL, SE, GR, IL,
+  VN, TH, ID, MY, PH, UA, CZ, RO, HU, FI, DK, NO, BG, HR, RS, SK, SI, IR, PK,
+  BD, KE, IE, IS, EE, LV, LT,
+};
+
+// Country flag beside a language name, as a real SVG (renders identically on every
+// OS). Falls back to a globe for any language we don't have a flag mapping for.
+export function LangFlag({ language, className }: { language: string; className?: string }) {
+  const Flag = FLAGS[LANGUAGE_COUNTRY[language.trim().toLowerCase()] ?? ""];
+  if (!Flag) return <span className={className} role="img" aria-label={`${language} flag`}>🌐</span>;
+  return <Flag className={className} role="img" aria-label={`${language} flag`} />;
 }
 
 // "3h ago" style relative time.

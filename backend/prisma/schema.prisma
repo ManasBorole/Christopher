@@ -16,6 +16,7 @@ model Course {
   nativeLanguage     String    @default("")
   level              String    @default("A1")
   vocabulary         String[]  @default([])
+  meanings           Json      @default("{}") // term -> English meaning, cached so learned words always show a translation
   pronunciationNotes String[]  @default([])
   sessions           Session[]
   createdAt          DateTime  @default(now())

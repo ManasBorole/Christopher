@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { CourseDetail, SessionMeta } from "@vta/shared";
 import { getCourse, startSession } from "../lib/api";
-import { langFlag, timeAgo, SummaryCard } from "./ui";
+import { LangFlag, timeAgo, SummaryCard } from "./ui";
 
 export default function Dashboard({
   courseId,
@@ -51,12 +51,10 @@ export default function Dashboard({
 
       {/* header */}
       <div className="mb-8 flex items-center gap-5">
-        <div className="text-6xl">{langFlag(c.language)}</div>
+        <div><LangFlag language={c.language} className="w-16 rounded shadow ring-1 ring-black/10" /></div>
         <div>
           <h1 className="font-display text-4xl font-semibold tracking-tight">{c.language}</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {c.userName ? `${c.userName} · ` : ""}Level {c.level}
-          </p>
+          {c.userName && <p className="mt-1 text-sm text-[var(--muted)]">{c.userName}</p>}
         </div>
       </div>
 
@@ -111,6 +109,7 @@ export default function Dashboard({
         <WordsDialog
           language={c.language}
           words={c.vocabulary}
+          meanings={c.meanings}
           notes={c.pronunciationNotes}
           onClose={() => setWordsOpen(false)}
         />
@@ -122,11 +121,13 @@ export default function Dashboard({
 function WordsDialog({
   language,
   words,
+  meanings,
   notes,
   onClose,
 }: {
   language: string;
   words: string[];
+  meanings: Record<string, string>;
   notes: string[];
   onClose: () => void;
 }) {
@@ -153,6 +154,7 @@ function WordsDialog({
           {words.map((w) => (
             <span key={w} className="glass rounded-full px-3 py-1 text-sm">
               {w}
+              {meanings[w] && <span className="text-[var(--muted)]"> — {meanings[w]}</span>}
             </span>
           ))}
         </div>

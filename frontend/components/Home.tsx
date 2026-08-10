@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CourseCard } from "@vta/shared";
+
 import { listCourses, createCourse, deleteCourse, cachedCourses } from "../lib/api";
-import { langFlag, timeAgo } from "./ui";
+import { LangFlag, timeAgo } from "./ui";
+
 import { useReveal } from "../hooks/useReveal";
 import LanguagePicker from "./LanguagePicker";
 import DeleteLanguageModal from "./DeleteLanguageModal";
@@ -120,7 +122,7 @@ export default function Home({ onOpenCourse }: { onOpenCourse: (id: string) => v
               </button>
 
               <div className="pointer-events-none relative z-10">
-                <div className="mb-4 text-4xl">{langFlag(c.language)}</div>
+                <div className="mb-4"><LangFlag language={c.language} className="w-10 rounded-sm shadow-sm ring-1 ring-black/10" /></div>
                 <h3 className="font-display text-xl font-semibold">{c.language}</h3>
                 {c.userName && <p className="mt-1 text-xs text-[var(--muted)]">{c.userName}</p>}
                 <div className="mt-4 flex items-center gap-4 text-xs text-[var(--muted)]">
