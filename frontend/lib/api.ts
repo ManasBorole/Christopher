@@ -23,10 +23,39 @@ export async function scorePronunciation(
 }
 
 // ---- Courses ----
+// Stale-while-revalidate cache for the home list. The grid is revisited every
+// time the user backs out of a course, and it currently re-fetched from scratch
+// (skeletons every time). We keep the last good result so a revisit paints
+// instantly and revalidates in the background, and we de-dupe concurrent calls
+// so a mount + a prefetch don't both hit the network.
+let coursesCache: CourseCard[] | null = null;
+let coursesInflight: Promise<CourseCard[]> | null = null;
+
+// Last loaded courses, or null if none fetched yet this session. Synchronous -
+// lets the home screen render immediately on a revisit instead of showing skeletons.
+export function cachedCourses(): CourseCard[] | null {
+  return coursesCache;
+}
+
+// Drop the cache so the next listCourses() hits the network (after a mutation).
+export function invalidateCourses() {
+  coursesCache = null;
+}
+
 export async function listCourses(): Promise<CourseCard[]> {
-  const r = await fetch(`${BACKEND}/courses`, { headers: await ownerHeaders() });
-  if (!r.ok) return [];
-  return r.json();
+  if (coursesInflight) return coursesInflight; // de-dupe overlapping loads
+  coursesInflight = (async () => {
+    const r = await fetch(`${BACKEND}/courses`, { headers: await ownerHeaders() });
+    if (!r.ok) return coursesCache ?? []; // keep showing stale data on a failed revalidate
+    const data = (await r.json()) as CourseCard[];
+    coursesCache = data;
+    return data;
+  })();
+  try {
+    return await coursesInflight;
+  } finally {
+    coursesInflight = null;
+  }
 }
 
 export async function createCourse(language: string): Promise<{ id: string; language: string }> {
@@ -36,11 +65,13 @@ export async function createCourse(language: string): Promise<{ id: string; lang
     body: JSON.stringify({ language }),
   });
   if (!r.ok) throw new Error(`/courses ${r.status}`);
+  invalidateCourses();
   return r.json();
 }
 
 export async function deleteCourse(id: string): Promise<boolean> {
   const r = await fetch(`${BACKEND}/courses/${id}`, { method: "DELETE", headers: await ownerHeaders() });
+  if (r.ok) invalidateCourses();
   return r.ok;
 }
 
