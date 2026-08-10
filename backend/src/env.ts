@@ -18,14 +18,18 @@ export const env = {
     .map((o) => o.trim().replace(/\/$/, "")) // tolerate spaces + trailing slash
     .filter(Boolean),
   openaiKey: req("OPENAI_API_KEY"),
-  // Cost-optimized defaults. gpt-realtime-mini is ~5-10x cheaper than gpt-realtime
-  // while keeping conversational quality fine for a language tutor. (The old
-  // gpt-4o-mini-realtime-preview is a deprecated Beta model - GA /calls 404s it.)
-  realtimeModel: opt("OPENAI_REALTIME_MODEL", "gpt-realtime-mini"),
+  // Full realtime model, not the -mini: the mini mis-hears target-language audio and
+  // loses the conversational thread (re-greeting every turn), which is exactly what
+  // made the tutor feel like a broken bot. The full model understands speech and holds
+  // context far better. Set OPENAI_REALTIME_MODEL=gpt-realtime-mini to trade quality
+  // for cost. (The old gpt-4o-mini-realtime-preview is a dead Beta model - /calls 404s it.)
+  realtimeModel: opt("OPENAI_REALTIME_MODEL", "gpt-realtime"),
   realtimeVoice: opt("OPENAI_REALTIME_VOICE", "alloy"),
   summaryModel: opt("OPENAI_SUMMARY_MODEL", "gpt-4o-mini"),
-  // Cheaper audio judge for pronunciation.
-  pronunciationModel: opt("OPENAI_PRONUNCIATION_MODEL", "gpt-4o-mini-audio-preview"),
+  // Cheaper audio judge for pronunciation. (gpt-4o-*-audio-preview was retired;
+  // gpt-audio-mini is the current cheap audio-in model. It does NOT support
+  // response_format:json_object - pronounce.ts asks for JSON in the prompt instead.)
+  pronunciationModel: opt("OPENAI_PRONUNCIATION_MODEL", "gpt-audio-mini"),
 };
 
 // Free-trial gate. Modular: swap these / the checks in gate.ts for paid plans
