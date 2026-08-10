@@ -1,18 +1,8 @@
 import type { ConversationEngine, ConversationEvents } from "./ConversationEngine";
-import { TurnRecorder } from "../recorder";
-import { scorePronunciation } from "../api";
 import { ownerHeaders } from "../auth";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8787";
 const OPENAI_RT = "https://api.openai.com/v1/realtime/calls";
-
-// A real utterance lasts longer than this; anything shorter that VAD flagged is
-// almost certainly a noise blip, so we don't ask the tutor to respond to it.
-// Kept well below the length of even a one-word answer ("hi", "네") so genuine
-// short speech still gets a reply.
-const MIN_SPEECH_MS = 250;
-
-type Pending = { callId: string; phrase: string; language: string };
 
 // Friendlier mic errors - the most common first-run failure is a denied prompt.
 // echoCancellation is essential: without it the tutor's own voice from the
@@ -32,26 +22,21 @@ async function getMic(): Promise<MediaStream> {
 }
 
 // v1 engine: browser <-> OpenAI Realtime over WebRTC.
-// The API key never reaches here - we fetch a short-lived ephemeral token
-// from our backend and use it as the Bearer for the SDP handshake only.
+// The API key never reaches here - we fetch a short-lived ephemeral token from
+// our backend and use it as the Bearer for the SDP handshake only.
 //
-// Pronunciation loop: the tutor calls the `assess_pronunciation` tool after
-// asking the learner to repeat a phrase. We arm on that call, capture the
-// learner's next utterance (bounded by server-VAD speech_started/stopped),
-// score it via Azure, then hand the coaching back to the model as the tool
-// output so the tutor voices it naturally.
+// Turn-taking is SERVER-DRIVEN (session turn_detection.create_response=true): the
+// server VAD decides when the learner has stopped and auto-generates the tutor's
+// reply, and it maintains the conversation. The client only kicks off the opening
+// greeting and relays the update_profile tool. Pronunciation is judged by the
+// audio-native model itself, spoken as natural coaching - no separate capture/score.
 export class RealtimeEngine implements ConversationEngine {
   private pc?: RTCPeerConnection;
   private dc?: RTCDataChannel;
   private mic?: MediaStream;
   private audioEl?: HTMLAudioElement;
   private ev: ConversationEvents = {};
-
-  private pending?: Pending; // armed assessment, waiting for the learner to speak
-  private recorder?: TurnRecorder; // active only while capturing the repeat
-  private agentSpeaking = false; // guard: ignore turn-ends that fire mid-tutor-speech
   private greeted = false; // the tutor's opening line is requested exactly once
-  private speechStartedAt = 0; // epoch ms of the current utterance's VAD onset
 
   async connect(events: ConversationEvents, sessionId?: string): Promise<void> {
     this.ev = events;
@@ -82,10 +67,9 @@ export class RealtimeEngine implements ConversationEngine {
         this.audioEl!.srcObject = e.streams[0];
       };
       // Only report "live" once the transport is actually CONNECTED. Emitting it
-      // right after the SDP answer (as before) lit up "Listening…" while ICE/DTLS
-      // was still negotiating, so the learner's first utterance went nowhere and
-      // they had to speak again. Gating on `connected` means the mic is really
-      // flowing before we say we're listening - and it's where we greet.
+      // right after the SDP answer lit up "Listening…" while ICE/DTLS was still
+      // negotiating, so the learner's first utterance went nowhere. Gating on
+      // `connected` means the mic is really flowing - and it's where we greet.
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "connected") {
           this.ev.onStatus?.("live");
@@ -114,15 +98,13 @@ export class RealtimeEngine implements ConversationEngine {
       });
       if (!sdpRes.ok) throw new Error(`realtime sdp ${sdpRes.status}`);
       await pc.setRemoteDescription({ type: "answer", sdp: await sdpRes.text() });
-      // "live" is now emitted from onconnectionstatechange once the transport is
-      // truly connected, not here where the media path may not be up yet.
     } catch (e) {
       this.ev.onStatus?.("error", String(e));
       this.disconnect();
     }
   }
 
-  // Map the Realtime event stream to our engine callbacks + pronunciation loop.
+  // Map the Realtime event stream to our engine callbacks.
   // ponytail: only the events the app needs are handled; add cases as needed.
   private onEvent(e: any) {
     switch (e.type) {
@@ -138,72 +120,29 @@ export class RealtimeEngine implements ConversationEngine {
       case "conversation.item.input_audio_transcription.completed":
         this.ev.onTranscript?.("user", e.transcript ?? "", true);
         break;
+
       // speaking indicator - output_audio_buffer.* fire on WebRTC; keep the
       // delta/done variants (old + GA) as fallback.
       case "output_audio_buffer.started":
       case "response.output_audio.delta":
       case "response.audio.delta":
-        this.agentSpeaking = true;
         this.ev.onSpeaking?.(true);
         break;
       case "output_audio_buffer.stopped":
       case "response.output_audio.done":
       case "response.audio.done":
-        this.agentSpeaking = false;
         this.ev.onSpeaking?.(false);
         break;
 
       case "response.function_call_arguments.done":
-        if (e.name === "assess_pronunciation") {
-          this.arm(e.call_id, e.arguments); // score the learner's next repeat
-        } else if (e.name === "update_profile") {
-          this.updateProfile(e.call_id, e.arguments); // structured memory
-        }
+        if (e.name === "update_profile") this.updateProfile(e.call_id, e.arguments);
         break;
-
-      // Server VAD bounds the learner's utterance -> our capture window.
-      case "input_audio_buffer.speech_started":
-        this.speechStartedAt = Date.now();
-        if (this.pending && !this.recorder && this.mic) {
-          this.recorder = new TurnRecorder(this.mic);
-          this.recorder.start();
-        }
-        break;
-      case "input_audio_buffer.speech_stopped":
-        // Auto-reply is off (create_response:false) - we drive every response.
-        if (this.pending && this.recorder) {
-          // pronunciation turn: score first, then reply with the coaching
-          void this.finishAssessment();
-        } else if (this.pending) {
-          // armed but the learner didn't actually repeat -> unblock the tool call
-          this.sendToolOutput(this.pending.callId, { coaching: "" });
-          this.pending = undefined;
-        } else if (Date.now() - this.speechStartedAt >= MIN_SPEECH_MS) {
-          // Real user turn. If the tutor was still talking, the learner is talking
-          // OVER it - interrupt and take their turn (natural barge-in). The old code
-          // dropped these as "echo", which (with echo cancellation already on) mostly
-          // ate genuine turns and left the learner waiting and repeating themselves.
-          // Server-side interrupt_response + echoCancellation guard the real echo case.
-          if (this.agentSpeaking) this.interrupt();
-          this.requestResponse();
-        }
-        // else: too brief to be real speech (noise blip VAD misfired on) - ignore,
-        // so the tutor doesn't answer a cough or a door.
-        break;
-    }
-  }
-
-  private requestResponse() {
-    if (this.dc?.readyState === "open") {
-      this.dc.send(JSON.stringify({ type: "response.create" }));
     }
   }
 
   // Tutor speaks first. Fire exactly once, and only when BOTH the transport is
   // connected and the data channel is open (they can finish in either order).
-  // Without an opening line the tutor stayed silent until the learner spoke,
-  // which - combined with the old premature "live" - is what made the first
-  // utterance feel ignored.
+  // After this, the server VAD drives every reply, so we never trigger one again.
   private maybeGreet() {
     if (this.greeted) return;
     if (this.pc?.connectionState !== "connected" || this.dc?.readyState !== "open") return;
@@ -211,53 +150,19 @@ export class RealtimeEngine implements ConversationEngine {
     this.dc.send(JSON.stringify({ type: "response.create" }));
   }
 
-  private arm(callId: string, argsJson: string) {
-    try {
-      const { phrase, language } = JSON.parse(argsJson ?? "{}");
-      if (phrase && language) this.pending = { callId, phrase, language };
-    } catch {
-      /* malformed tool args - ignore, tutor will move on */
-    }
-  }
-
   // Tutor learned the learner's name/languages/level - bubble up + ack so the
-  // model continues (auto-reply is off, so it waits for the tool output).
+  // model can continue its turn (a tool call pauses the response until we reply).
   private updateProfile(callId: string, argsJson: string) {
     try {
-      const profile = JSON.parse(argsJson ?? "{}");
-      this.ev.onProfile?.(profile);
+      this.ev.onProfile?.(JSON.parse(argsJson ?? "{}"));
     } catch {
       /* ignore malformed args */
     }
-    this.sendToolOutput(callId, { ok: true });
-  }
-
-  private async finishAssessment() {
-    const p = this.pending!;
-    const blob = this.recorder!.stop();
-    this.recorder = undefined;
-    this.pending = undefined;
-    try {
-      const result = await scorePronunciation(blob, p.phrase, p.language);
-      this.ev.onPronunciation?.(result, p.phrase, p.language);
-      this.sendToolOutput(p.callId, {
-        coaching: result.coaching,
-        accuracy: Math.round(result.accuracy),
-        pronunciation: Math.round(result.pronunciation),
-      });
-    } catch (e) {
-      // Scoring failed -> let the tutor continue without a score.
-      this.sendToolOutput(p.callId, { coaching: "", error: String(e) });
-    }
-  }
-
-  // Return the tool result to the model, then ask it to respond (speak the coaching).
-  private sendToolOutput(callId: string, output: unknown) {
     if (this.dc?.readyState !== "open") return;
     this.dc.send(
       JSON.stringify({
         type: "conversation.item.create",
-        item: { type: "function_call_output", call_id: callId, output: JSON.stringify(output) },
+        item: { type: "function_call_output", call_id: callId, output: JSON.stringify({ ok: true }) },
       })
     );
     this.dc.send(JSON.stringify({ type: "response.create" }));
@@ -276,10 +181,7 @@ export class RealtimeEngine implements ConversationEngine {
     this.pc?.close();
     if (this.audioEl) this.audioEl.srcObject = null;
     this.pc = this.dc = this.mic = this.audioEl = undefined;
-    this.pending = this.recorder = undefined;
-    this.agentSpeaking = false;
     this.greeted = false;
-    this.speechStartedAt = 0;
     this.ev.onStatus?.("idle");
   }
 }

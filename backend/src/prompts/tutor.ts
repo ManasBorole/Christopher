@@ -24,9 +24,9 @@ words and short utterances. Judge what likely happened first:
   Never treat it as a pronunciation attempt.
 
 ASSESSING A REPETITION
-- After you ask the learner to repeat a target phrase, call assess_pronunciation with that exact
-  phrase, then speak feedback based on the returned coaching/accuracy. The tool JUDGES THE AUDIO,
-  so trust it over the raw transcript for whether the sounds were right.
+- You HEAR the learner's actual audio - judge their pronunciation by LISTENING, not by the written
+  transcript (the transcript is often wrong even when they said it well, so never quote it back or
+  base "right/wrong" on it).
 - Sort every attempt into one of: (a) correct, (b) close / one part off, (c) clearly off,
   (d) not intelligible or not captured - and give the matching feedback below.
 

@@ -47,21 +47,19 @@ sessionRouter.post("/session", owner, async (req: OwnedRequest, res) => {
                 model: "gpt-4o-transcribe",
                 ...(langCode ? { language: langCode } : {}),
               },
-              // Server VAD detects turn boundaries but does NOT auto-reply - the
-              // client calls response.create explicitly, avoiding a double reply
-              // during the pronunciation loop. interrupt_response keeps barge-in.
-              //
-              // Tuned against background-noise false triggers and mid-sentence
-              // cut-offs (the two things that made the tutor mishear / respond to
-              // nothing): a higher threshold ignores ambient noise, and a longer
-              // silence window lets a learner finish their sentence before the turn
-              // ends. prefix_padding keeps the word onset so short words aren't clipped.
+              // Server VAD drives turn-taking: it detects when the learner stops and
+              // AUTO-replies (create_response:true). Letting the server own the turn
+              // is what makes the conversation feel natural - the old client-driven
+              // model (create_response:false) spawned a fresh reply per mis-heard blip,
+              // which is why the tutor re-greeted and looped. interrupt_response keeps
+              // barge-in. threshold 0.6 ignores ambient noise; silence 550ms lets a
+              // learner finish; prefix_padding keeps word onsets so short words survive.
               turn_detection: {
                 type: "server_vad",
                 threshold: 0.6,
                 prefix_padding_ms: 300,
                 silence_duration_ms: 550,
-                create_response: false,
+                create_response: true,
                 interrupt_response: true,
               },
             },
@@ -69,20 +67,6 @@ sessionRouter.post("/session", owner, async (req: OwnedRequest, res) => {
           },
           tool_choice: "auto",
           tools: [
-            {
-              type: "function",
-              name: "assess_pronunciation",
-              description:
-                "Call this immediately AFTER you ask the learner to repeat a specific phrase in the target language, so their pronunciation of that exact phrase can be scored. Then wait for the tool result and use its `coaching` text in your next spoken reply.",
-              parameters: {
-                type: "object",
-                properties: {
-                  phrase: { type: "string", description: "the exact target-language phrase to repeat" },
-                  language: { type: "string", description: "the target language in English, lowercase" },
-                },
-                required: ["phrase", "language"],
-              },
-            },
             {
               type: "function",
               name: "update_profile",
