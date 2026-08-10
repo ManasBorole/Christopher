@@ -38,10 +38,13 @@ sessionRouter.post("/session", owner, async (req: OwnedRequest, res) => {
           output_modalities: ["audio"],
           audio: {
             input: {
-              // gpt-4o-mini-transcribe (not whisper-1): far fewer hallucinated
-              // phrases on silence/noise. Lock to the learned language when known.
+              // gpt-4o-transcribe (not the -mini): the mini model mis-detects the
+              // language of short target-language clips (e.g. Japanese transcribed
+              // as Chinese), which feeds the tutor garbage and makes it re-ask /
+              // re-greet. The full model is far more accurate. Lock to the learned
+              // language when known so it can't drift to a neighbouring script.
               transcription: {
-                model: "gpt-4o-mini-transcribe",
+                model: "gpt-4o-transcribe",
                 ...(langCode ? { language: langCode } : {}),
               },
               // Server VAD detects turn boundaries but does NOT auto-reply - the
@@ -57,7 +60,7 @@ sessionRouter.post("/session", owner, async (req: OwnedRequest, res) => {
                 type: "server_vad",
                 threshold: 0.6,
                 prefix_padding_ms: 300,
-                silence_duration_ms: 700,
+                silence_duration_ms: 550,
                 create_response: false,
                 interrupt_response: true,
               },
@@ -129,9 +132,13 @@ async function loadCourse(
   let suffix = `\n\nThe learner is studying ${c.language}. Teach ${c.language}; do not switch to a different language or ask which language to learn.`;
   if (returning) {
     suffix +=
-      `\nThis is a NEW session continuing an ongoing course - greet warmly` +
+      `\nThis is a NEW session continuing an ongoing course. In your VERY FIRST message only,` +
+      ` greet warmly` +
       (c.userName ? ` by name (${c.userName})` : "") +
       ` and pick up where you left off. Do not recap the whole history.` +
+      `\nCRITICAL: greet exactly once, in that first message. You have the whole conversation in` +
+      ` context - after the first message never greet, re-introduce yourself, or restart the` +
+      ` lesson. Just continue the dialogue like a human teacher mid-conversation.` +
       `\n- Native language: ${c.nativeLanguage || "unknown"}` +
       `\n- Level: ${c.level}` +
       `\n- Words already practiced: ${c.vocabulary.slice(0, 40).join(", ") || "none yet"}` +

@@ -178,13 +178,13 @@ export class RealtimeEngine implements ConversationEngine {
           // armed but the learner didn't actually repeat -> unblock the tool call
           this.sendToolOutput(this.pending.callId, { coaching: "" });
           this.pending = undefined;
-        } else if (this.agentSpeaking) {
-          // a turn-end fired while the tutor is still talking - almost certainly
-          // the tutor's own voice echoing back into the mic. Ignore it; responding
-          // here is what creates the runaway self-reply loop.
-          break;
         } else if (Date.now() - this.speechStartedAt >= MIN_SPEECH_MS) {
-          // normal turn: let the tutor respond
+          // Real user turn. If the tutor was still talking, the learner is talking
+          // OVER it - interrupt and take their turn (natural barge-in). The old code
+          // dropped these as "echo", which (with echo cancellation already on) mostly
+          // ate genuine turns and left the learner waiting and repeating themselves.
+          // Server-side interrupt_response + echoCancellation guard the real echo case.
+          if (this.agentSpeaking) this.interrupt();
           this.requestResponse();
         }
         // else: too brief to be real speech (noise blip VAD misfired on) - ignore,
