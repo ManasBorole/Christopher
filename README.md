@@ -90,7 +90,7 @@ pick, no gates to unlock - it adapts on its own as you improve.
 | 📚 | **Auto-building vocabulary** | Every scored phrase feeds your growing word bank per language. |
 | 🌍 | **180+ languages** | Searchable, ISO 639 selector powered natively by `Intl.DisplayNames`. |
 | ⏱️ | **Deterministic turn-taking** | The client drives `response.create`, so no double-replies or crosstalk. |
-| 🔐 | **Guest-first, auth-optional** | Works instantly as an anonymous guest; Clerk sign-in is a drop-in upgrade. |
+| 🔐 | **Guest-first, auth-optional** | Works instantly as an anonymous guest; Clerk sign-in is a drop-in upgrade |
 
 <img src="./.github/assets/divider.svg" width="100%" alt="" />
 
