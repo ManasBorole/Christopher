@@ -24,8 +24,10 @@ export const env = {
   realtimeModel: opt("OPENAI_REALTIME_MODEL", "gpt-realtime-mini"),
   realtimeVoice: opt("OPENAI_REALTIME_VOICE", "alloy"),
   summaryModel: opt("OPENAI_SUMMARY_MODEL", "gpt-4o-mini"),
-  // Cheaper audio judge for pronunciation.
-  pronunciationModel: opt("OPENAI_PRONUNCIATION_MODEL", "gpt-4o-mini-audio-preview"),
+  // Cheaper audio judge for pronunciation. (gpt-4o-*-audio-preview was retired;
+  // gpt-audio-mini is the current cheap audio-in model. It does NOT support
+  // response_format:json_object - pronounce.ts asks for JSON in the prompt instead.)
+  pronunciationModel: opt("OPENAI_PRONUNCIATION_MODEL", "gpt-audio-mini"),
 };
 
 // Free-trial gate. Modular: swap these / the checks in gate.ts for paid plans
