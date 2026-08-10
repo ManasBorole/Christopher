@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { allLanguages, type Language } from "../lib/languages";
-import { langFlag } from "./ui";
+import { LangFlag } from "./ui";
 
 // Searchable, keyboard-accessible language selector. Users can only pick a real
 // language from the list -- arbitrary text never becomes a selection. Languages
@@ -118,7 +118,7 @@ export default function LanguagePicker({
                   i === active ? "bg-emerald-400/15" : ""
                 } ${owned ? "opacity-45" : ""}`}
               >
-                <span aria-hidden>{langFlag(l.name)}</span>
+                <LangFlag language={l.name} className="w-6 rounded-sm" />
                 <span>{l.name}</span>
                 {owned && <span className="ml-auto text-xs text-[var(--muted)]">Added</span>}
               </li>

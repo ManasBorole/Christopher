@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { CourseDetail, SessionMeta } from "@vta/shared";
 import { getCourse, startSession } from "../lib/api";
-import { langFlag, timeAgo, SummaryCard } from "./ui";
+import { LangFlag, timeAgo, SummaryCard } from "./ui";
 
 export default function Dashboard({
   courseId,
@@ -51,7 +51,7 @@ export default function Dashboard({
 
       {/* header */}
       <div className="mb-8 flex items-center gap-5">
-        <div className="text-6xl">{langFlag(c.language)}</div>
+        <div><LangFlag language={c.language} className="w-16 rounded shadow ring-1 ring-black/10" /></div>
         <div>
           <h1 className="font-display text-4xl font-semibold tracking-tight">{c.language}</h1>
           {c.userName && <p className="mt-1 text-sm text-[var(--muted)]">{c.userName}</p>}
