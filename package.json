@@ -12,5 +12,9 @@
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
     "build": "npm run build --workspaces --if-present"
+  },
+  "overrides": {
+    "postcss": "^8.5.26",
+    "sharp": "^0.35.3"
   }
 }
