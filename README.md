@@ -144,6 +144,8 @@ Voice Agent/
 ├── shared/      @vta/shared — Zod schemas + shared TS types (raw TS, no build)
 ├── backend/     Express — /session, /pronounce, /courses & /sessions CRUD (Prisma → Neon)
 │   └── src/routes/         one file per concern; the pronounce route is the scoring seam
+├── services/    Python reference scorer for the pronounce seam (FastAPI, standalone)
+│   └── pronunciation/      Levenshtein-based transcript scoring + coaching + self-check
 └── frontend/    Next.js 15 — RealtimeEngine (WebRTC), Zustand store, premium mic UI
     ├── components/         Landing, Home, SessionView, modals…
     └── lib/engine/         ConversationEngine seam (Realtime today, custom pipeline later)
@@ -163,6 +165,7 @@ Voice Agent/
 | **Backend** | Express · tsx (no compile step) · Multer · Zod |
 | **AI** | OpenAI Realtime (voice) · `gpt-4o-mini-audio-preview` (pronunciation) · `gpt-4o-mini` (summaries) |
 | **Data** | Prisma ORM · Neon Postgres |
+| **Services** | Python · FastAPI - standalone reference scorer for the pronounce seam |
 | **Auth** | Clerk _(optional - guest-first by default)_ |
 | **Shared** | `@vta/shared` workspace - Zod contracts across the wire |
 
@@ -244,6 +247,7 @@ Open <b><a href="http://localhost:3000">localhost:3000</a></b> → tap <b>Speak<
 | `npm run build` | Build all workspaces |
 | `npx tsx backend/src/pronounce.selfcheck.ts` | Coaching-threshold self-check - _no keys/DB needed_ |
 | `npx tsx frontend/lib/recorder.selfcheck.ts` | Audio downsample + PCM self-check - _no keys/DB needed_ |
+| `python services/pronunciation/main.py` | Python reference-scorer self-check - _no keys/DB needed_ |
 
 <img src="./.github/assets/divider.svg" width="100%" alt="" />
 
@@ -271,6 +275,13 @@ sequenceDiagram
 
 `/pronounce` is a **swappable seam** - drop in Azure Pronunciation Assessment or Speechace
 for true phoneme-level scores by rewriting only `backend/src/routes/pronounce.ts`.
+
+A standalone **Python (FastAPI)** reference implementation of this seam lives in
+`services/pronunciation/`. It grades a transcript against the reference phrase using
+Levenshtein-based similarity — a dependency-free phoneme-distance stand-in — and returns the
+same per-word score + coaching shape, so it can back `/pronounce` without the audio model.
+Run `python services/pronunciation/main.py` for its assert-based self-check, or serve it with
+`uvicorn services.pronunciation.main:app`.
 
 <img src="./.github/assets/divider.svg" width="100%" alt="" />
 
