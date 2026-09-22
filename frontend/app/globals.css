@@ -196,6 +196,64 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
+/* Mascot: a photo on a postcard. He breathes while idle, bobs while   */
+/* the tutor's audio is playing, and cross-fades between poses.        */
+/* ------------------------------------------------------------------ */
+.mascot {
+  position: relative;
+  aspect-ratio: 1145 / 1374;
+  border-radius: 22px;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--mascot-bg);
+  box-shadow: 0 0 0 6px var(--card), 0 26px 44px -24px rgb(var(--shadow) / 0.6);
+}
+.mascot-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: 50% 90%;
+  animation: mascot-breathe 4.4s ease-in-out infinite;
+}
+.mascot-layer.is-entering {
+  animation: mascot-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both, mascot-breathe 4.4s ease-in-out 0.42s infinite;
+}
+.mascot.is-talking .mascot-layer {
+  animation: mascot-talk 0.32s ease-in-out infinite alternate;
+}
+@keyframes mascot-in {
+  from {
+    opacity: 0;
+    transform: scale(1.02) translateY(6px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes mascot-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.006, 1.013);
+  }
+}
+@keyframes mascot-talk {
+  from {
+    transform: translateY(0) rotate(0);
+  }
+  to {
+    transform: translateY(-3px) rotate(0.35deg) scale(1.004);
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Ambient background - layered aurora blobs + fine grain              */
 /* ------------------------------------------------------------------ */
 .aurora {
