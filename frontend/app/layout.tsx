@@ -27,9 +27,15 @@ export const metadata: Metadata = {
 
 const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
+// Runs before first paint so a saved light/dark choice never flashes the other theme.
+const themeBoot = `try{var t=localStorage.getItem("chr-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const shell = (
-    <html lang="en" className={fontVars}>
+    <html lang="en" className={fontVars} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
+      </head>
       <body className="min-h-screen">
         <div className="aurora" aria-hidden />
         <div className="grain" aria-hidden />
