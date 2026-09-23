@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { allLanguages, type Language } from "../lib/languages";
-import { LangFlag } from "./ui";
+import { allLanguages, searchLanguages, type Language } from "../lib/languages";
 
 // Searchable, keyboard-accessible language selector. Users can only pick a real
 // language from the list -- arbitrary text never becomes a selection. Languages
-// already in `existing` (lowercased names) are shown as disabled with a note so
-// duplicate cards can't be created.
+// already in `existing` (lowercased English names) stay visible but can't be
+// picked twice. No flags: languages aren't countries.
 export default function LanguagePicker({
   existing,
   busy,
@@ -25,15 +24,7 @@ export default function LanguagePicker({
   const [dupe, setDupe] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const base = q ? langs.filter((l) => l.name.toLowerCase().includes(q)) : langs;
-    // Prefix matches first, then the rest -- feels like real autocomplete.
-    if (!q) return base.slice(0, 60);
-    const starts = base.filter((l) => l.name.toLowerCase().startsWith(q));
-    const rest = base.filter((l) => !l.name.toLowerCase().startsWith(q));
-    return [...starts, ...rest].slice(0, 60);
-  }, [langs, query]);
+  const results = useMemo(() => searchLanguages(langs, query).slice(0, 80), [langs, query]);
 
   useEffect(() => setActive(0), [query]);
 
@@ -71,11 +62,15 @@ export default function LanguagePicker({
   const listboxId = "lang-listbox";
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
+      <label htmlFor="lang-search" className="text-sm text-muted">
+        Search in English or type it the way you&apos;d write it
+      </label>
       <input
+        id="lang-search"
         autoFocus
         role="combobox"
-        aria-expanded="true"
+        aria-expanded={results.length > 0}
         aria-controls={listboxId}
         aria-autocomplete="list"
         aria-activedescendant={results[active] ? `lang-opt-${results[active].code}` : undefined}
@@ -86,8 +81,9 @@ export default function LanguagePicker({
           setDupe(null);
         }}
         onKeyDown={onKeyDown}
-        placeholder="Search a language…"
-        className="w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-3 py-2 text-sm outline-none focus:border-emerald-400/50"
+        placeholder="Try “marathi”, “日本”, or “arab”"
+        autoComplete="off"
+        className="w-full rounded-xl border-[1.5px] border-line bg-paper px-4 py-3 text-base text-ink placeholder:text-muted"
       />
 
       <ul
@@ -95,10 +91,12 @@ export default function LanguagePicker({
         id={listboxId}
         role="listbox"
         aria-label="Languages"
-        className="max-h-48 overflow-y-auto rounded-xl border border-[var(--line)] bg-black/20"
+        className="max-h-[min(22rem,50vh)] overflow-y-auto overscroll-contain rounded-xl bg-paper p-1"
       >
         {results.length === 0 ? (
-          <li className="px-3 py-2 text-sm text-[var(--muted)]">No languages match.</li>
+          <li className="px-3 py-3 text-sm text-muted">
+            Nothing called “{query.trim()}” yet. Try its English name, like “Japanese”.
+          </li>
         ) : (
           results.map((l, i) => {
             const owned = existing.has(l.name.toLowerCase());
@@ -114,13 +112,15 @@ export default function LanguagePicker({
                   e.preventDefault(); // keep input focus
                   choose(l);
                 }}
-                className={`flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition ${
-                  i === active ? "bg-emerald-400/15" : ""
-                } ${owned ? "opacity-45" : ""}`}
+                className={`flex cursor-pointer items-baseline gap-3 rounded-lg px-3 py-2.5 ${
+                  i === active ? "bg-card shadow-[inset_0_0_0_1.5px_var(--ink)]" : ""
+                } ${owned ? "opacity-50" : ""}`}
               >
-                <LangFlag language={l.name} className="w-6 rounded-sm" />
-                <span>{l.name}</span>
-                {owned && <span className="ml-auto text-xs text-[var(--muted)]">Added</span>}
+                <span lang={l.code} dir={l.rtl ? "rtl" : "ltr"} className="font-display text-lg font-bold">
+                  {l.native}
+                </span>
+                {l.native !== l.name && <span className="text-sm text-muted">{l.name}</span>}
+                {owned && <span className="ml-auto text-xs font-semibold text-muted">Already learning</span>}
               </li>
             );
           })
@@ -128,12 +128,12 @@ export default function LanguagePicker({
       </ul>
 
       {dupe && (
-        <p role="status" className="text-xs text-amber-300/90">
-          You&apos;re already learning {dupe}.
+        <p role="status" className="text-sm text-alert-ink">
+          You&apos;re already learning {dupe}. Open it from your languages instead.
         </p>
       )}
 
-      <button onClick={onCancel} className="btn-ghost py-1.5 text-sm">
+      <button type="button" onClick={onCancel} className="btn-quiet self-start">
         Cancel
       </button>
     </div>
