@@ -5,7 +5,12 @@
 // comprehensive, reliable list of world languages without hand-maintaining
 // ~180 display strings, and it localises for free.
 
-export type Language = { code: string; name: string };
+// name = English name (what we store and send to the backend).
+// native = the language's own name for itself, e.g. "मराठी" for Marathi.
+export type Language = { code: string; name: string; native: string; rtl: boolean };
+
+// Scripts written right to left among the codes below.
+const RTL = new Set(["ar", "dv", "fa", "he", "ks", "ps", "sd", "ug", "ur", "yi"]);
 
 // Full ISO 639-1 set.
 const CODES = [
@@ -44,9 +49,30 @@ export function allLanguages(): Language[] {
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    list.push({ code, name });
+    list.push({ code, name, native: nativeName(code) ?? name, rtl: RTL.has(code) });
   }
   list.sort((a, b) => a.name.localeCompare(b.name));
   cache = list;
   return list;
+}
+
+// The autonym, capitalised the way the language itself would start a label.
+function nativeName(code: string): string | null {
+  try {
+    const n = new Intl.DisplayNames([code], { type: "language" }).of(code);
+    if (!n || n.toLowerCase() === code) return null;
+    return n.charAt(0).toLocaleUpperCase(code) + n.slice(1);
+  } catch {
+    return null;
+  }
+}
+
+// Match against the English name or the native one ("jap", "日本", "marathi").
+export function searchLanguages(list: Language[], query: string): Language[] {
+  const q = query.trim().toLocaleLowerCase();
+  if (!q) return list;
+  const hit = (l: Language) => l.name.toLowerCase().includes(q) || l.native.toLocaleLowerCase().includes(q);
+  const starts = (l: Language) => l.name.toLowerCase().startsWith(q) || l.native.toLocaleLowerCase().startsWith(q);
+  const all = list.filter(hit);
+  return [...all.filter(starts), ...all.filter((l) => !starts(l))];
 }
