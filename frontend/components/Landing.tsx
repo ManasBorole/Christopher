@@ -31,6 +31,7 @@ export default function Landing({
       <Hero lang={lang} setLang={setLang} onStart={start} />
       <Greetings />
       <Meet />
+      <AfterTalk />
       <Close lang={lang} onStart={start} />
       <Footer />
     </main>
@@ -311,6 +312,42 @@ function Meet() {
           ))}
         </div>
         <p className="mt-4 min-h-[3em] max-w-[46ch] text-[15px] text-muted">{m ? m.note : "Press a moment to see how he reacts."}</p>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* After each conversation: a postcard, not a grade                    */
+/* ------------------------------------------------------------------ */
+function AfterTalk() {
+  return (
+    <section aria-labelledby="after-h" className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-28 sm:px-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,.9fr)] lg:gap-16">
+      <div className="md:order-2">
+        <h2 id="after-h" className="font-display text-[clamp(2rem,4.2vw,3.1rem)] font-extrabold leading-[1.05] tracking-[-0.025em] text-balance">
+          After every conversation, a postcard.
+        </h2>
+        <p className="mt-4 max-w-[46ch] text-lg text-muted">
+          The words you actually used, the one thing worth trying next time, and nothing that feels like a test score.
+          Christopher remembers it for your next chat.
+        </p>
+      </div>
+      <div className="relative mx-auto w-full max-w-[520px] md:order-1">
+        <article className="sticker relative z-10 -rotate-2 p-5 sm:p-6">
+          <p className="font-hand text-xl text-muted">Greetings from</p>
+          <h3 className="font-display text-3xl font-extrabold tracking-[-0.02em] text-tutor">Spanish, day 3</h3>
+          <p className="mt-4 text-sm font-semibold text-muted">Words you used</p>
+          <ul className="mt-2 flex flex-wrap gap-2" lang="es">
+            {["cenar", "pedí", "sopa", "buena", "la cuenta"].map((w) => (
+              <li key={w} className="rounded-[4px] border-[1.5px] border-dashed border-tutor px-2.5 py-1 text-[15px]">
+                {w}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-sm font-semibold text-muted">Next time</p>
+          <p className="mt-1">Ordering in a café, in the past tense.</p>
+        </article>
+        <Mascot pose="postcard" className="absolute -bottom-10 -right-2 z-20 w-28 rotate-3 sm:-right-8 sm:w-36" />
       </div>
     </section>
   );
