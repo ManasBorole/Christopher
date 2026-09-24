@@ -429,6 +429,20 @@ body {
   }
 }
 
+/* greeting stickers in the two voice colours; the white die-cut edge stays */
+.hello-tutor {
+  background: var(--tutor);
+  border-color: var(--tutor);
+  color: var(--on-tutor);
+  box-shadow: 0 0 0 6px var(--card), 0 14px 24px -12px rgb(var(--shadow) / 0.55);
+}
+.hello-learner {
+  background: var(--learner);
+  border-color: var(--learner);
+  color: var(--on-learner);
+  box-shadow: 0 0 0 6px var(--card), 0 14px 24px -12px rgb(var(--shadow) / 0.55);
+}
+
 /* ------------------------------------------------------------------ */
 /* Ambient background - layered aurora blobs + fine grain              */
 /* ------------------------------------------------------------------ */
