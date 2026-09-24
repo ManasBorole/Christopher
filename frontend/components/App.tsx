@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { createCourse, listCourses, startSession } from "../lib/api";
+import Mascot from "./Mascot";
 import AuthBar from "./AuthBar";
 import ThemeToggle from "./ThemeToggle";
 import Wordmark from "./Wordmark";
@@ -22,13 +25,39 @@ export default function App({
   onOpenCourse,
   onStartSession,
   onBack,
+  autoStart,
+  onAutoStarted,
+  onAutoStartFailed,
 }: {
   screen: AppScreen;
   onHome: () => void;
   onOpenCourse: (courseId: string) => void;
   onStartSession: (sessionId: string, language: string, userName: string) => void;
   onBack: () => void;
+  // Language picked on the landing: open (or create) its course and go straight
+  // into a conversation instead of stopping at the course list.
+  autoStart?: string | null;
+  onAutoStarted?: (courseId: string, sessionId: string, language: string, userName: string) => void;
+  onAutoStartFailed?: () => void;
 }) {
+  const started = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoStart || started.current === autoStart) return; // once per pick, even under StrictMode
+    started.current = autoStart;
+    (async () => {
+      try {
+        const cards = await listCourses();
+        const found = cards.find((c) => c.language.toLowerCase() === autoStart.toLowerCase());
+        const id = found?.id ?? (await createCourse(autoStart)).id;
+        const sid = await startSession(id);
+        onAutoStarted?.(id, sid, autoStart, found?.userName ?? "");
+      } catch {
+        onAutoStartFailed?.();
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
+
   return (
     <main className="relative min-h-screen">
       <nav className="sticky top-0 z-30 bg-[color-mix(in_srgb,var(--paper)_90%,transparent)] pt-1.5">
@@ -45,7 +74,13 @@ export default function App({
         </div>
       </nav>
 
-      {screen.v === "home" && <Home onOpenCourse={onOpenCourse} />}
+      {screen.v === "home" && autoStart && (
+        <section aria-live="polite" className="mx-auto flex max-w-md flex-col items-center gap-6 px-4 py-16 text-center">
+          <Mascot pose="wave" className="w-48" priority />
+          <p className="font-display text-2xl font-bold">Getting your {autoStart} conversation ready…</p>
+        </section>
+      )}
+      {screen.v === "home" && !autoStart && <Home onOpenCourse={onOpenCourse} />}
 
       {screen.v === "dashboard" && (
         <Dashboard courseId={screen.courseId} onBack={onBack} onStartSession={onStartSession} />
