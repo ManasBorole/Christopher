@@ -96,7 +96,7 @@ export default function Page() {
         </div>
       )}
 
-      {authOpen && <AuthOverlay onEnter={enterApp} />}
+      {authOpen && <AuthOverlay onEnter={enterApp} onClose={() => setAuthOpen(false)} />}
       {booting && <Splash />}
     </>
   );
