@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useScrollScene } from "../hooks/useScrollScene";
-import Mascot from "./Mascot";
+import Mascot, { type MascotPose } from "./Mascot";
 import ThemeToggle from "./ThemeToggle";
 import Wordmark from "./Wordmark";
 
@@ -30,6 +30,7 @@ export default function Landing({
       <LandingNav onSignIn={onSignIn} />
       <Hero lang={lang} setLang={setLang} onStart={start} />
       <Greetings />
+      <Meet />
       <Close lang={lang} onStart={start} />
       <Footer />
     </main>
@@ -237,6 +238,79 @@ function Greetings() {
         <p ref={endRef} className="absolute inset-x-4 bottom-[7%] z-[5000] text-center font-hand text-[26px] text-muted opacity-0">
           …and yours, when you&apos;re ready.
         </p>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Meet Christopher: his body language is the conversation state       */
+/* ------------------------------------------------------------------ */
+const MOMENTS: { key: string; label: string; pose: MascotPose; talking?: boolean; line: string; note: string }[] = [
+  { key: "listen", label: "Listening", pose: "listen", line: "Listening. Take your time.", note: "Leans in with his paws together. He never rushes you." },
+  { key: "think", label: "Thinking", pose: "think", line: "Thinking about what you said", note: "Paw to his head for a moment before he answers." },
+  { key: "speak", label: "Speaking", pose: "speak", talking: true, line: "Christopher is speaking", note: "Talks with his paws while his voice is playing." },
+  { key: "goahead", label: "You cut in", pose: "goahead", line: "You cut in, so he stopped", note: "Stops mid-word and hands the turn back to you." },
+];
+
+function Meet() {
+  const ref = useRef<HTMLElement>(null);
+  const [pose, setPose] = useState<MascotPose>("idle");
+  const [active, setActive] = useState<string | null>(null);
+
+  // Wave once when he first comes into view.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let t: ReturnType<typeof setTimeout>;
+    const io = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) return;
+      io.disconnect();
+      setPose("wave");
+      t = setTimeout(() => setPose((p) => (p === "wave" ? "idle" : p)), 1800);
+    }, { threshold: 0.4 });
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      clearTimeout(t);
+    };
+  }, []);
+
+  const m = MOMENTS.find((x) => x.key === active);
+
+  return (
+    <section ref={ref} aria-labelledby="meet-h" className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-24 sm:px-6 md:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)] lg:gap-16 lg:py-32">
+      <div className="mx-auto w-full max-w-[380px]">
+        <Mascot pose={pose} talking={!!m?.talking} />
+        <p aria-live="polite" className="mt-5 min-h-[1.5em] text-center font-display text-xl font-bold">
+          {m ? m.line : "Hi, I'm Christopher."}
+        </p>
+      </div>
+      <div>
+        <h2 id="meet-h" className="font-display text-[clamp(2rem,4.2vw,3.1rem)] font-extrabold leading-[1.05] tracking-[-0.025em] text-balance">
+          Meet Christopher. You&apos;ll always know whose turn it is.
+        </h2>
+        <p className="mt-4 max-w-[48ch] text-lg text-muted">
+          A patient fox with a satchel full of phrases. His body language follows the conversation, so you can tell at
+          a glance whether he&apos;s listening, thinking, or talking.
+        </p>
+        <div role="group" aria-label="See how Christopher reacts" className="mt-7 flex flex-wrap gap-2">
+          {MOMENTS.map((x) => (
+            <button
+              key={x.key}
+              type="button"
+              aria-pressed={active === x.key}
+              onClick={() => {
+                setActive(x.key);
+                setPose(x.pose);
+              }}
+              className="rounded-full border-[1.5px] border-line bg-card px-4 py-2 text-[15px] font-semibold aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-paper"
+            >
+              {x.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-4 min-h-[3em] max-w-[46ch] text-[15px] text-muted">{m ? m.note : "Press a moment to see how he reacts."}</p>
       </div>
     </section>
   );
