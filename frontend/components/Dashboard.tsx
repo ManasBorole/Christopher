@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 import type { CourseDetail, SessionMeta } from "@vta/shared";
 import { getCourse, startSession } from "../lib/api";
-import { NativeName, timeAgo, SummaryCard } from "./ui";
+import { findLanguage } from "../lib/languages";
+import { timeAgo, SummaryCard } from "./ui";
+import Mascot from "./Mascot";
+
+const PREVIEW_WORDS = 24;
 
 export default function Dashboard({
   courseId,
@@ -14,105 +18,139 @@ export default function Dashboard({
   onBack: () => void;
   onStartSession: (sessionId: string, language: string, userName: string) => void;
 }) {
-  const [c, setC] = useState<CourseDetail | null>(null);
+  // undefined = loading, null = failed to load
+  const [c, setC] = useState<CourseDetail | null | undefined>(undefined);
   const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState(false);
   const [wordsOpen, setWordsOpen] = useState(false);
 
-  useEffect(() => {
-    getCourse(courseId).then(setC);
-  }, [courseId]);
+  function load() {
+    setC(undefined);
+    getCourse(courseId)
+      .then(setC)
+      .catch(() => setC(null));
+  }
+  useEffect(load, [courseId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function begin() {
     if (!c || starting) return;
     setStarting(true);
+    setStartError(false);
     try {
       const sid = await startSession(courseId);
       onStartSession(sid, c.language, c.userName);
+    } catch {
+      setStartError(true);
     } finally {
       setStarting(false);
     }
   }
 
-  if (!c) {
+  const back = (
+    <button type="button" onClick={onBack} className="mb-8 text-[15px] font-semibold text-muted hover:text-ink">
+      <span aria-hidden>‹ </span>Your languages
+    </button>
+  );
+
+  if (c === undefined) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-14">
-        <div className="glass h-40 animate-pulse rounded-3xl" />
+      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6" aria-busy>
+        {back}
+        <div className="h-12 w-48 animate-pulse rounded-xl bg-card-2" />
+        <div className="mt-4 h-5 w-72 animate-pulse rounded-lg bg-card-2" />
       </div>
     );
   }
 
+  if (c === null) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+        {back}
+        <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
+          <Mascot pose="reconnecting" className="w-36 shrink-0" />
+          <div>
+            <h1 className="font-display text-3xl font-extrabold tracking-[-0.02em]">This language didn&apos;t load</h1>
+            <p className="mt-2 max-w-[44ch] text-muted">Christopher couldn&apos;t reach your progress. Check your connection, then try again.</p>
+            <button type="button" onClick={load} className="btn mt-5">
+              Try again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const l = findLanguage(c.language);
   const completed = c.sessions.filter((s) => s.endedAt).length;
+  const last = c.sessions[0] ? `last spoke ${timeAgo(c.sessions[0].startedAt)}` : "no conversations yet";
+  const words = c.vocabulary;
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12 animate-fadeup">
-      <button onClick={onBack} className="btn-ghost mb-8 px-4 py-1.5 text-sm">
-        &larr; All languages
-      </button>
+    <div className="mx-auto max-w-4xl px-4 pb-20 pt-10 sm:px-6">
+      {back}
 
-      {/* header */}
-      <div className="mb-8 flex items-center gap-5">
-        <NativeName language={c.language} className="font-display text-5xl font-bold" />
+      <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-4xl font-semibold tracking-tight">{c.language}</h1>
-          {c.userName && <p className="mt-1 text-sm text-[var(--muted)]">{c.userName}</p>}
-        </div>
-      </div>
-
-      {/* continue CTA */}
-      <div className="glass mb-8 flex flex-col items-start gap-4 rounded-3xl p-6 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-display text-xl font-semibold">Continue learning</h2>
-          <p className="text-sm text-[var(--muted)]">Starts a fresh conversation - your tutor remembers your progress.</p>
-        </div>
-        <button onClick={begin} disabled={starting} className="btn-primary shrink-0 disabled:opacity-50">
-          {starting ? "Starting..." : "Start a session"}
-        </button>
-      </div>
-
-      {/* progress stats */}
-      <div className="mb-8 grid grid-cols-3 gap-4">
-        <Stat label="Sessions" value={completed} />
-        <Stat label="Words learned" value={c.vocabulary.length} />
-        <Stat label="Last active" value={c.sessions[0] ? timeAgo(c.sessions[0].startedAt) : "-"} small />
-      </div>
-
-      {/* learned words - opened in a dialog, not shown inline */}
-      <Panel title="Learned words">
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-[var(--muted)]">
-            {c.vocabulary.length === 0
-              ? "No words yet - start a session to begin."
-              : `${c.vocabulary.length} words${c.pronunciationNotes.length ? ` · ${c.pronunciationNotes.length} notes` : ""}`}
+          <h1 lang={l?.code} dir={l?.rtl ? "rtl" : undefined} className="font-display text-[clamp(2.75rem,8vw,4.5rem)] font-extrabold leading-none tracking-[-0.03em]">
+            {l?.native ?? c.language}
+          </h1>
+          <p className="mt-3 text-muted">
+            {l && l.native !== c.language ? `${c.language}. ` : ""}
+            {words.length} {words.length === 1 ? "word" : "words"}, {completed} {completed === 1 ? "conversation" : "conversations"}, {last}.
           </p>
-          {c.vocabulary.length > 0 && (
-            <button onClick={() => setWordsOpen(true)} className="btn-ghost px-4 py-1.5 text-sm">
-              View words
-            </button>
+        </div>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <button type="button" onClick={begin} disabled={starting} className="btn text-[17px]">
+            {starting ? "Opening…" : `Start talking in ${c.language}`}
+          </button>
+          <p className="text-sm text-muted">Christopher remembers where you left off.</p>
+          {startError && (
+            <p role="alert" className="text-sm text-alert-ink">
+              Couldn&apos;t start a conversation. Check your connection and try again.
+            </p>
           )}
         </div>
-      </Panel>
+      </header>
 
-      {/* session summaries */}
-      <Panel title="Session history">
-        {c.sessions.length === 0 ? (
-          <p className="text-sm text-[var(--muted)]">No sessions yet.</p>
+      <section aria-labelledby="words-h" className="mt-14">
+        <h2 id="words-h" className="font-display text-2xl font-extrabold tracking-[-0.02em]">
+          Words you&apos;ve used
+        </h2>
+        {words.length === 0 ? (
+          <p className="mt-2 text-muted">None yet. They collect here as you talk.</p>
         ) : (
-          <div className="space-y-3">
+          <>
+            <ul lang={l?.code} className="mt-4 flex flex-wrap gap-2">
+              {words.slice(0, PREVIEW_WORDS).map((w) => (
+                <li key={w} className="rounded-[4px] border-[1.5px] border-dashed border-tutor bg-card px-2.5 py-1 text-[15px]">
+                  {w}
+                </li>
+              ))}
+            </ul>
+            <button type="button" onClick={() => setWordsOpen(true)} className="btn-quiet mt-4 text-[15px]">
+              {words.length > PREVIEW_WORDS ? `See all ${words.length} words with meanings` : "See meanings"}
+            </button>
+          </>
+        )}
+      </section>
+
+      <section aria-labelledby="hist-h" className="mt-14">
+        <h2 id="hist-h" className="font-display text-2xl font-extrabold tracking-[-0.02em]">
+          Your postcards
+        </h2>
+        {c.sessions.length === 0 ? (
+          <p className="mt-2 text-muted">After each conversation, a postcard with what you practised lands here.</p>
+        ) : (
+          <ul className="mt-4 grid gap-3">
             {c.sessions.map((s) => (
               <SessionRow key={s.id} s={s} />
             ))}
-          </div>
+          </ul>
         )}
-      </Panel>
+      </section>
 
       {wordsOpen && (
-        <WordsDialog
-          language={c.language}
-          words={c.vocabulary}
-          meanings={c.meanings}
-          notes={c.pronunciationNotes}
-          onClose={() => setWordsOpen(false)}
-        />
+        <WordsDialog language={c.language} code={l?.code} words={words} meanings={c.meanings} notes={c.pronunciationNotes} onClose={() => setWordsOpen(false)} />
       )}
     </div>
   );
@@ -120,12 +158,14 @@ export default function Dashboard({
 
 function WordsDialog({
   language,
+  code,
   words,
   meanings,
   notes,
   onClose,
 }: {
   language: string;
+  code?: string;
   words: string[];
   meanings: Record<string, string>;
   notes: string[];
@@ -135,33 +175,34 @@ function WordsDialog({
     <div
       role="dialog"
       aria-modal="true"
-      onClick={onClose}
-      className="fixed inset-0 z-50 grid place-items-center p-4"
-      style={{ background: "rgba(4,5,10,.6)", backdropFilter: "blur(14px)", animation: "fadeIn .3s both" }}
+      aria-labelledby="words-title"
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+      className="sheet-backdrop"
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="glass max-h-[80vh] w-full max-w-md overflow-y-auto rounded-[28px] p-7 animate-scalein"
-        style={{ boxShadow: "0 40px 120px -30px rgba(0,0,0,.8)" }}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">{language} words</h2>
-          <button onClick={onClose} className="text-[var(--muted)] hover:text-[var(--fg)]" aria-label="Close">
-            ✕
+      <div className="sheet">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <h2 id="words-title" className="font-display text-2xl font-extrabold tracking-[-0.02em]">
+            Your {language} words
+          </h2>
+          <button type="button" autoFocus onClick={onClose} className="btn-quiet px-4 py-2 text-sm">
+            Close
           </button>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <ul className="grid gap-1.5">
           {words.map((w) => (
-            <span key={w} className="glass rounded-full px-3 py-1 text-sm">
-              {w}
-              {meanings[w] && <span className="text-[var(--muted)]"> — {meanings[w]}</span>}
-            </span>
+            <li key={w} className="flex items-baseline justify-between gap-4 border-b border-line py-2 last:border-0">
+              <span lang={code} className="font-semibold">
+                {w}
+              </span>
+              {meanings[w] && <span className="text-right text-muted">{meanings[w]}</span>}
+            </li>
           ))}
-        </div>
+        </ul>
         {notes.length > 0 && (
-          <div className="mt-5">
-            <h3 className="mb-1 text-xs uppercase tracking-wider text-[var(--muted)]">Notes to revise</h3>
-            <ul className="list-inside list-disc space-y-0.5 text-sm text-[var(--muted)]">
+          <div className="mt-6">
+            <h3 className="font-display text-lg font-bold">To practise again</h3>
+            <ul className="mt-2 grid gap-1.5 text-[15px] text-muted">
               {notes.slice(0, 20).map((n, i) => (
                 <li key={i}>{n}</li>
               ))}
@@ -176,48 +217,35 @@ function WordsDialog({
 function SessionRow({ s }: { s: SessionMeta }) {
   const [open, setOpen] = useState(false);
   const date = new Date(s.startedAt).toLocaleString(undefined, {
+    weekday: "short",
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
+  const turns = `${s.turnCount} ${s.turnCount === 1 ? "turn" : "turns"}`;
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/[0.02]">
+    <li className="rounded-2xl bg-card shadow-[0_1px_0_rgb(var(--shadow)/0.05),0_10px_20px_-16px_rgb(var(--shadow)/0.5)]">
       <button
+        type="button"
         onClick={() => s.summary && setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left"
+        aria-expanded={s.summary ? open : undefined}
+        disabled={!s.summary}
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left disabled:cursor-default"
       >
-        <div>
-          <p className="text-sm font-medium">{date}</p>
-          <p className="text-xs text-[var(--muted)]">
-            {s.turnCount} turns {s.hasSummary ? "· summary saved" : "· no summary"}
-          </p>
-        </div>
-        {s.summary && <span className="text-[var(--muted)]">{open ? "−" : "+"}</span>}
+        <span>
+          <span className="block font-semibold">{date}</span>
+          <span className="text-sm text-muted">{s.summary ? `${turns}. Postcard saved.` : `${turns}. No postcard for this one.`}</span>
+        </span>
+        {s.summary && (
+          <span className="text-sm font-semibold text-tutor">{open ? "Hide" : "Read"}</span>
+        )}
       </button>
       {open && s.summary && (
-        <div className="border-t border-[var(--line)] p-4">
+        <div className="px-3 pb-3">
           <SummaryCard summary={s.summary} />
         </div>
       )}
-    </div>
-  );
-}
-
-function Stat({ label, value, small }: { label: string; value: string | number; small?: boolean }) {
-  return (
-    <div className="glass rounded-2xl p-4 text-center">
-      <div className={`font-display font-bold ${small ? "text-lg" : "text-3xl"} gradient-text`}>{value}</div>
-      <div className="mt-1 text-xs text-[var(--muted)]">{label}</div>
-    </div>
-  );
-}
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="glass mb-6 rounded-3xl p-6">
-      <h3 className="mb-4 font-display text-lg font-semibold">{title}</h3>
-      {children}
-    </section>
+    </li>
   );
 }
