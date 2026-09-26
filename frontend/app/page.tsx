@@ -76,7 +76,7 @@ export default function Page() {
           }}
         />
       ) : (
-        <div style={{ animation: "reveal .9s cubic-bezier(.2,.8,.2,1) both" }}>
+        <div style={{ animation: "app-in .5s ease both" }}>
           <App
             screen={current.screen}
             onHome={() => push({ nav: "app", screen: { v: "home" } })}
@@ -92,7 +92,7 @@ export default function Page() {
             }}
             onAutoStartFailed={() => setPendingLang(null)}
           />
-          <style>{`@keyframes reveal{from{opacity:0;transform:translateY(22px) scale(.985)}to{opacity:1;transform:none}}`}</style>
+          <style>{`@keyframes app-in{from{opacity:0}}`}</style>
         </div>
       )}
 
