@@ -75,6 +75,48 @@ function useMouth(talking: boolean): Mouth {
 }
 const FADE_MS = 560;
 
+// Tilts the frame's contents a few degrees toward the pointer, like a photo
+// catching the light. Mouse devices only; skipped for reduced motion and while
+// the mascot is off screen.
+function useTilt(frame: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return;
+    if (!matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let visible = false;
+    let raf = 0;
+    let px = 0;
+    let py = 0;
+    const io = new IntersectionObserver(([e]) => {
+      visible = e.isIntersecting;
+    });
+    io.observe(el);
+    const apply = () => {
+      raf = 0;
+      const r = el.getBoundingClientRect();
+      // -1..1 from the frame's centre, damped beyond one frame-width away
+      const x = Math.max(-1, Math.min(1, (px - (r.left + r.width / 2)) / r.width));
+      const y = Math.max(-1, Math.min(1, (py - (r.top + r.height / 2)) / r.height));
+      el.style.setProperty("--tilt-x", `${(-y * 4).toFixed(2)}deg`);
+      el.style.setProperty("--tilt-y", `${(x * 5).toFixed(2)}deg`);
+      el.style.setProperty("--light-x", `${(50 + x * 30).toFixed(1)}%`);
+      el.style.setProperty("--light-y", `${(35 + y * 25).toFixed(1)}%`);
+    };
+    const onMove = (e: PointerEvent) => {
+      px = e.clientX;
+      py = e.clientY;
+      if (visible && !raf) raf = requestAnimationFrame(apply);
+    };
+    addEventListener("pointermove", onMove, { passive: true });
+    return () => {
+      removeEventListener("pointermove", onMove);
+      cancelAnimationFrame(raf);
+      io.disconnect();
+    };
+  }, [frame]);
+}
+
 // Christopher, framed like a photo on a postcard. Pose changes dissolve;
 // `talking` moves his mouth and adds a speech bob while the tutor's audio plays.
 export default function Mascot({
@@ -91,6 +133,8 @@ export default function Mascot({
   const [layers, setLayers] = useState<Layer[]>([{ pose, id: 0 }]);
   const mouth = useMouth(talking && pose === "speak");
   const settleRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  useTilt(frameRef);
 
   // Decode the next pose before fading to it, so the swap never shows a
   // half-loaded image; a newer pose request wins over a slower older one.
@@ -143,7 +187,8 @@ export default function Mascot({
   }, []);
 
   return (
-    <div className={`mascot ${talking ? "is-talking" : ""} ${className}`}>
+    <div ref={frameRef} className={`mascot ${talking ? "is-talking" : ""} ${className}`}>
+      <div className="mascot-tilt">
       {/* settle > sway > breathe/talk > pose layers: each motion on its own element so they stack */}
       <div ref={settleRef} className="mascot-settle">
       <div className="mascot-sway">
@@ -185,6 +230,8 @@ export default function Mascot({
         </div>
       </div>
       </div>
+      </div>
+      <div className="mascot-sheen" aria-hidden />
     </div>
   );
 }
