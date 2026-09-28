@@ -38,6 +38,7 @@ const still = (p: MascotPose) => `/mascot/${FILE[p]}.webp`;
 const VIDEO: Partial<Record<MascotPose, string>> = {};
 
 type Layer = { pose: MascotPose; id: number };
+const FADE_MS = 560;
 
 // Christopher, framed like a photo on a postcard. Pose changes cross-fade;
 // `talking` adds a speech bob while the tutor's audio is actually playing.
@@ -54,17 +55,31 @@ export default function Mascot({
 }) {
   const [layers, setLayers] = useState<Layer[]>([{ pose, id: 0 }]);
 
+  // Decode the next pose before fading to it, so the swap never shows a
+  // half-loaded image; a newer pose request wins over a slower older one.
   useEffect(() => {
-    setLayers((ls) => {
-      const top = ls[ls.length - 1];
-      return top.pose === pose ? ls : [top, { pose, id: top.id + 1 }];
-    });
+    let alive = true;
+    const img = new Image();
+    img.src = still(pose);
+    img
+      .decode()
+      .catch(() => {})
+      .then(() => {
+        if (!alive) return;
+        setLayers((ls) => {
+          const top = ls[ls.length - 1];
+          return top.pose === pose ? ls : [top, { pose, id: top.id + 1 }];
+        });
+      });
+    return () => {
+      alive = false;
+    };
   }, [pose]);
 
-  // Drop the outgoing layer once the incoming one has faded in.
+  // Drop the outgoing layer once the dissolve has finished.
   useEffect(() => {
     if (layers.length < 2) return;
-    const t = setTimeout(() => setLayers((ls) => ls.slice(-1)), 450);
+    const t = setTimeout(() => setLayers((ls) => ls.slice(-1)), FADE_MS + 40);
     return () => clearTimeout(t);
   }, [layers]);
 
@@ -81,7 +96,7 @@ export default function Mascot({
   return (
     <div className={`mascot ${talking ? "is-talking" : ""} ${className}`}>
       {layers.map((l, i) => {
-        const cls = `mascot-layer ${layers.length > 1 && i === layers.length - 1 ? "is-entering" : ""}`;
+        const cls = `mascot-layer ${layers.length > 1 ? (i === layers.length - 1 ? "is-entering" : "is-leaving") : ""}`;
         const clip = VIDEO[l.pose];
         return clip ? (
           <video key={l.id} className={cls} src={clip} poster={still(l.pose)} autoPlay loop muted playsInline aria-hidden />
