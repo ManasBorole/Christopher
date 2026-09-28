@@ -176,11 +176,14 @@ export default function Mascot({
     return () => clearTimeout(t);
   }, [layers]);
 
-  // Warm the cache so the first switch to any pose doesn't flash empty.
+  // Warm the cache so the first switch to any pose, or the first word, doesn't flash empty.
   useEffect(() => {
     const t = setTimeout(() => {
       (Object.keys(FILE) as MascotPose[]).forEach((p) => {
         new Image().src = still(p);
+      });
+      ["half", "closed"].forEach((m) => {
+        new Image().src = `/mascot/patch/speak-${m}.webp`;
       });
     }, 1200);
     return () => clearTimeout(t);
