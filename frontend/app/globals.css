@@ -214,12 +214,24 @@ body {
 .mascot.is-talking .mascot-body {
   animation: mascot-talk 0.46s ease-in-out infinite alternate;
 }
-.mascot-layer {
+.mascot-layer,
+.mascot-still {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+/* mouth shapes cut from the speaking frames, feathered onto the open mouth */
+.mascot-mouth {
+  position: absolute;
+  max-width: none;
+  opacity: 0;
+  transition: opacity 70ms linear;
+  pointer-events: none;
+}
+.mascot-mouth.is-on {
+  opacity: 1;
 }
 /* Both poses move during the change: the old one softens and settles back
    while the new one sharpens into place, so it reads as motion, not a cut. */
