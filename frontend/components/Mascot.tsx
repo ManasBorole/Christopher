@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import PATCHES from "../lib/mascotPatches.json";
 
 export type MascotPose =
@@ -90,6 +90,7 @@ export default function Mascot({
 }) {
   const [layers, setLayers] = useState<Layer[]>([{ pose, id: 0 }]);
   const mouth = useMouth(talking && pose === "speak");
+  const settleRef = useRef<HTMLDivElement>(null);
 
   // Decode the next pose before fading to it, so the swap never shows a
   // half-loaded image; a newer pose request wins over a slower older one.
@@ -112,9 +113,21 @@ export default function Mascot({
     };
   }, [pose]);
 
-  // Drop the outgoing layer once the dissolve has finished.
+  // Drop the outgoing layer once the dissolve has finished. While it runs, the
+  // body dips and recovers a touch, like shifting weight into the new pose.
   useEffect(() => {
     if (layers.length < 2) return;
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      settleRef.current?.animate(
+        [
+          { transform: "none" },
+          { transform: "translateY(3px) scaleY(0.988)", offset: 0.35 },
+          { transform: "translateY(-1.5px) scaleY(1.004)", offset: 0.7 },
+          { transform: "none" },
+        ],
+        { duration: 620, easing: "ease-in-out" }
+      );
+    }
     const t = setTimeout(() => setLayers((ls) => ls.slice(-1)), FADE_MS + 40);
     return () => clearTimeout(t);
   }, [layers]);
@@ -131,7 +144,8 @@ export default function Mascot({
 
   return (
     <div className={`mascot ${talking ? "is-talking" : ""} ${className}`}>
-      {/* sway > breathe/talk > pose layers: each motion on its own element so they stack */}
+      {/* settle > sway > breathe/talk > pose layers: each motion on its own element so they stack */}
+      <div ref={settleRef} className="mascot-settle">
       <div className="mascot-sway">
         <div className="mascot-body">
       {layers.map((l, i) => {
@@ -169,6 +183,7 @@ export default function Mascot({
         );
       })}
         </div>
+      </div>
       </div>
     </div>
   );
