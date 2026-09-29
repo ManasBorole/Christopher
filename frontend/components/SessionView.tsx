@@ -37,6 +37,7 @@ export default function SessionView({
   // store's error. Keep the last one here so the learner sees what went wrong.
   const [lastError, setLastError] = useState<string | null>(null);
   const [mic, setMic] = useState<PermissionState | "unknown">("unknown");
+  const [handedBack, setHandedBack] = useState(false);
 
   // Know up front whether the mic is already allowed or blocked, so the first
   // screen can say so. Browsers without the Permissions API stay "unknown".
@@ -133,6 +134,19 @@ export default function SessionView({
     );
   }
 
+  // Learner cuts in: stop the tutor's reply and show Christopher handing the
+  // turn back until the learner's words arrive (or a few seconds pass).
+  function letMeTalk() {
+    engineRef.current?.interrupt();
+    setHandedBack(true);
+  }
+  useEffect(() => {
+    if (!handedBack) return;
+    const t = setTimeout(() => setHandedBack(false), 4000);
+    return () => clearTimeout(t);
+  }, [handedBack, s.turns.length]);
+  useEffect(() => setHandedBack(false), [s.turns.length]);
+
   // End the session: stop audio, record usage, save summary, show trial modal.
   async function end() {
     if (endedRef.current) return;
@@ -165,7 +179,7 @@ export default function SessionView({
     lastTurn,
     lastError,
     ending,
-    handedBack: false,
+    handedBack,
     mic,
   });
   const ui = PHASES[phase];
@@ -202,6 +216,11 @@ export default function SessionView({
           {(phase === "mic-blocked" || phase === "mic-missing" || phase === "failed" || phase === "dropped") && (
             <button type="button" onClick={connect} className="btn">
               {phase === "dropped" ? "Reconnect" : "Try again"}
+            </button>
+          )}
+          {phase === "speaking" && (
+            <button type="button" onClick={letMeTalk} className="btn">
+              Let me talk
             </button>
           )}
           {(phase === "listening" || phase === "thinking" || phase === "speaking" || phase === "handed-back" || phase === "dropped") && (
