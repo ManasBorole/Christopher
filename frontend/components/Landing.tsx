@@ -78,7 +78,7 @@ function Hero({ lang, setLang, onStart }: { lang: string; setLang: (l: string) =
     el.style.transform = `translateZ(${lift * 80}px) rotateX(${6 - f * 6 + lift * 5}deg) rotateY(${f * 180}deg) rotateZ(${-2.5 + f * 4.5}deg)`;
     el.style.setProperty("--sheen", (lift * 0.9).toFixed(2));
   }, []);
-  useScrollScene(cardRef, flip, { mode: "top", span: 0.85, rest: 0 });
+  useScrollScene(cardRef, flip, { mode: "reveal", span: 0.7, rest: 0 });
 
   return (
     <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-24 pt-8 sm:px-6 lg:grid-cols-[1fr_1.08fr] lg:gap-14 lg:pb-36 lg:pt-14">
