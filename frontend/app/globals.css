@@ -409,6 +409,9 @@ body {
   .pc-addr {
     display: none;
   }
+  .pc-big {
+    font-size: clamp(1.1rem, 6vw, 1.6rem);
+  }
   .pc-postmark {
     right: 12px;
     top: auto;
