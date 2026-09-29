@@ -6,7 +6,8 @@ import type { ConversationEngine } from "../lib/engine/ConversationEngine";
 import { useSession } from "../store/useSession";
 import { addTurn as persistTurn, patchCourse, endSession, getUsage, reportSpent, consumeUsage } from "../lib/api";
 import { isMeaningfulTranscript } from "../lib/transcript";
-import { MicIcon, Dots, Bubble } from "./ui";
+import { sessionPhase, type Phase } from "../lib/sessionPhase";
+import Mascot, { type MascotPose } from "./Mascot";
 import TrialModal from "./TrialModal";
 
 export default function SessionView({
@@ -140,92 +141,156 @@ export default function SessionView({
 
   const live = s.status === "live" || s.status === "connecting";
   const remaining = Math.max(0, limit - elapsed);
-  const status =
-    s.status === "error"
-      ? s.error || "Connection error - check backend + keys."
-      : ending
-        ? "Saving your lesson summary..."
-        : s.agentSpeaking
-          ? "Tutor speaking..."
-          : live
-            ? "Listening..."
-            : "Tap to start talking";
+  const lastTurn = s.turns.length ? s.turns[s.turns.length - 1].role : null;
+  const phase = sessionPhase({
+    status: s.status,
+    agentSpeaking: s.agentSpeaking,
+    lastTurn,
+    lastError,
+    ending,
+    handedBack: false,
+    mic: "unknown",
+  });
+  const ui = PHASES[phase];
+  const help = typeof ui.help === "function" ? ui.help(limit) : ui.help;
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col items-center gap-6 px-6 py-10">
-      <div className="flex w-full items-center justify-between">
-        <button onClick={onExit} className="btn-ghost px-4 py-1.5 text-sm">
-          &larr; Dashboard
+    <div className="mx-auto grid max-w-6xl gap-8 px-4 pb-24 pt-4 sm:px-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:gap-14 lg:pt-6">
+      <header className="flex items-center justify-between gap-4 lg:col-span-2">
+        <button type="button" onClick={onExit} className="text-[15px] font-semibold text-muted hover:text-ink">
+          <span aria-hidden>‹ </span>
+          {language}
         </button>
-        <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-          <span className="glass rounded-full px-3 py-1">{language}</span>
-          {live && (
-            <span
-              className="glass rounded-full px-3 py-1 tabular-nums"
-              style={{ color: remaining <= 10 ? "#fb7185" : undefined, borderColor: remaining <= 10 ? "rgba(251,113,133,.4)" : undefined }}
-            >
-              {fmt(remaining)} left
-            </span>
+        {live && (
+          <p className="text-[15px] tabular-nums text-muted" aria-live="off">
+            {remaining <= 10 ? `Wrapping up in ${fmt(remaining)}` : `${fmt(remaining)} left`}
+          </p>
+        )}
+      </header>
+
+      <section aria-label="Christopher" className="flex flex-col items-center text-center lg:items-start lg:text-left">
+        <Mascot pose={ui.pose} talking={phase === "speaking"} priority className="w-[min(64vw,300px)] lg:w-full" />
+        <p aria-live="polite" className="mt-6 min-h-[1.3em] font-display text-2xl font-extrabold tracking-[-0.02em]">
+          {ui.line}
+        </p>
+        {help && <div className="mt-2 max-w-[42ch] text-[15px] text-muted">{help}</div>}
+
+        <div className="mt-6 flex flex-wrap justify-center gap-3 lg:justify-start">
+          {(phase === "mic-ask" || phase === "ready") && (
+            <button type="button" onClick={connect} className="btn text-[17px]">
+              <MicGlyph />
+              {phase === "mic-ask" ? "Allow microphone and start" : `Start talking in ${language}`}
+            </button>
+          )}
+          {(phase === "mic-blocked" || phase === "mic-missing" || phase === "failed" || phase === "dropped") && (
+            <button type="button" onClick={connect} className="btn">
+              {phase === "dropped" ? "Reconnect" : "Try again"}
+            </button>
+          )}
+          {(phase === "listening" || phase === "thinking" || phase === "speaking" || phase === "handed-back" || phase === "dropped") && (
+            <button type="button" onClick={end} className="btn-quiet">
+              End conversation
+            </button>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* free-trial notice before starting */}
-      {!live && !showTrial && (
-        <div className="glass mt-2 rounded-full px-4 py-2 text-xs text-[var(--muted)]">
-          <span className="text-emerald-300">Free trial:</span> {limit} seconds with your tutor.
-        </div>
-      )}
-
-      <button
-        onClick={live ? end : connect}
-        aria-label={live ? "End session" : "Start speaking"}
-        className="relative mt-2 grid h-44 w-44 place-items-center rounded-full transition-transform duration-300 hover:scale-[1.03] active:scale-95"
-      >
-        {live && (
-          <>
-            <span className="pulsering absolute inset-0 rounded-full" style={{ background: "rgba(52,211,153,.25)" }} />
-            <span className="pulsering absolute inset-0 rounded-full" style={{ background: "rgba(34,211,238,.2)", animationDelay: "1s" }} />
-          </>
-        )}
-        <span
-          className="grid h-full w-full place-items-center rounded-full text-lg font-semibold"
-          style={{
-            background: live ? "linear-gradient(140deg,#fb7185,#ef4444)" : "linear-gradient(140deg,var(--c1),var(--c2))",
-            color: "#050810",
-            boxShadow: live
-              ? "0 20px 60px -12px rgba(239,68,68,.6), inset 0 2px 0 rgba(255,255,255,.4)"
-              : "0 20px 60px -12px rgba(52,211,153,.6), inset 0 2px 0 rgba(255,255,255,.45)",
-          }}
-        >
-          {s.status === "connecting" ? <Dots /> : live ? "End" : <MicIcon />}
-        </span>
-      </button>
-      <p className="h-5 text-sm text-[var(--muted)]" aria-live="polite">
-        {status}
-      </p>
-
-      {s.feedback && (
-        <div className="glass w-full max-w-lg rounded-2xl p-4 animate-fadeup" style={{ borderColor: "rgba(52,211,153,.2)" }}>
-          <div className="mb-1 flex items-center justify-between text-xs text-emerald-300/80">
-            <span>Pronunciation &middot; "{s.feedback.phrase}"</span>
-            <span className="tabular-nums">{s.feedback.accuracy}/100</span>
+      <section aria-label="Conversation" className="min-w-0">
+        {s.feedback && (
+          <div className="mb-4 rounded-2xl p-4 shadow-[inset_0_0_0_1.5px_var(--correct)]">
+            <p className="text-sm font-semibold text-correct">Try it like this</p>
+            <p className="mt-1 font-display text-lg font-bold">{s.feedback.phrase}</p>
+            <p className="mt-1 text-[15px]">{s.feedback.coaching}</p>
           </div>
-          <p className="text-sm">{s.feedback.coaching}</p>
+        )}
+        <div role="log" aria-live="polite" aria-label="Transcript" className="grid gap-2.5">
+          {s.turns.length === 0 && !partial ? (
+            <p className="rounded-2xl bg-card-2 px-5 py-4 text-[15px] text-muted">
+              Your conversation appears here as you talk, so you can read back anything you missed.
+            </p>
+          ) : (
+            <>
+              {s.turns.map((t, i) => (
+                <Line key={i} role={t.role} text={t.text} />
+              ))}
+              {partial && <Line role="agent" text={partial} pending />}
+            </>
+          )}
         </div>
-      )}
-
-      {(s.turns.length > 0 || partial) && (
-        <div className="w-full max-w-lg space-y-2">
-          {s.turns.map((t, i) => (
-            <Bubble key={i} role={t.role} text={t.text} />
-          ))}
-          {partial && <Bubble role="agent" text={partial} faint />}
-        </div>
-      )}
+      </section>
 
       {showTrial && <TrialModal onClose={onExit} />}
     </div>
+  );
+}
+
+// Pose, headline and help for each state of the conversation screen.
+const PHASES: Record<Phase, { pose: MascotPose; line: string; help?: React.ReactNode | ((limit: number) => React.ReactNode) }> = {
+  "mic-ask": {
+    pose: "mic-ask",
+    line: "Can I hear you?",
+    help: "Your browser will ask for the microphone. Christopher only listens while this conversation is open.",
+  },
+  ready: {
+    pose: "idle",
+    line: "Ready when you are.",
+    help: (limit) => `Your free conversation lasts ${limit} seconds. Say hello and he'll take it from there.`,
+  },
+  "mic-blocked": {
+    pose: "mic-blocked",
+    line: "Christopher can't hear you yet",
+    help: (
+      <ol className="mt-1 list-decimal space-y-1 pl-5 text-left">
+        <li>Click the lock or settings icon next to the web address.</li>
+        <li>Set Microphone to Allow.</li>
+        <li>Come back here and press Try again.</li>
+      </ol>
+    ),
+  },
+  "mic-missing": {
+    pose: "mic-blocked",
+    line: "No microphone found",
+    help: "Plug in a headset or microphone, or open Christopher on your phone, then try again.",
+  },
+  connecting: { pose: "reconnecting", line: "Getting Christopher on the line…" },
+  listening: { pose: "listen", line: "Listening. Take your time." },
+  thinking: { pose: "think", line: "Thinking about what you said" },
+  speaking: { pose: "speak", line: "Christopher is speaking" },
+  "handed-back": { pose: "goahead", line: "Go ahead, he's listening" },
+  dropped: {
+    pose: "reconnecting",
+    line: "The connection dropped",
+    help: "What you've said so far is saved. Reconnect to keep going.",
+  },
+  failed: {
+    pose: "reconnecting",
+    line: "Christopher couldn't connect",
+    help: "This is usually the network. Check your connection and try again.",
+  },
+  saving: { pose: "postcard", line: "Writing your postcard…" },
+};
+
+function Line({ role, text, pending }: { role: "user" | "agent"; text: string; pending?: boolean }) {
+  const mine = role === "user";
+  return (
+    <p
+      className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-[16px] leading-snug ${
+        mine ? "justify-self-end bg-[color-mix(in_srgb,var(--learner)_36%,var(--card))]" : "bg-card"
+      } ${pending ? "text-muted" : ""}`}
+    >
+      <span className="sr-only">{mine ? "You: " : "Christopher: "}</span>
+      {text}
+    </p>
+  );
+}
+
+function MicGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <path d="M12 19v3" />
+    </svg>
   );
 }
 
