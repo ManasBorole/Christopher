@@ -8,6 +8,7 @@ import { addTurn as persistTurn, patchCourse, endSession, getUsage, reportSpent,
 import { isMeaningfulTranscript } from "../lib/transcript";
 import { sessionPhase, type Phase } from "../lib/sessionPhase";
 import Mascot, { type MascotPose } from "./Mascot";
+import { SummaryCard } from "./ui";
 import TrialModal from "./TrialModal";
 
 export default function SessionView({
@@ -168,7 +169,7 @@ export default function SessionView({
     if (s.turns.length > 0) {
       setEnding(true);
       try {
-        await endSession(sessionId);
+        s.setSummary(await endSession(sessionId));
       } catch {
         /* best effort */
       } finally {
@@ -176,7 +177,8 @@ export default function SessionView({
       }
     }
     setBlocked(true);
-    setShowTrial(true);
+    // With a postcard to show, the trial notice waits until they've read it.
+    if (!useSession.getState().summary) setShowTrial(true);
   }
 
   const live = s.status === "live" || s.status === "connecting";
@@ -192,6 +194,25 @@ export default function SessionView({
     mic,
   });
   const ui = PHASES[phase];
+
+  if (s.summary && !ending) {
+    return (
+      <div className="mx-auto grid max-w-4xl items-start gap-8 px-4 pb-24 pt-8 sm:px-6 md:grid-cols-[minmax(0,260px)_minmax(0,1fr)] md:gap-12">
+        <div className="flex flex-col items-center text-center md:items-start md:text-left">
+          <Mascot pose="postcard" priority className="w-[min(56vw,260px)] md:w-full" />
+          <p className="mt-5 font-display text-2xl font-extrabold tracking-[-0.02em]">Here&apos;s your postcard.</p>
+          <p className="mt-1 text-[15px] text-muted">Christopher keeps it for your next conversation.</p>
+        </div>
+        <div>
+          <SummaryCard summary={s.summary} />
+          <button type="button" onClick={() => setShowTrial(true)} className="btn mt-6">
+            Done
+          </button>
+        </div>
+        {showTrial && <TrialModal onClose={onExit} />}
+      </div>
+    );
+  }
   const help = typeof ui.help === "function" ? ui.help(limit) : ui.help;
 
   return (
