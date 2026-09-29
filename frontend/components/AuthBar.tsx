@@ -22,7 +22,7 @@ export default function AuthBar() {
     <div className="flex items-center gap-2">
       <SignedOut>
         <SignInButton mode="modal">
-          <button className="rounded-full bg-neutral-800 px-3 py-1 text-sm hover:bg-neutral-700">
+          <button type="button" className="btn-quiet px-4 py-2 text-sm">
             Sign in
           </button>
         </SignInButton>
