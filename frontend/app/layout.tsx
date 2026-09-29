@@ -21,8 +21,8 @@ const hebr = Noto_Sans_Hebrew({ subsets: ["hebrew"], variable: "--font-hebr", di
 const fontVars = [sans, display, hand, deva, arab, hebr].map((f) => f.variable).join(" ");
 
 export const metadata: Metadata = {
-  title: "Christopher - AI Voice Language Tutor",
-  description: "Learn any language through natural voice conversation with an AI tutor.",
+  title: "Christopher, a voice tutor for 180+ languages",
+  description: "Talk out loud in a new language with Christopher. He listens to the whole sentence and gently repeats the right way when you slip.",
 };
 
 const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -37,8 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
       </head>
       <body className="min-h-screen">
-        <div className="aurora" aria-hidden />
-        <div className="grain" aria-hidden />
+        <div className="airmail-edge" aria-hidden />
         {children}
       </body>
     </html>
