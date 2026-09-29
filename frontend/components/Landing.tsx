@@ -81,9 +81,9 @@ function Hero({ lang, setLang, onStart }: { lang: string; setLang: (l: string) =
   useScrollScene(cardRef, flip, { mode: "reveal", span: 0.7, rest: 0 });
 
   return (
-    <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-24 pt-8 sm:px-6 lg:grid-cols-[1fr_1.08fr] lg:gap-14 lg:pb-36 lg:pt-14">
+    <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-24 pt-8 sm:px-6 lg:grid-cols-[1.12fr_1fr] lg:gap-12 lg:pb-36 lg:pt-14">
       <div>
-        <h1 className="font-display text-[clamp(2.5rem,6.2vw,4.75rem)] font-extrabold leading-[1] tracking-[-0.035em] text-balance">
+        <h1 className="font-display text-[clamp(2.5rem,5.2vw,4.1rem)] font-extrabold leading-[1.02] tracking-[-0.035em] text-balance">
           Say it out loud. Christopher will wait for you.
         </h1>
         <p className="mt-5 max-w-[38ch] text-lg leading-relaxed text-muted sm:text-[19px]">
