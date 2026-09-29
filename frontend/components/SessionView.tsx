@@ -36,6 +36,23 @@ export default function SessionView({
   // The engine reports "error" then "idle" as it tears down, which wipes the
   // store's error. Keep the last one here so the learner sees what went wrong.
   const [lastError, setLastError] = useState<string | null>(null);
+  const [mic, setMic] = useState<PermissionState | "unknown">("unknown");
+
+  // Know up front whether the mic is already allowed or blocked, so the first
+  // screen can say so. Browsers without the Permissions API stay "unknown".
+  useEffect(() => {
+    let status: PermissionStatus | undefined;
+    const sync = () => status && setMic(status.state);
+    navigator.permissions
+      ?.query({ name: "microphone" as PermissionName })
+      .then((p) => {
+        status = p;
+        sync();
+        p.addEventListener("change", sync);
+      })
+      .catch(() => {});
+    return () => status?.removeEventListener("change", sync);
+  }, []);
 
   // fresh conversation + check remaining free allowance
   useEffect(() => {
@@ -149,7 +166,7 @@ export default function SessionView({
     lastError,
     ending,
     handedBack: false,
-    mic: "unknown",
+    mic,
   });
   const ui = PHASES[phase];
   const help = typeof ui.help === "function" ? ui.help(limit) : ui.help;
