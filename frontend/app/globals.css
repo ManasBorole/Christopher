@@ -1,23 +1,98 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------ */
-/* Design tokens                                                       */
+/* Airmail tokens. Every colour in the app comes from here.            */
+/* Light is the default; dark follows the system unless the learner    */
+/* picked one (html[data-theme]).                                      */
 /* ------------------------------------------------------------------ */
 :root {
-  color-scheme: dark;
-  --bg: #06070c;
-  --bg-soft: #0b0d16;
-  --fg: #ecedf3;
-  --muted: #9aa0b4;
-  --line: rgba(255, 255, 255, 0.09);
+  color-scheme: light;
+  --paper: #eef2f1; /* page: cool sage airmail paper */
+  --card: #ffffff; /* stickers, postcards, sheets */
+  --card-2: #e3eae8; /* recessed wells */
+  --ink: #1e2b30; /* primary text */
+  --muted: #51636a; /* secondary text, AA on paper */
+  --line: #c6d2d0; /* hairlines, input borders */
+  --tutor: #1f6f78; /* Christopher's voice: harbour teal */
+  --on-tutor: #ffffff;
+  --learner: #e8b23a; /* the learner's voice: marigold */
+  --on-learner: #1e2b30;
+  --correct: #2f5da8; /* gentle corrections: airmail blue */
+  --stamp: #d64545; /* airmail red: stripe, postmarks */
+  --stamp-deep: #9e2f2f;
+  --alert-ink: #9e2f2f; /* problem text, never a shouting red */
+  --focus: #2f5da8;
+  --shadow: 20 40 45; /* rgb triple for shadows */
+
+  /* legacy names still read by older components */
+  --bg: var(--paper);
+  --fg: var(--ink);
+  --c1: #34d399;
+  --c2: #22d3ee;
+  --c3: #818cf8;
+  --c4: #c084fc;
   --glass: rgba(255, 255, 255, 0.045);
   --glass-strong: rgba(255, 255, 255, 0.07);
-  /* brand gradient */
-  --c1: #34d399; /* emerald */
-  --c2: #22d3ee; /* cyan    */
-  --c3: #818cf8; /* indigo  */
-  --c4: #c084fc; /* violet  */
-  --ring: rgba(52, 211, 153, 0.5);
+  --ring: var(--focus);
+}
+
+/* A quiet harbour in the evening: deep teal-slate, never black. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #172529;
+    --card: #223840;
+    --card-2: #1b2e33;
+    --ink: #e7eeec;
+    --muted: #a6b8b9;
+    --line: #354b51;
+    --tutor: #6cc4c7;
+    --on-tutor: #0f2629;
+    --learner: #f0b84a;
+    --on-learner: #1e2b30;
+    --correct: #95b8f2;
+    --stamp: #e0645a;
+    --stamp-deep: #a8453e;
+    --alert-ink: #f08a7e;
+    --focus: #95b8f2;
+    --shadow: 0 0 0;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #172529;
+  --card: #223840;
+  --card-2: #1b2e33;
+  --ink: #e7eeec;
+  --muted: #a6b8b9;
+  --line: #354b51;
+  --tutor: #6cc4c7;
+  --on-tutor: #0f2629;
+  --learner: #f0b84a;
+  --on-learner: #1e2b30;
+  --correct: #95b8f2;
+  --stamp: #e0645a;
+  --stamp-deep: #a8453e;
+  --alert-ink: #f08a7e;
+  --focus: #95b8f2;
+  --shadow: 0 0 0;
+}
+
+/* Tailwind utilities read the same tokens: bg-paper, text-muted, border-line... */
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-tutor: var(--tutor);
+  --color-on-tutor: var(--on-tutor);
+  --color-learner: var(--learner);
+  --color-on-learner: var(--on-learner);
+  --color-correct: var(--correct);
+  --color-stamp: var(--stamp);
+  --color-alert-ink: var(--alert-ink);
 }
 
 * {
