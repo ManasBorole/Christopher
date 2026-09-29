@@ -1,6 +1,8 @@
 "use client";
 
 import AuthBar from "./AuthBar";
+import ThemeToggle from "./ThemeToggle";
+import Wordmark from "./Wordmark";
 import Home from "./Home";
 import Dashboard from "./Dashboard";
 import SessionView from "./SessionView";
@@ -29,17 +31,18 @@ export default function App({
 }) {
   return (
     <main className="relative min-h-screen">
-      <nav className="sticky top-0 z-30 mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <button onClick={onHome} className="flex items-center gap-2">
-          <span
-            className="grid h-8 w-8 place-items-center rounded-lg text-sm font-bold"
-            style={{ background: "linear-gradient(140deg,var(--c1),var(--c3))", color: "#04120c" }}
-          >
-            C
-          </span>
-          <span className="font-display text-lg font-semibold">Christopher</span>
-        </button>
-        {hasClerk && <AuthBar />}
+      <nav className="sticky top-0 z-30 bg-[color-mix(in_srgb,var(--paper)_90%,transparent)] pt-1.5">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <button type="button" onClick={onHome} aria-label="Christopher, your languages">
+            <Wordmark />
+          </button>
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:block">
+              <ThemeToggle />
+            </span>
+            {hasClerk && <AuthBar />}
+          </div>
+        </div>
       </nav>
 
       {screen.v === "home" && <Home onOpenCourse={onOpenCourse} />}
