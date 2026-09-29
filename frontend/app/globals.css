@@ -278,6 +278,7 @@ body {
   opacity: var(--sheen, 0);
 }
 .pc-front {
+  container-type: inline-size;
   display: grid;
   grid-template-columns: auto 1fr;
   gap: clamp(12px, 3vw, 24px);
@@ -310,7 +311,8 @@ body {
   padding-block: 4px;
 }
 .pc-big {
-  font: 800 clamp(1.6rem, 4.6vw, 3.1rem) / 0.95 var(--font-display), sans-serif;
+  /* sized to the card, so "conversation" always fits beside the photo */
+  font: 800 6.6cqi / 0.95 var(--font-display), sans-serif;
   letter-spacing: -0.035em;
   color: var(--tutor);
 }
@@ -408,9 +410,6 @@ body {
   }
   .pc-addr {
     display: none;
-  }
-  .pc-big {
-    font-size: clamp(1.1rem, 6vw, 1.6rem);
   }
   .pc-postmark {
     right: 12px;
