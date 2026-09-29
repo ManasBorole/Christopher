@@ -194,10 +194,15 @@ function Greetings() {
   const items = useRef<(HTMLDivElement | null)[]>([]);
   const copyRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLParagraphElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
 
   const draw = useCallback((p: number) => {
     const cam = p * (DEPTH + 500);
     const narrow = innerWidth < 700 ? 0.45 : 1;
+    const copy = Math.max(0, 1 - p * 3.2); // heading visibility
+    // While the heading shows, the stickers sit below it; as it fades they
+    // rise to use the whole screen.
+    const drop = copy * (stageRef.current?.clientHeight ?? innerHeight) * 0.2;
     SPOTS.forEach((s, i) => {
       const el = items.current[i];
       if (!el) return;
@@ -206,10 +211,10 @@ function Greetings() {
       const blur = z < -1400 ? Math.min(6, (-z - 1400) / 300) : 0;
       el.style.opacity = vis.toFixed(3);
       el.style.filter = blur ? `blur(${blur.toFixed(1)}px)` : "none";
-      el.style.transform = `translate(-50%,-50%) translate3d(${s.x * narrow}px,${s.y}px,${z}px) rotate(${s.rot + p * 20}deg)`;
+      el.style.transform = `translate(-50%,-50%) translate3d(${s.x * narrow}px,${s.y + drop}px,${z}px) rotate(${s.rot + p * 20}deg)`;
       el.style.zIndex = String(Math.round(4000 + z));
     });
-    if (copyRef.current) copyRef.current.style.opacity = String(Math.max(0, 1 - p * 3.2));
+    if (copyRef.current) copyRef.current.style.opacity = String(copy);
     if (endRef.current) endRef.current.style.opacity = String(Math.min(1, Math.max(0, (p - 0.78) * 5)));
   }, []);
   useScrollScene(sectionRef, draw, { rest: 0.45 });
@@ -217,21 +222,21 @@ function Greetings() {
   return (
     <section ref={sectionRef} aria-labelledby="hello-h" className="relative h-[280vh] motion-reduce:h-auto">
       <div className="sticky top-16 h-[calc(100svh-4rem)] min-h-[520px] overflow-hidden motion-reduce:relative motion-reduce:top-0 motion-reduce:h-[640px]">
-        <div ref={copyRef} className="pointer-events-none absolute inset-x-4 top-[8%] z-[5000] text-center">
+        <div ref={copyRef} className="pointer-events-none absolute inset-x-4 top-[8%] z-10 text-center">
           <h2 id="hello-h" className="font-display text-[clamp(2rem,4.6vw,3.5rem)] font-extrabold tracking-[-0.025em]">
             One tutor. Every hello.
           </h2>
           <p className="mt-2 text-muted">180+ languages, each in its own script and its own direction.</p>
         </div>
-        {/* the stickers live below the heading and its subtitle, never behind them */}
-        <div className="absolute inset-x-0 bottom-0 top-[34%] overflow-hidden [perspective:800px] sm:top-[30%]" aria-hidden>
+        {/* full-screen field in its own layer, always beneath the heading */}
+        <div ref={stageRef} className="absolute inset-0 z-0 overflow-hidden [perspective:800px]" aria-hidden>
           {HELLOS.map(([word, name, code, rtl], i) => (
             <div
               key={code}
               ref={(el) => {
                 items.current[i] = el;
               }}
-              className={`sticker absolute left-1/2 top-[48%] whitespace-nowrap px-4 py-2.5 will-change-transform ${
+              className={`sticker absolute left-1/2 top-1/2 whitespace-nowrap px-4 py-2.5 will-change-transform ${
                 i % 4 === 0 ? "hello-tutor" : i % 4 === 2 ? "hello-learner" : ""
               }`}
             >
@@ -242,7 +247,7 @@ function Greetings() {
             </div>
           ))}
         </div>
-        <p ref={endRef} className="absolute inset-x-4 bottom-[7%] z-[5000] text-center font-hand text-[26px] text-muted opacity-0">
+        <p ref={endRef} className="absolute inset-x-4 bottom-[7%] z-10 text-center font-hand text-[26px] text-muted opacity-0">
           …and yours, when you&apos;re ready.
         </p>
       </div>
