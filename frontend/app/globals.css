@@ -23,6 +23,11 @@
   --alert-ink: #9e2f2f; /* problem text, never a shouting red */
   --focus: #2f5da8;
   --shadow: 20 40 45; /* rgb triple for shadows */
+  /* Non-Latin fallbacks. CJK uses the OS faces (Yu Gothic / Hiragino / Malgun)
+     instead of shipping multi-MB fonts. */
+  --scripts: var(--font-deva), var(--font-arab), var(--font-hebr), "Hiragino Sans", "Yu Gothic UI",
+    "Noto Sans CJK JP", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", "PingFang SC",
+    "Microsoft YaHei", "Nirmala UI", "Segoe UI", sans-serif;
 
   /* legacy names still read by older components */
   --bg: var(--paper);
@@ -106,14 +111,17 @@ html {
 body {
   background: var(--bg);
   color: var(--fg);
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans), var(--scripts), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
 }
 
 .font-display {
-  font-family: var(--font-display), var(--font-sans), serif;
+  font-family: var(--font-display), var(--scripts), var(--font-sans), sans-serif;
+}
+.font-hand {
+  font-family: var(--font-hand), var(--scripts), cursive;
 }
 
 /* ------------------------------------------------------------------ */
