@@ -64,7 +64,13 @@ export default function Home({ onOpenCourse }: { onOpenCourse: (id: string) => v
 
   return (
     <section className="mx-auto max-w-5xl px-4 pb-20 pt-8 sm:px-6 sm:pt-12">
-      {empty ? (
+      {courses === null ? (
+        <ul className="grid gap-5 pt-[88px] sm:grid-cols-2 lg:grid-cols-3" aria-busy aria-label="Loading your languages">
+          {[0, 1, 2].map((i) => (
+            <li key={i} className="tag h-[124px] animate-pulse" aria-hidden />
+          ))}
+        </ul>
+      ) : empty ? (
         <div className="flex flex-col items-start gap-8 sm:flex-row sm:items-center">
           <Mascot pose="empty" className="w-40 shrink-0 sm:w-52" priority />
           <div>
@@ -88,17 +94,15 @@ export default function Home({ onOpenCourse }: { onOpenCourse: (id: string) => v
               </h1>
               <p className="mt-2 text-muted">Each one keeps its own words and conversations.</p>
             </div>
-            <button type="button" onClick={() => setAdding(true)} className="btn-quiet" disabled={courses === null}>
+            <button type="button" onClick={() => setAdding(true)} className="btn-quiet">
               Add a language
             </button>
           </div>
 
-          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" aria-busy={courses === null}>
-            {courses === null
-              ? [0, 1, 2].map((i) => (
-                  <li key={i} className="tag h-[124px] animate-pulse" aria-hidden />
-                ))
-              : courses.map((c) => <Tag key={c.id} c={c} onOpen={() => onOpenCourse(c.id)} onDelete={() => setPendingDelete(c)} />)}
+          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {courses.map((c) => (
+              <Tag key={c.id} c={c} onOpen={() => onOpenCourse(c.id)} onDelete={() => setPendingDelete(c)} />
+            ))}
           </ul>
         </>
       )}
