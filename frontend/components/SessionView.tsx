@@ -27,6 +27,9 @@ export default function SessionView({
   const engineRef = useRef<ConversationEngine | null>(null);
   const endedRef = useRef(false);
   const consumedRef = useRef(false);
+  // Seconds used on earlier connections of this conversation, so a reconnect
+  // continues the free-time clock instead of restarting it.
+  const priorRef = useRef(0);
   const [partial, setPartial] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [ending, setEnding] = useState(false);
@@ -69,7 +72,7 @@ export default function SessionView({
   useEffect(() => {
     if (!s.startedAt) return;
     const t = setInterval(() => {
-      const e = Math.floor((Date.now() - s.startedAt!) / 1000);
+      const e = priorRef.current + Math.floor((Date.now() - s.startedAt!) / 1000);
       setElapsed(e);
       if (e >= limit && !endedRef.current) end(); // free time up -> stop hard
     }, 500);
@@ -80,6 +83,7 @@ export default function SessionView({
   async function connect() {
     if (blocked) return setShowTrial(true);
     setLastError(null);
+    engineRef.current?.disconnect(); // a dropped connection is still open; close it first
     const engine = new RealtimeEngine();
     engineRef.current = engine;
     await engine.connect(
@@ -100,7 +104,11 @@ export default function SessionView({
               void consumeUsage();
             }
           }
-          if (st === "idle" || st === "error") s.clearTimer();
+          if (st === "idle" || st === "error") {
+            const started = useSession.getState().startedAt;
+            if (started) priorRef.current += Math.floor((Date.now() - started) / 1000);
+            s.clearTimer();
+          }
         },
         onSpeaking: (b) => s.setSpeaking(b),
         onTranscript: (role, text, done) => {
@@ -151,7 +159,8 @@ export default function SessionView({
   async function end() {
     if (endedRef.current) return;
     endedRef.current = true;
-    const spent = s.startedAt ? Math.min(limit, Math.floor((Date.now() - s.startedAt) / 1000)) : 0;
+    const current = s.startedAt ? Math.floor((Date.now() - s.startedAt) / 1000) : 0;
+    const spent = Math.min(limit, priorRef.current + current);
     engineRef.current?.disconnect();
     engineRef.current = null;
     s.clearTimer();
