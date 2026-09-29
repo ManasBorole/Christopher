@@ -76,3 +76,9 @@ export function searchLanguages(list: Language[], query: string): Language[] {
   const all = list.filter(hit);
   return [...all.filter(starts), ...all.filter((l) => !starts(l))];
 }
+
+// Look up a stored course language (English name) to show its native form.
+export function findLanguage(name: string): Language | undefined {
+  const n = name.trim().toLowerCase();
+  return allLanguages().find((l) => l.name.toLowerCase() === n);
+}
