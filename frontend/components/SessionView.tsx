@@ -32,6 +32,9 @@ export default function SessionView({
   const [showTrial, setShowTrial] = useState(false);
   const [limit, setLimit] = useState(60);
   const [blocked, setBlocked] = useState(false);
+  // The engine reports "error" then "idle" as it tears down, which wipes the
+  // store's error. Keep the last one here so the learner sees what went wrong.
+  const [lastError, setLastError] = useState<string | null>(null);
 
   // fresh conversation + check remaining free allowance
   useEffect(() => {
@@ -57,6 +60,7 @@ export default function SessionView({
 
   async function connect() {
     if (blocked) return setShowTrial(true);
+    setLastError(null);
     const engine = new RealtimeEngine();
     engineRef.current = engine;
     await engine.connect(
@@ -69,6 +73,7 @@ export default function SessionView({
             return;
           }
           s.setStatus(st, detail);
+          if (st === "error") setLastError(detail ?? "unknown");
           if (st === "live") {
             s.start(Date.now());
             if (!consumedRef.current) {
