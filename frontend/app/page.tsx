@@ -14,6 +14,7 @@ type Nav = { nav: "landing" } | { nav: "app"; screen: AppScreen };
 export default function Page() {
   const [booting, setBooting] = useState(true);
   const [authOpen, setAuthOpen] = useState(false);
+  const [pendingLang, setPendingLang] = useState<string | null>(null);
   const [current, setCurrent] = useState<Nav>({ nav: "landing" });
 
   // Brand cold-open, then seed history: landing (base) [+ app home for returning
@@ -64,7 +65,16 @@ export default function Page() {
   return (
     <>
       {current.nav === "landing" ? (
-        <Landing onStart={() => setAuthOpen(true)} onSignIn={() => setAuthOpen(true)} />
+        <Landing
+          onStart={(lang) => {
+            setPendingLang(lang);
+            setAuthOpen(true);
+          }}
+          onSignIn={() => {
+            setPendingLang(null);
+            setAuthOpen(true);
+          }}
+        />
       ) : (
         <div style={{ animation: "reveal .9s cubic-bezier(.2,.8,.2,1) both" }}>
           <App
@@ -75,6 +85,12 @@ export default function Page() {
               push({ nav: "app", screen: { v: "session", courseId: (current.screen as { courseId: string }).courseId, sessionId, language, userName } })
             }
             onBack={back}
+            autoStart={pendingLang}
+            onAutoStarted={(courseId, sessionId, language, userName) => {
+              setPendingLang(null);
+              push({ nav: "app", screen: { v: "session", courseId, sessionId, language, userName } });
+            }}
+            onAutoStartFailed={() => setPendingLang(null)}
           />
           <style>{`@keyframes reveal{from{opacity:0;transform:translateY(22px) scale(.985)}to{opacity:1;transform:none}}`}</style>
         </div>
