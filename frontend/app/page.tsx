@@ -64,7 +64,7 @@ export default function Page() {
   return (
     <>
       {current.nav === "landing" ? (
-        <Landing onStart={() => setAuthOpen(true)} />
+        <Landing onStart={() => setAuthOpen(true)} onSignIn={() => setAuthOpen(true)} />
       ) : (
         <div style={{ animation: "reveal .9s cubic-bezier(.2,.8,.2,1) both" }}>
           <App
