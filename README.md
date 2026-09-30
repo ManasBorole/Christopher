@@ -136,21 +136,21 @@ Christopher/
 
 **Transcription locked to the language being learned.** Short target-language clips were being detected as a neighbouring language, for example Japanese transcribed as Chinese, which fed the tutor nonsense. The session uses `gpt-4o-transcribe` and pins its language when the course's language is one of the 20 names in the lookup table in `session.ts`. Other languages fall back to auto-detection.
 
-**Memory as a tool call, not a replayed transcript.** The tutor calls `update_profile` as soon as it learns a name, native language or level; the client saves it to the course. Every conversation starts fresh, with that memory, the words practised and past notes appended to the instructions. Replaying old transcripts would cost more and drift; the trade-off is that only what is summarised carries over.
+**Memory as a tool call, not a replayed transcript.** The tutor calls `update_profile` as soon as it learns a name, native language or level; the client saves it to the course. Every conversation starts fresh, with that memory, the words practised and past notes appended to the instructions. Replaying old transcripts would cost more and drift; the trade-off is that only what's summarised carries over.
 
-**Judging pronunciation by listening, not by transcript.** A transcript diff passes mispronunciations, because the speech-to-text model quietly corrects them. So pronunciation feedback comes from a model that hears the audio. Today that is the Realtime model itself, coaching in the conversation as the tutor prompt describes. The backend also has a separate `/pronounce` route that sends one clip to an audio model and returns an accuracy score and coaching, and `services/pronunciation/` holds a Python reference scorer with the same shape. Neither is connected to the current frontend.
+**Judging pronunciation by listening, not by transcript.** A transcript diff passes mispronunciations, because the speech-to-text model quietly corrects them. So pronunciation feedback comes from a model that hears the audio. Today that's the Realtime model itself, coaching in the conversation as the tutor prompt describes. The backend also has a separate `/pronounce` route that sends one clip to an audio model and returns an accuracy score and coaching, and `services/pronunciation/` holds a Python reference scorer with the same shape. Neither is connected to the current frontend.
 
-**One seam for the conversation engine.** The UI talks to a small `ConversationEngine` interface ([`ConversationEngine.ts`](frontend/lib/engine/ConversationEngine.ts)): connect, interrupt, disconnect, and callbacks for status, transcript, speaking and profile. `RealtimeEngine` is the only implementation; the screens and store do not know it is OpenAI.
+**One seam for the conversation engine.** The UI talks to a small `ConversationEngine` interface ([`ConversationEngine.ts`](frontend/lib/engine/ConversationEngine.ts)): connect, interrupt, disconnect, and callbacks for status, transcript, speaking and profile. `RealtimeEngine` is the only implementation; the screens and store do not know it's OpenAI.
 
 **Languages from the platform, not a hard-coded list.** The picker keeps only ISO 639-1 codes and asks `Intl.DisplayNames` for the English name and the language's own name ([`languages.ts`](frontend/lib/languages.ts)). That gives 183 languages with correct native spellings and no strings to maintain. The trade-off is that names follow the browser's CLDR data.
 
 **Guest first, sign-in optional.** Every request resolves to an owner: `clerk:<userId>` from a verified Clerk token, or `guest:<uuid>` from a header the browser generates ([`owner.ts`](backend/src/owner.ts)). Nobody has to create an account to try it. Without Clerk keys, the middleware is a passthrough and the app runs guest-only. The trade-off: a guest id is just a header, so the free trial is easy to reset by clearing storage.
 
-**A trial that is only spent when the call goes live.** `/session` checks the allowance but does not consume it; the client consumes one session once the WebRTC connection is actually up ([`gate.ts`](backend/src/gate.ts)). A failed or abandoned connect never burns the learner's free conversation.
+**A trial that's only spent when the call goes live.** `/session` checks the allowance but does not consume it; the client consumes one session once the WebRTC connection is actually up ([`gate.ts`](backend/src/gate.ts)). A failed or abandoned connect never burns the learner's free conversation.
 
 **Shared contracts.** Types and Zod schemas for summaries, profiles, tokens and course data live in one workspace package, [`shared/src/index.ts`](shared/src/index.ts), imported by both sides as raw TypeScript. The backend validates the summary model's output against `SummarySchema` before saving it.
 
-**Self-checks instead of a test framework.** Each piece of logic with real branches has a small runnable file that asserts its behaviour and needs no keys or database. They are listed under [Run it locally](#run-it-locally).
+**Self-checks instead of a test framework.** Each piece of logic with real branches has a small runnable file that asserts its behaviour and needs no keys or database. They're listed under [Run it locally](#run-it-locally).
 
 ## Run it locally
 
