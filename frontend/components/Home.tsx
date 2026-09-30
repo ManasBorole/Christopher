@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CourseCard } from "@vta/shared";
 
 import { listCourses, createCourse, deleteCourse, cachedCourses } from "../lib/api";
@@ -187,7 +187,7 @@ function Tag({
   const started = c.sessionCount > 0;
   const shown = Math.min(c.vocabCount, 5);
   return (
-    <li className="tag-slot" style={{ ["--i" as string]: index }}>
+    <li className="tag-slot group/tag" style={{ ["--i" as string]: index }}>
       <div className="tag-hang">
         <div className="tag">
           {/* full-tag open target sits under the delete button */}
@@ -237,18 +237,64 @@ function Tag({
             </p>
           )}
 
-          <button
-            type="button"
-            onClick={onDelete}
-            aria-label={`Remove ${c.language}`}
-            className="absolute bottom-4 right-3 z-[3] grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-card-2 hover:text-ink"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
+          <TagMenu language={c.language} onRemove={onDelete} />
         </div>
       </div>
     </li>
+  );
+}
+
+// "…" menu with the rarely-needed remove action. Hidden until hover or focus on
+// mouse devices so tags stay clean; always visible on touch screens.
+function TagMenu({ language, onRemove }: { language: string; onRemove: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="absolute bottom-5 right-3 z-[3]">
+      <button
+        type="button"
+        aria-label={`More for ${language}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="grid h-9 w-9 place-items-center rounded-full text-muted transition hover:bg-card-2 hover:text-ink focus-visible:opacity-100 aria-expanded:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/tag:opacity-100"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <circle cx="5" cy="12" r="1.8" />
+          <circle cx="12" cy="12" r="1.8" />
+          <circle cx="19" cy="12" r="1.8" />
+        </svg>
+      </button>
+      {open && (
+        <div role="menu" className="absolute bottom-11 right-0 min-w-[12rem] rounded-xl bg-card p-1.5 shadow-[0_14px_30px_-12px_rgb(var(--shadow)/0.5),0_0_0_1px_var(--line)]">
+          <button
+            type="button"
+            role="menuitem"
+            autoFocus
+            onClick={() => {
+              setOpen(false);
+              onRemove();
+            }}
+            className="w-full rounded-lg px-3 py-2 text-left text-[15px] text-alert-ink hover:bg-card-2"
+          >
+            Remove {language}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
