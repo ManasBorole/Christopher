@@ -100,12 +100,7 @@ export default function Home({
         </div>
       ) : (
         <>
-          <div className="mb-8">
-            <h1 className="font-display text-[clamp(2rem,5vw,3.2rem)] font-extrabold leading-[1.05] tracking-[-0.025em]">
-              Your languages
-            </h1>
-            <p className="mt-2 text-muted">Each one keeps its own words and conversations.</p>
-          </div>
+          <Welcome courses={courses} />
 
           <ul className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
             {courses.map((c, i) => (
@@ -301,6 +296,46 @@ function TagMenu({ language, onRemove }: { language: string; onRemove: () => voi
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// "Welcome back" with Christopher greeting the learner in the language they
+// practised most recently.
+function Welcome({ courses }: { courses: CourseCard[] }) {
+  const name = courses.find((c) => c.userName)?.userName;
+  const last = [...courses].filter((c) => c.sessionCount > 0).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  const l = last ? findLanguage(last.language) : undefined;
+  const hello = greeting(l?.code);
+
+  return (
+    <div className="mb-10 flex flex-col-reverse gap-6 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h1 className="font-display text-[clamp(2rem,5vw,3.2rem)] font-extrabold leading-[1.05] tracking-[-0.025em]">
+          Welcome back{name ? `, ${name}` : ""}.
+        </h1>
+        <p className="mt-2 text-muted">Your languages, each with its own words and conversations.</p>
+      </div>
+      <div className="flex items-end gap-3 sm:flex-row-reverse">
+        <Mascot pose="idle" className="w-24 shrink-0 sm:w-28" />
+        <div className="relative mb-6 max-w-[16rem] rounded-2xl bg-card px-4 py-3 shadow-[0_10px_24px_-14px_rgb(var(--shadow)/0.55)]">
+          {last && hello ? (
+            <>
+              <p lang={l?.code} dir={l?.rtl ? "rtl" : undefined} className="font-display text-xl font-extrabold text-tutor">
+                {hello}!
+              </p>
+              <p className="text-[15px]">Shall we carry on with {last.language}?</p>
+            </>
+          ) : (
+            <p className="text-[15px]">Pick a tag and say hello. I&apos;ll take it from there.</p>
+          )}
+          {/* tail pointing at Christopher */}
+          <span
+            aria-hidden
+            className="absolute -left-2 bottom-4 h-4 w-4 rotate-45 bg-card sm:-right-2 sm:left-auto"
+          />
+        </div>
+      </div>
     </div>
   );
 }
