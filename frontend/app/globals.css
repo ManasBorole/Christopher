@@ -24,6 +24,9 @@
   --focus: #2f5da8;
   --shadow: 20 40 45; /* rgb triple for shadows */
   --mascot-bg: #c6a590; /* the studio backdrop baked into the mascot art; same in both themes */
+  --brass: #c99b45; /* tag rail and eyelets */
+  --brass-hi: #f1d896;
+  --brass-deep: #8a6424;
   /* Non-Latin fallbacks. CJK uses the OS faces (Yu Gothic / Hiragino / Malgun)
      instead of shipping multi-MB fonts. */
   --scripts: var(--font-deva), var(--font-arab), var(--font-hebr), "Hiragino Sans", "Yu Gothic UI",
@@ -560,39 +563,181 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
-/* Luggage tag: one per language the learner is studying               */
+/* Luggage tags hanging from a brass rail, one per language            */
 /* ------------------------------------------------------------------ */
+.tag-slot {
+  position: relative;
+  list-style: none;
+  --tag-edge: var(--tutor);
+  --tilt: -1.2deg;
+  filter: drop-shadow(0 12px 14px rgb(var(--shadow) / 0.16));
+  animation: tag-drop 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+.tag-slot:nth-child(3n + 2) {
+  --tag-edge: var(--learner);
+  --tilt: 0.9deg;
+}
+.tag-slot:nth-child(3n + 3) {
+  --tag-edge: var(--correct);
+  --tilt: -0.4deg;
+}
+/* rail segment: overhangs into the gaps so a row reads as one rod */
+.tag-slot::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: -12px;
+  right: -12px;
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(var(--brass-hi), var(--brass) 55%, var(--brass-deep));
+}
+/* tag + string swing together about the point where the string meets the rail */
+.tag-hang {
+  position: relative;
+  padding-top: 46px;
+  transform-origin: 50% 12px;
+  transform: rotate(var(--tilt));
+}
+.tag-hang::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: 2px;
+  height: 56px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--muted);
+  opacity: 0.55;
+  z-index: 1;
+}
+.tag-slot:hover .tag-hang,
+.tag-slot:focus-within .tag-hang {
+  animation: tag-swing 1.9s ease-out;
+}
 .tag {
   position: relative;
-  display: block;
-  background: linear-gradient(90deg, var(--tag-edge, var(--tutor)) 0 7px, var(--card) 7px);
-  border-radius: 10px 18px 18px 10px;
-  padding: 18px 18px 18px 40px;
-  clip-path: polygon(18px 0, 100% 0, 100% 100%, 18px 100%, 0 calc(100% - 18px), 0 18px);
-  filter: drop-shadow(0 10px 14px rgb(var(--shadow) / 0.18));
-  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  min-height: 250px;
+  padding: 44px 22px 26px;
+  background: var(--card);
+  box-shadow: inset 0 -8px 0 var(--tag-edge);
+  clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%, 0 20px);
 }
-/* the eyelet the string goes through */
+/* paper grain */
+.tag::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .42 0 0 0 0 .38 0 0 0 .12 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+:root[data-theme="dark"] .tag::after {
+  mix-blend-mode: screen;
+  opacity: 0.25;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tag::after {
+    mix-blend-mode: screen;
+    opacity: 0.25;
+  }
+}
+/* the brass eyelet the string goes through */
 .tag::before {
   content: "";
   position: absolute;
-  left: 17px;
-  top: 50%;
-  width: 11px;
-  height: 11px;
-  margin-top: -5.5px;
+  left: 50%;
+  top: 15px;
+  width: 15px;
+  height: 15px;
+  margin-left: -7.5px;
   border-radius: 50%;
   background: var(--paper);
-  box-shadow: inset 0 0 0 2px var(--line);
+  box-shadow: inset 0 0 0 3px var(--brass), 0 1px 1px rgb(var(--shadow) / 0.3);
+  z-index: 2;
 }
-.tag:nth-child(3n + 2) {
-  --tag-edge: var(--learner);
+.tag.is-blank {
+  background: transparent;
+  box-shadow: none;
+  clip-path: none;
+  border: 2px dashed var(--line);
+  border-radius: 16px;
+  transition: border-color 0.2s;
 }
-.tag:nth-child(3n + 3) {
-  --tag-edge: var(--correct);
+.tag.is-blank::after {
+  display: none;
 }
-.tag:has(> .tag-open:hover) {
-  transform: rotate(-1deg);
+.tag-slot:hover .tag.is-blank {
+  border-color: var(--ink);
+}
+/* round airmail postmark with a double ring */
+.postmark {
+  position: absolute;
+  right: 14px;
+  top: 34px;
+  width: 78px;
+  height: 78px;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--stamp);
+  box-shadow: inset 0 0 0 3px var(--card), inset 0 0 0 4.5px var(--stamp);
+  color: var(--stamp);
+  opacity: 0.85;
+  transform: rotate(-12deg);
+  text-align: center;
+  font-size: 8.5px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* one tiny stamp per word collected */
+.word-stamp {
+  display: inline-block;
+  width: 15px;
+  height: 19px;
+  border-radius: 2px;
+  background: var(--tag-edge);
+  box-shadow: 0 0 0 2px var(--card), 0 1px 3px 1px rgb(var(--shadow) / 0.25);
+}
+.word-stamp:nth-child(odd) {
+  transform: rotate(-4deg);
+}
+.word-stamp:nth-child(even) {
+  transform: rotate(3deg);
+}
+@keyframes tag-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-26px);
+  }
+}
+@keyframes tag-swing {
+  0% {
+    transform: rotate(var(--tilt));
+  }
+  14% {
+    transform: rotate(calc(var(--tilt) + 4deg));
+  }
+  34% {
+    transform: rotate(calc(var(--tilt) - 3deg));
+  }
+  54% {
+    transform: rotate(calc(var(--tilt) + 1.8deg));
+  }
+  76% {
+    transform: rotate(calc(var(--tilt) - 0.8deg));
+  }
+  100% {
+    transform: rotate(var(--tilt));
+  }
 }
 
 /* focus visibility for accessibility */
