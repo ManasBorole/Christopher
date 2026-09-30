@@ -10,3 +10,6 @@ dist/
 backend/.env
 frontend/.env.local
 prisma/*.db
+
+# Mascot source renders stay local; the site ships the WebP exports in frontend/public/mascot
+design/mascot/*.png

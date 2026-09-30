@@ -1,5 +1,8 @@
 """Export mascot originals to web-sized WebP for frontend/public/mascot.
 
+The original PNG renders live only on the designer's machine (git-ignored);
+drop them into design/mascot/ before running this.
+
 Usage: python design/mascot/export.py
 """
 from pathlib import Path
