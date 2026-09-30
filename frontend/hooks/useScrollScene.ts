@@ -2,15 +2,13 @@
 
 import { useEffect, type RefObject } from "react";
 
-// Calls `draw(progress)` on scroll (rAF-throttled) with 0..1 progress for `ref`.
-//   mode "pin": progress through a tall section whose child is sticky.
-//   mode "reveal": progress over `span` viewports of scroll, starting once the
-//                  element (measured by its parent) is fully on screen.
+// Calls `draw(progress)` on scroll (rAF-throttled) with 0..1 progress through
+// `ref`, a tall element whose child is sticky (the scene stays pinned meanwhile).
 // With prefers-reduced-motion, draw runs once with `rest` and never again.
 export function useScrollScene(
   ref: RefObject<HTMLElement | null>,
   draw: (p: number) => void,
-  { mode = "pin", span = 0.7, rest = 1 }: { mode?: "pin" | "reveal"; span?: number; rest?: number } = {}
+  { rest = 1 }: { rest?: number } = {}
 ) {
   useEffect(() => {
     const el = ref.current;
@@ -22,11 +20,6 @@ export function useScrollScene(
     const clamp = (v: number) => Math.min(1, Math.max(0, v));
     const measure = () => {
       const vh = innerHeight;
-      if (mode === "reveal") {
-        const box = (el.parentElement ?? el).getBoundingClientRect(); // parent isn't transformed
-        const start = Math.max(0, box.top + scrollY + box.height - vh);
-        return clamp((scrollY - start) / (vh * span));
-      }
       const r = el.getBoundingClientRect();
       return clamp(-r.top / Math.max(1, r.height - vh));
     };
@@ -48,5 +41,5 @@ export function useScrollScene(
     };
     // draw is expected to be stable (defined outside render or memoised)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ref, mode, span, rest]);
+  }, [ref, rest]);
 }
