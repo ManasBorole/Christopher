@@ -194,7 +194,7 @@ function Tag({
           {/* full-tag open target sits under the delete button */}
           <button type="button" onClick={onOpen} aria-label={`Open ${c.language}`} className="tag-open absolute inset-0 z-[1]" />
           <div className="pointer-events-none relative z-[2] flex flex-1 flex-col">
-            <p lang={l?.code} dir={l?.rtl ? "rtl" : undefined} className="pr-20 font-display text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em]">
+            <p lang={l?.code} dir={l?.rtl ? "rtl" : undefined} className="pr-24 font-display text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em]">
               {l?.native ?? c.language}
             </p>
             {l && l.native !== c.language && <p className="mt-1 text-sm text-muted">{c.language}</p>}
@@ -281,7 +281,7 @@ function TagMenu({ language, onRemove }: { language: string; onRemove: () => voi
         </svg>
       </button>
       {open && (
-        <div role="menu" className="absolute bottom-11 right-0 min-w-[12rem] rounded-xl bg-card p-1.5 shadow-[0_14px_30px_-12px_rgb(var(--shadow)/0.5),0_0_0_1px_var(--line)]">
+        <div role="menu" className="absolute bottom-11 right-0 w-max rounded-xl bg-card p-1.5 shadow-[0_14px_30px_-12px_rgb(var(--shadow)/0.5),0_0_0_1px_var(--line)]">
           <button
             type="button"
             role="menuitem"
@@ -290,7 +290,7 @@ function TagMenu({ language, onRemove }: { language: string; onRemove: () => voi
               setOpen(false);
               onRemove();
             }}
-            className="w-full rounded-lg px-3 py-2 text-left text-[15px] text-alert-ink hover:bg-card-2"
+            className="w-full whitespace-nowrap rounded-lg px-3 py-2 text-left text-[15px] text-alert-ink hover:bg-card-2"
           >
             Remove {language}
           </button>
