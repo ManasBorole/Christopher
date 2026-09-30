@@ -198,6 +198,7 @@ body {
   background: var(--mascot-bg);
   box-shadow: 0 0 0 6px var(--card), 0 26px 44px -24px rgb(var(--shadow) / 0.6);
 }
+.mascot-settle,
 .mascot-sway,
 .mascot-body {
   position: absolute;
