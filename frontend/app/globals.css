@@ -198,6 +198,21 @@ body {
   background: var(--mascot-bg);
   box-shadow: 0 0 0 6px var(--card), 0 26px 44px -24px rgb(var(--shadow) / 0.6);
 }
+/* pointer tilt: scaled up a little so the edges never show while turned */
+.mascot-tilt {
+  position: absolute;
+  inset: 0;
+  transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) scale(1.035);
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mascot-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(60% 45% at var(--light-x, 50%) var(--light-y, 35%), rgb(255 255 255 / 0.16), transparent 70%);
+  mix-blend-mode: soft-light;
+  transition: background-position 0.6s;
+}
 .mascot-settle,
 .mascot-sway,
 .mascot-body {
