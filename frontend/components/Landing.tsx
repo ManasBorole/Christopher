@@ -181,7 +181,7 @@ const DEPTH = 3200;
 const SPOTS = HELLOS.map((_, i) => {
   const a = i * 2.39996;
   const r = 180 + (i % 3) * 110;
-  return { x: Math.cos(a) * r * 1.5, y: Math.sin(a) * r * 0.75, z: -(i / HELLOS.length) * DEPTH, rot: ((i * 53) % 30) - 15 };
+  return { x: Math.cos(a) * r * 1.5, y: Math.sin(a) * r * 0.5, z: -(i / HELLOS.length) * DEPTH, rot: ((i * 53) % 30) - 15 };
 });
 
 function Greetings() {
@@ -218,14 +218,15 @@ function Greetings() {
           </h2>
           <p className="mt-2 text-muted">180+ languages, each in its own script and its own direction.</p>
         </div>
-        <div className="absolute inset-0 [perspective:800px]" aria-hidden>
+        {/* the stickers live below the heading and its subtitle, never behind them */}
+        <div className="absolute inset-x-0 bottom-0 top-[34%] overflow-hidden [perspective:800px] sm:top-[30%]" aria-hidden>
           {HELLOS.map(([word, name, code, rtl], i) => (
             <div
               key={code}
               ref={(el) => {
                 items.current[i] = el;
               }}
-              className={`sticker absolute left-1/2 top-[55%] whitespace-nowrap px-4 py-2.5 will-change-transform ${
+              className={`sticker absolute left-1/2 top-[48%] whitespace-nowrap px-4 py-2.5 will-change-transform ${
                 i % 4 === 0 ? "hello-tutor" : i % 4 === 2 ? "hello-learner" : ""
               }`}
             >
