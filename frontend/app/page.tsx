@@ -32,21 +32,20 @@ export default function Page() {
   const [pendingLang, setPendingLang] = useState<string | null>(null);
   const [current, setCurrent] = useState<Nav>({ nav: "landing" });
 
-  // Brand cold-open, then seed history: landing (base) [+ app home for returning
-  // visitors this session]. Back button walks this stack, never off the tab.
-  //
-  // For a returning visitor we mount the app home RIGHT AWAY (not after the timer)
-  // so its data fetch runs *during* the brand splash instead of only starting once
-  // the splash clears - and the splash itself is shorter. The splash renders as an
-  // overlay on top, so the grid is usually populated by the time it lifts.
+  // Brand cold-open, then show whichever screen this history entry belongs to
+  // (a reload keeps you where you were). Never push an entry here: Chrome and
+  // Edge skip entries a page adds without a user gesture, so an entry pushed on
+  // load made Back jump straight past the landing and off the site. Entries
+  // are only ever pushed from clicks.
   useEffect(() => {
     const entered = sessionStorage.getItem("vta_entered");
-    writeHistory("replace", { nav: "landing" });
-    if (entered) {
-      const home: Nav = { nav: "app", screen: { v: "home" } };
-      writeHistory("push", home);
-      setCurrent(home);
+    let initial = readHistory(history.state);
+    // A reload mid-conversation can't resume that session; reopen its course.
+    if (initial.nav === "app" && initial.screen.v === "session") {
+      initial = { nav: "app", screen: { v: "dashboard", courseId: initial.screen.courseId } };
     }
+    writeHistory("replace", initial);
+    setCurrent(initial);
     const t = setTimeout(() => setBooting(false), entered ? 900 : 1900);
 
     const onPop = (e: PopStateEvent) => {
