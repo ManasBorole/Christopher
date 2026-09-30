@@ -4,6 +4,8 @@ import { z } from "zod";
 import { env } from "../env.js";
 import { coach } from "../coach.js";
 import { pcmToWav } from "../wav.js";
+import { owner, type OwnedRequest } from "../owner.js";
+import { isBlocked } from "../gate.js";
 import type { PronounceResult } from "@vta/shared";
 
 export const pronounceRouter = Router();
@@ -35,7 +37,11 @@ function extractJson(text: string): string {
 // The learner's clip is wrapped as WAV and sent to an OpenAI audio model, which
 // LISTENS and judges pronunciation against the reference phrase. (A transcript
 // diff would falsely pass mispronunciations - Whisper auto-corrects them.)
-pronounceRouter.post("/pronounce", upload.single("audio"), async (req, res) => {
+// Same guard as /session: an owner is required (checked before the upload is
+// parsed) and the free-trial gate applies, so this can't be used to spend the
+// OpenAI key anonymously.
+pronounceRouter.post("/pronounce", owner, upload.single("audio"), async (req: OwnedRequest, res) => {
+  if (await isBlocked(req.ownerId!)) return res.status(402).json({ error: "limit_reached" });
   const reference = String(req.body.reference || "");
   const language = String(req.body.language || "the target language");
   const pcm = req.file?.buffer;
