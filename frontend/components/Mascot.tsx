@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PATCHES from "../lib/mascotPatches.json";
 
 export type MascotPose =
   | "idle"
@@ -38,10 +39,44 @@ const still = (p: MascotPose) => `/mascot/${FILE[p]}.webp`;
 const VIDEO: Partial<Record<MascotPose, string>> = {};
 
 type Layer = { pose: MascotPose; id: number };
+type Mouth = "open" | "half" | "closed";
+
+// Speech-like mouth rhythm: short syllables with a pause every few, never a
+// metronome. Without real audio levels this is the closest honest stand-in.
+function useMouth(talking: boolean): Mouth {
+  const [mouth, setMouth] = useState<Mouth>("closed");
+  useEffect(() => {
+    if (!talking) {
+      setMouth("closed");
+      return;
+    }
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setMouth("open");
+      return;
+    }
+    let t: ReturnType<typeof setTimeout>;
+    let left = 0; // syllables until the next breath
+    const next = () => {
+      if (left <= 0) {
+        left = 4 + Math.floor(Math.random() * 6);
+        setMouth("closed");
+        t = setTimeout(next, 240 + Math.random() * 300);
+        return;
+      }
+      left--;
+      const r = Math.random();
+      setMouth(r < 0.45 ? "open" : r < 0.82 ? "half" : "closed");
+      t = setTimeout(next, 95 + Math.random() * 85);
+    };
+    next();
+    return () => clearTimeout(t);
+  }, [talking]);
+  return mouth;
+}
 const FADE_MS = 560;
 
-// Christopher, framed like a photo on a postcard. Pose changes cross-fade;
-// `talking` adds a speech bob while the tutor's audio is actually playing.
+// Christopher, framed like a photo on a postcard. Pose changes dissolve;
+// `talking` moves his mouth and adds a speech bob while the tutor's audio plays.
 export default function Mascot({
   pose,
   talking = false,
@@ -54,6 +89,7 @@ export default function Mascot({
   className?: string;
 }) {
   const [layers, setLayers] = useState<Layer[]>([{ pose, id: 0 }]);
+  const mouth = useMouth(talking && pose === "speak");
 
   // Decode the next pose before fading to it, so the swap never shows a
   // half-loaded image; a newer pose request wins over a slower older one.
@@ -104,16 +140,32 @@ export default function Mascot({
         return clip ? (
           <video key={l.id} className={cls} src={clip} poster={still(l.pose)} autoPlay loop muted playsInline aria-hidden />
         ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={l.id}
-            className={cls}
-            src={still(l.pose)}
-            alt=""
-            draggable={false}
-            decoding="async"
-            fetchPriority={priority && i === 0 ? "high" : "auto"}
-          />
+          <div key={l.id} className={cls}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={still(l.pose)}
+              alt=""
+              draggable={false}
+              decoding="async"
+              fetchPriority={priority && i === 0 ? "high" : "auto"}
+              className="mascot-still"
+            />
+            {l.pose === "speak" &&
+              (["half", "closed"] as const).map((m) => {
+                const box = PATCHES["speak-open"][`speak-${m}`];
+                return (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={m}
+                    src={`/mascot/patch/speak-${m}.webp`}
+                    alt=""
+                    draggable={false}
+                    className={`mascot-mouth ${mouth === m ? "is-on" : ""}`}
+                    style={{ left: `${box.left}%`, top: `${box.top}%`, width: `${box.width}%`, height: `${box.height}%` }}
+                  />
+                );
+              })}
+          </div>
         );
       })}
         </div>
