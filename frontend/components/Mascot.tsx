@@ -95,6 +95,9 @@ export default function Mascot({
 
   return (
     <div className={`mascot ${talking ? "is-talking" : ""} ${className}`}>
+      {/* sway > breathe/talk > pose layers: each motion on its own element so they stack */}
+      <div className="mascot-sway">
+        <div className="mascot-body">
       {layers.map((l, i) => {
         const cls = `mascot-layer ${layers.length > 1 ? (i === layers.length - 1 ? "is-entering" : "is-leaving") : ""}`;
         const clip = VIDEO[l.pose];
@@ -113,6 +116,8 @@ export default function Mascot({
           />
         );
       })}
+        </div>
+      </div>
     </div>
   );
 }

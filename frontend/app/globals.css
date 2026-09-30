@@ -198,26 +198,37 @@ body {
   background: var(--mascot-bg);
   box-shadow: 0 0 0 6px var(--card), 0 26px 44px -24px rgb(var(--shadow) / 0.6);
 }
+.mascot-sway,
+.mascot-body {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 92%;
+}
+/* a slow weight shift, out of step with the breath so it never looks looped */
+.mascot-sway {
+  animation: mascot-sway 7.3s ease-in-out infinite;
+}
+.mascot-body {
+  animation: mascot-breathe 4.4s ease-in-out infinite;
+}
+.mascot.is-talking .mascot-body {
+  animation: mascot-talk 0.46s ease-in-out infinite alternate;
+}
 .mascot-layer {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform-origin: 50% 90%;
-  animation: mascot-breathe 4.4s ease-in-out infinite;
 }
 /* Both poses move during the change: the old one softens and settles back
    while the new one sharpens into place, so it reads as motion, not a cut. */
 .mascot-layer.is-entering {
   z-index: 1;
-  animation: mascot-in 0.56s cubic-bezier(0.22, 1, 0.36, 1) both, mascot-breathe 4.4s ease-in-out 0.56s infinite;
+  animation: mascot-in 0.56s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .mascot-layer.is-leaving {
   animation: mascot-out 0.56s cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-.mascot.is-talking .mascot-layer {
-  animation: mascot-talk 0.32s ease-in-out infinite alternate;
 }
 @keyframes mascot-in {
   from {
@@ -255,12 +266,24 @@ body {
     transform: scale(1.006, 1.013);
   }
 }
+@keyframes mascot-sway {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  30% {
+    transform: rotate(0.45deg) translateX(1px);
+  }
+  70% {
+    transform: rotate(-0.35deg) translateX(-1px);
+  }
+}
 @keyframes mascot-talk {
   from {
     transform: translateY(0) rotate(0);
   }
   to {
-    transform: translateY(-3px) rotate(0.35deg) scale(1.004);
+    transform: translateY(-2px) rotate(0.3deg) scale(1.003);
   }
 }
 
