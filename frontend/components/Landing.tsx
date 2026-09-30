@@ -29,7 +29,7 @@ export default function Landing({
     <main className="relative overflow-x-clip">
       <LandingNav onSignIn={onSignIn} />
       <Hero lang={lang} setLang={setLang} onStart={start} />
-      <Greetings />
+      <Greetings lang={lang} onStart={start} />
       <Meet />
       <AfterTalk />
       <Close lang={lang} onStart={start} />
@@ -189,11 +189,11 @@ const SPOTS = HELLOS.map((_, i) => {
   return { x: Math.cos(a) * r * 1.5, y: Math.sin(a) * r * 0.5, z: -(i / HELLOS.length) * DEPTH, rot: ((i * 53) % 30) - 15 };
 });
 
-function Greetings() {
+function Greetings({ lang, onStart }: { lang: string; onStart: () => void }) {
   const sectionRef = useRef<HTMLElement>(null);
   const items = useRef<(HTMLDivElement | null)[]>([]);
   const copyRef = useRef<HTMLDivElement>(null);
-  const endRef = useRef<HTMLParagraphElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
 
   const draw = useCallback((p: number) => {
@@ -215,7 +215,14 @@ function Greetings() {
       el.style.zIndex = String(Math.round(4000 + z));
     });
     if (copyRef.current) copyRef.current.style.opacity = String(copy);
-    if (endRef.current) endRef.current.style.opacity = String(Math.min(1, Math.max(0, (p - 0.78) * 5)));
+    // The last beat: a blank sticker lands in the middle, waiting for theirs.
+    const end = Math.min(1, Math.max(0, (p - 0.78) * 5));
+    const card = endRef.current;
+    if (card) {
+      card.style.opacity = String(end);
+      card.style.transform = `translate(-50%,-50%) scale(${(0.9 + end * 0.1).toFixed(3)}) rotate(${(-4 + end * 2.5).toFixed(2)}deg)`;
+      card.style.pointerEvents = end > 0.6 ? "auto" : "none";
+    }
   }, []);
   useScrollScene(sectionRef, draw, { rest: 0.45 });
 
@@ -247,9 +254,16 @@ function Greetings() {
             </div>
           ))}
         </div>
-        <p ref={endRef} className="absolute inset-x-4 bottom-[7%] z-10 text-center font-hand text-[26px] text-muted opacity-0">
-          …and yours, when you&apos;re ready.
-        </p>
+        <div
+          ref={endRef}
+          className="absolute left-1/2 top-1/2 z-10 w-[min(22rem,calc(100%-2rem))] rounded-[18px] border-[2.5px] border-dashed border-muted bg-card px-6 py-7 text-center opacity-0 shadow-[0_24px_40px_-24px_rgb(var(--shadow)/0.6)]"
+        >
+          <p className="font-display text-[28px] font-extrabold leading-tight tracking-[-0.02em]">Your hello goes here</p>
+          <p className="mt-1 text-[15px] text-muted">Say it out loud. Christopher is listening.</p>
+          <div className="mt-5">
+            <StartButton lang={lang} onStart={onStart} />
+          </div>
+        </div>
       </div>
     </section>
   );
