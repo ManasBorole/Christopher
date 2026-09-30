@@ -188,50 +188,63 @@ export default function Mascot({
 
   return (
     <div ref={frameRef} className={`mascot ${talking ? "is-talking" : ""} ${className}`}>
+      {/* tilt > settle > sway > breathe/talk > pose layers: one motion per element so they stack */}
       <div className="mascot-tilt">
-      {/* settle > sway > breathe/talk > pose layers: each motion on its own element so they stack */}
-      <div ref={settleRef} className="mascot-settle">
-      <div className="mascot-sway">
-        <div className="mascot-body">
-      {layers.map((l, i) => {
-        const cls = `mascot-layer ${layers.length > 1 ? (i === layers.length - 1 ? "is-entering" : "is-leaving") : ""}`;
-        const clip = VIDEO[l.pose];
-        return clip ? (
-          <video key={l.id} className={cls} src={clip} poster={still(l.pose)} autoPlay loop muted playsInline aria-hidden />
-        ) : (
-          <div key={l.id} className={cls}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={still(l.pose)}
-              alt=""
-              draggable={false}
-              decoding="async"
-              fetchPriority={priority && i === 0 ? "high" : "auto"}
-              className="mascot-still"
-            />
-            {l.pose === "speak" &&
-              (["half", "closed"] as const).map((m) => {
-                const box = PATCHES["speak-open"][`speak-${m}`];
-                return (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={m}
-                    src={`/mascot/patch/speak-${m}.webp`}
-                    alt=""
-                    draggable={false}
-                    className={`mascot-mouth ${mouth === m ? "is-on" : ""}`}
-                    style={{ left: `${box.left}%`, top: `${box.top}%`, width: `${box.width}%`, height: `${box.height}%` }}
-                  />
-                );
-              })}
+        <div ref={settleRef} className="mascot-settle">
+          <div className="mascot-sway">
+            <div className="mascot-body">
+              {layers.map((l, i) => (
+                <PoseLayer
+                  key={l.id}
+                  pose={l.pose}
+                  state={layers.length > 1 ? (i === layers.length - 1 ? "is-entering" : "is-leaving") : ""}
+                  mouth={mouth}
+                  priority={priority && i === 0}
+                />
+              ))}
+            </div>
           </div>
-        );
-      })}
         </div>
       </div>
-      </div>
-      </div>
       <div className="mascot-sheen" aria-hidden />
+    </div>
+  );
+}
+
+// One pose: its looping clip if there is one, otherwise the still, plus the
+// mouth patches when it's the speaking pose.
+function PoseLayer({ pose, state, mouth, priority }: { pose: MascotPose; state: string; mouth: Mouth; priority: boolean }) {
+  const cls = `mascot-layer ${state}`;
+  const clip = VIDEO[pose];
+  if (clip) {
+    return <video className={cls} src={clip} poster={still(pose)} autoPlay loop muted playsInline aria-hidden />;
+  }
+  return (
+    <div className={cls}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={still(pose)}
+        alt=""
+        draggable={false}
+        decoding="async"
+        fetchPriority={priority ? "high" : "auto"}
+        className="mascot-still"
+      />
+      {pose === "speak" &&
+        (["half", "closed"] as const).map((m) => {
+          const box = PATCHES["speak-open"][`speak-${m}`];
+          return (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={m}
+              src={`/mascot/patch/speak-${m}.webp`}
+              alt=""
+              draggable={false}
+              className={`mascot-mouth ${mouth === m ? "is-on" : ""}`}
+              style={{ left: `${box.left}%`, top: `${box.top}%`, width: `${box.width}%`, height: `${box.height}%` }}
+            />
+          );
+        })}
     </div>
   );
 }
