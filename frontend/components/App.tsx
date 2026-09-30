@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CourseCard } from "@vta/shared";
 import { createCourse, listCourses, startSession } from "../lib/api";
 import Mascot from "./Mascot";
 import AuthBar from "./AuthBar";
@@ -41,6 +42,22 @@ export default function App({
   onAutoStartFailed?: () => void;
 }) {
   const started = useRef<string | null>(null);
+  const [continuing, setContinuing] = useState<string | null>(null);
+
+  // "Continue in X" on a tag: straight into a new conversation for that course.
+  // If starting fails, open the course page so the learner can retry from there.
+  async function continueCourse(c: CourseCard) {
+    if (continuing) return;
+    setContinuing(c.id);
+    try {
+      const sid = await startSession(c.id);
+      onAutoStarted?.(c.id, sid, c.language, c.userName);
+    } catch {
+      onOpenCourse(c.id);
+    } finally {
+      setContinuing(null);
+    }
+  }
   useEffect(() => {
     if (!autoStart || started.current === autoStart) return; // once per pick, even under StrictMode
     started.current = autoStart;
@@ -80,7 +97,7 @@ export default function App({
           <p className="font-display text-2xl font-bold">Getting your {autoStart} conversation ready…</p>
         </section>
       )}
-      {screen.v === "home" && !autoStart && <Home onOpenCourse={onOpenCourse} />}
+      {screen.v === "home" && !autoStart && <Home onOpenCourse={onOpenCourse} onContinue={continueCourse} continuing={continuing} />}
 
       {screen.v === "dashboard" && (
         <Dashboard courseId={screen.courseId} onBack={onBack} onStartSession={onStartSession} />

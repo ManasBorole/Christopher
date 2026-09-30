@@ -13,7 +13,15 @@ import Mascot from "./Mascot";
 
 // Every language the learner studies, as a luggage tag. Adding one opens the
 // picker in a sheet.
-export default function Home({ onOpenCourse }: { onOpenCourse: (id: string) => void }) {
+export default function Home({
+  onOpenCourse,
+  onContinue,
+  continuing,
+}: {
+  onOpenCourse: (id: string) => void;
+  onContinue: (c: CourseCard) => void;
+  continuing: string | null;
+}) {
   // Seed from the cache so a revisit (backing out of a course) paints the tags
   // immediately instead of flashing placeholders; still revalidate on mount.
   const [courses, setCourses] = useState<CourseCard[] | null>(() => cachedCourses());
@@ -106,7 +114,15 @@ export default function Home({ onOpenCourse }: { onOpenCourse: (id: string) => v
 
           <ul className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
             {courses.map((c, i) => (
-              <Tag key={c.id} c={c} index={i} onOpen={() => onOpenCourse(c.id)} onDelete={() => setPendingDelete(c)} />
+              <Tag
+                key={c.id}
+                c={c}
+                index={i}
+                busy={continuing === c.id}
+                onOpen={() => onOpenCourse(c.id)}
+                onContinue={() => onContinue(c)}
+                onDelete={() => setPendingDelete(c)}
+              />
             ))}
           </ul>
         </>
@@ -151,7 +167,21 @@ export default function Home({ onOpenCourse }: { onOpenCourse: (id: string) => v
   );
 }
 
-function Tag({ c, index, onOpen, onDelete }: { c: CourseCard; index: number; onOpen: () => void; onDelete: () => void }) {
+function Tag({
+  c,
+  index,
+  busy,
+  onOpen,
+  onContinue,
+  onDelete,
+}: {
+  c: CourseCard;
+  index: number;
+  busy: boolean;
+  onOpen: () => void;
+  onContinue: () => void;
+  onDelete: () => void;
+}) {
   const l = findLanguage(c.language);
   const hello = greeting(l?.code);
   const started = c.sessionCount > 0;
@@ -173,7 +203,7 @@ function Tag({ c, index, onOpen, onDelete }: { c: CourseCard; index: number; onO
               </p>
             )}
 
-            <div className="mt-auto pt-6">
+            <div className="mt-auto pt-5">
               {c.vocabCount > 0 ? (
                 <div className="flex items-center gap-2.5">
                   <span className="flex gap-1.5" aria-hidden>
@@ -188,6 +218,14 @@ function Tag({ c, index, onOpen, onDelete }: { c: CourseCard; index: number; onO
               ) : (
                 <p className="text-sm text-muted">{started ? "No words collected yet." : `Not started yet. Say ${hello ?? "hello"}.`}</p>
               )}
+              <button
+                type="button"
+                onClick={onContinue}
+                disabled={busy}
+                className="btn pointer-events-auto mt-4 px-4 py-2.5 text-[15px]"
+              >
+                {busy ? "Opening…" : started ? `Continue in ${c.language}` : `Start in ${c.language}`}
+              </button>
             </div>
           </div>
 
