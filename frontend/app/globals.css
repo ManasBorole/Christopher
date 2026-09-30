@@ -207,8 +207,14 @@ body {
   transform-origin: 50% 90%;
   animation: mascot-breathe 4.4s ease-in-out infinite;
 }
+/* Both poses move during the change: the old one softens and settles back
+   while the new one sharpens into place, so it reads as motion, not a cut. */
 .mascot-layer.is-entering {
-  animation: mascot-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both, mascot-breathe 4.4s ease-in-out 0.42s infinite;
+  z-index: 1;
+  animation: mascot-in 0.56s cubic-bezier(0.22, 1, 0.36, 1) both, mascot-breathe 4.4s ease-in-out 0.56s infinite;
+}
+.mascot-layer.is-leaving {
+  animation: mascot-out 0.56s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 .mascot.is-talking .mascot-layer {
   animation: mascot-talk 0.32s ease-in-out infinite alternate;
@@ -216,13 +222,28 @@ body {
 @keyframes mascot-in {
   from {
     opacity: 0;
-    transform: scale(1.02) translateY(6px);
-    filter: blur(3px);
+    transform: scale(1.018) translateY(5px);
+    filter: blur(2.5px);
   }
   to {
     opacity: 1;
     transform: none;
     filter: none;
+  }
+}
+@keyframes mascot-out {
+  from {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  45% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.992) translateY(2px);
+    filter: blur(2px);
   }
 }
 @keyframes mascot-breathe {
