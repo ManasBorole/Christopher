@@ -1,24 +1,43 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import {
+  Bricolage_Grotesque,
+  Figtree,
+  Gochi_Hand,
+  Noto_Naskh_Arabic,
+  Noto_Sans_Devanagari,
+  Noto_Sans_Hebrew,
+} from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
-const sans = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-const display = Space_Grotesk({ subsets: ["latin"], variable: "--font-display", display: "swap" });
+// Latin faces preload. Script faces don't: their unicode-range means the browser
+// only fetches them when a Devanagari/Arabic/Hebrew character is on screen.
+const sans = Figtree({ subsets: ["latin", "latin-ext"], variable: "--font-sans", display: "swap" });
+const display = Bricolage_Grotesque({ subsets: ["latin", "latin-ext"], variable: "--font-display", display: "swap" });
+const hand = Gochi_Hand({ weight: "400", subsets: ["latin"], variable: "--font-hand", display: "swap" });
+const deva = Noto_Sans_Devanagari({ subsets: ["devanagari"], variable: "--font-deva", display: "swap", preload: false });
+const arab = Noto_Naskh_Arabic({ subsets: ["arabic"], variable: "--font-arab", display: "swap", preload: false });
+const hebr = Noto_Sans_Hebrew({ subsets: ["hebrew"], variable: "--font-hebr", display: "swap", preload: false });
+const fontVars = [sans, display, hand, deva, arab, hebr].map((f) => f.variable).join(" ");
 
 export const metadata: Metadata = {
-  title: "Christopher - AI Voice Language Tutor",
-  description: "Learn any language through natural voice conversation with an AI tutor.",
+  title: "Christopher, a voice tutor for 180+ languages",
+  description: "Talk out loud in a new language with Christopher. He listens to the whole sentence and gently repeats the right way when you slip.",
 };
 
 const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
+// Runs before first paint so a saved light/dark choice never flashes the other theme.
+const themeBoot = `try{var t=localStorage.getItem("chr-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const shell = (
-    <html lang="en" className={`${sans.variable} ${display.variable}`}>
+    <html lang="en" className={fontVars} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
+      </head>
       <body className="min-h-screen">
-        <div className="aurora" aria-hidden />
-        <div className="grain" aria-hidden />
+        <div className="airmail-edge" aria-hidden />
         {children}
       </body>
     </html>

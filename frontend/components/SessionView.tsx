@@ -6,7 +6,9 @@ import type { ConversationEngine } from "../lib/engine/ConversationEngine";
 import { useSession } from "../store/useSession";
 import { addTurn as persistTurn, patchCourse, endSession, getUsage, reportSpent, consumeUsage } from "../lib/api";
 import { isMeaningfulTranscript } from "../lib/transcript";
-import { MicIcon, Dots, Bubble } from "./ui";
+import { sessionPhase, type Phase } from "../lib/sessionPhase";
+import Mascot, { type MascotPose } from "./Mascot";
+import { SummaryCard } from "./ui";
 import TrialModal from "./TrialModal";
 
 export default function SessionView({
@@ -26,12 +28,36 @@ export default function SessionView({
   const engineRef = useRef<ConversationEngine | null>(null);
   const endedRef = useRef(false);
   const consumedRef = useRef(false);
+  // Seconds used on earlier connections of this conversation, so a reconnect
+  // continues the free-time clock instead of restarting it.
+  const priorRef = useRef(0);
   const [partial, setPartial] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [ending, setEnding] = useState(false);
   const [showTrial, setShowTrial] = useState(false);
   const [limit, setLimit] = useState(60);
   const [blocked, setBlocked] = useState(false);
+  // The engine reports "error" then "idle" as it tears down, which wipes the
+  // store's error. Keep the last one here so the learner sees what went wrong.
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [mic, setMic] = useState<PermissionState | "unknown">("unknown");
+  const [handedBack, setHandedBack] = useState(false);
+
+  // Know up front whether the mic is already allowed or blocked, so the first
+  // screen can say so. Browsers without the Permissions API stay "unknown".
+  useEffect(() => {
+    let status: PermissionStatus | undefined;
+    const sync = () => status && setMic(status.state);
+    navigator.permissions
+      ?.query({ name: "microphone" as PermissionName })
+      .then((p) => {
+        status = p;
+        sync();
+        p.addEventListener("change", sync);
+      })
+      .catch(() => {});
+    return () => status?.removeEventListener("change", sync);
+  }, []);
 
   // fresh conversation + check remaining free allowance
   useEffect(() => {
@@ -47,7 +73,7 @@ export default function SessionView({
   useEffect(() => {
     if (!s.startedAt) return;
     const t = setInterval(() => {
-      const e = Math.floor((Date.now() - s.startedAt!) / 1000);
+      const e = priorRef.current + Math.floor((Date.now() - s.startedAt!) / 1000);
       setElapsed(e);
       if (e >= limit && !endedRef.current) end(); // free time up -> stop hard
     }, 500);
@@ -57,6 +83,8 @@ export default function SessionView({
 
   async function connect() {
     if (blocked) return setShowTrial(true);
+    setLastError(null);
+    engineRef.current?.disconnect(); // a dropped connection is still open; close it first
     const engine = new RealtimeEngine();
     engineRef.current = engine;
     await engine.connect(
@@ -69,6 +97,7 @@ export default function SessionView({
             return;
           }
           s.setStatus(st, detail);
+          if (st === "error") setLastError(detail ?? "unknown");
           if (st === "live") {
             s.start(Date.now());
             if (!consumedRef.current) {
@@ -76,7 +105,11 @@ export default function SessionView({
               void consumeUsage();
             }
           }
-          if (st === "idle" || st === "error") s.clearTimer();
+          if (st === "idle" || st === "error") {
+            const started = useSession.getState().startedAt;
+            if (started) priorRef.current += Math.floor((Date.now() - started) / 1000);
+            s.clearTimer();
+          }
         },
         onSpeaking: (b) => s.setSpeaking(b),
         onTranscript: (role, text, done) => {
@@ -110,11 +143,25 @@ export default function SessionView({
     );
   }
 
+  // Learner cuts in: stop the tutor's reply and show Christopher handing the
+  // turn back until the learner's words arrive (or a few seconds pass).
+  function letMeTalk() {
+    engineRef.current?.interrupt();
+    setHandedBack(true);
+  }
+  useEffect(() => {
+    if (!handedBack) return;
+    const t = setTimeout(() => setHandedBack(false), 4000);
+    return () => clearTimeout(t);
+  }, [handedBack, s.turns.length]);
+  useEffect(() => setHandedBack(false), [s.turns.length]);
+
   // End the session: stop audio, record usage, save summary, show trial modal.
   async function end() {
     if (endedRef.current) return;
     endedRef.current = true;
-    const spent = s.startedAt ? Math.min(limit, Math.floor((Date.now() - s.startedAt) / 1000)) : 0;
+    const current = s.startedAt ? Math.floor((Date.now() - s.startedAt) / 1000) : 0;
+    const spent = Math.min(limit, priorRef.current + current);
     engineRef.current?.disconnect();
     engineRef.current = null;
     s.clearTimer();
@@ -122,7 +169,7 @@ export default function SessionView({
     if (s.turns.length > 0) {
       setEnding(true);
       try {
-        await endSession(sessionId);
+        s.setSummary(await endSession(sessionId));
       } catch {
         /* best effort */
       } finally {
@@ -130,97 +177,186 @@ export default function SessionView({
       }
     }
     setBlocked(true);
-    setShowTrial(true);
+    // With a postcard to show, the trial notice waits until they've read it.
+    if (!useSession.getState().summary) setShowTrial(true);
   }
 
   const live = s.status === "live" || s.status === "connecting";
   const remaining = Math.max(0, limit - elapsed);
-  const status =
-    s.status === "error"
-      ? s.error || "Connection error - check backend + keys."
-      : ending
-        ? "Saving your lesson summary..."
-        : s.agentSpeaking
-          ? "Tutor speaking..."
-          : live
-            ? "Listening..."
-            : "Tap to start talking";
+  const lastTurn = s.turns.length ? s.turns[s.turns.length - 1].role : null;
+  const phase = sessionPhase({
+    status: s.status,
+    agentSpeaking: s.agentSpeaking,
+    lastTurn,
+    lastError,
+    ending,
+    handedBack,
+    mic,
+  });
+  const ui = PHASES[phase];
+
+  if (s.summary && !ending) {
+    return (
+      <div className="mx-auto grid max-w-4xl items-start gap-8 px-4 pb-24 pt-8 sm:px-6 md:grid-cols-[minmax(0,260px)_minmax(0,1fr)] md:gap-12">
+        <div className="flex flex-col items-center text-center md:items-start md:text-left">
+          <Mascot pose="postcard" priority className="w-[min(56vw,260px)] md:w-full" />
+          <p className="mt-5 font-display text-2xl font-extrabold tracking-[-0.02em]">Here&apos;s your postcard.</p>
+          <p className="mt-1 text-[15px] text-muted">Christopher keeps it for your next conversation.</p>
+        </div>
+        <div>
+          <SummaryCard summary={s.summary} />
+          <button type="button" onClick={() => setShowTrial(true)} className="btn mt-6">
+            Done
+          </button>
+        </div>
+        {showTrial && <TrialModal onClose={onExit} />}
+      </div>
+    );
+  }
+  const help = typeof ui.help === "function" ? ui.help(limit) : ui.help;
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col items-center gap-6 px-6 py-10">
-      <div className="flex w-full items-center justify-between">
-        <button onClick={onExit} className="btn-ghost px-4 py-1.5 text-sm">
-          &larr; Dashboard
+    <div className="mx-auto grid max-w-6xl gap-8 px-4 pb-24 pt-4 sm:px-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:gap-14 lg:pt-6">
+      <header className="flex items-center justify-between gap-4 lg:col-span-2">
+        <button type="button" onClick={onExit} className="text-[15px] font-semibold text-muted hover:text-ink">
+          <span aria-hidden>‹ </span>
+          {language}
         </button>
-        <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-          <span className="glass rounded-full px-3 py-1">{language}</span>
-          {live && (
-            <span
-              className="glass rounded-full px-3 py-1 tabular-nums"
-              style={{ color: remaining <= 10 ? "#fb7185" : undefined, borderColor: remaining <= 10 ? "rgba(251,113,133,.4)" : undefined }}
-            >
-              {fmt(remaining)} left
-            </span>
+        {live && (
+          <p className="text-[15px] tabular-nums text-muted" aria-live="off">
+            {remaining <= 10 ? `Wrapping up in ${fmt(remaining)}` : `${fmt(remaining)} left`}
+          </p>
+        )}
+      </header>
+
+      <section aria-label="Christopher" className="flex flex-col items-center text-center lg:items-start lg:text-left">
+        <Mascot pose={ui.pose} talking={phase === "speaking"} priority className="w-[min(64vw,300px)] lg:w-full" />
+        <p aria-live="polite" className="mt-6 min-h-[1.3em] font-display text-2xl font-extrabold tracking-[-0.02em]">
+          {ui.line}
+        </p>
+        {help && <div className="mt-2 max-w-[42ch] text-[15px] text-muted">{help}</div>}
+
+        <div className="mt-6 flex flex-wrap justify-center gap-3 lg:justify-start">
+          {(phase === "mic-ask" || phase === "ready") && (
+            <button type="button" onClick={connect} className="btn text-[17px]">
+              <MicGlyph />
+              {phase === "mic-ask" ? "Allow microphone and start" : `Start talking in ${language}`}
+            </button>
+          )}
+          {(phase === "mic-blocked" || phase === "mic-missing" || phase === "failed" || phase === "dropped") && (
+            <button type="button" onClick={connect} className="btn">
+              {phase === "dropped" ? "Reconnect" : "Try again"}
+            </button>
+          )}
+          {phase === "speaking" && (
+            <button type="button" onClick={letMeTalk} className="btn">
+              Let me talk
+            </button>
+          )}
+          {(phase === "listening" || phase === "thinking" || phase === "speaking" || phase === "handed-back" || phase === "dropped") && (
+            <button type="button" onClick={end} className="btn-quiet">
+              End conversation
+            </button>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* free-trial notice before starting */}
-      {!live && !showTrial && (
-        <div className="glass mt-2 rounded-full px-4 py-2 text-xs text-[var(--muted)]">
-          <span className="text-emerald-300">Free trial:</span> {limit} seconds with your tutor.
-        </div>
-      )}
-
-      <button
-        onClick={live ? end : connect}
-        aria-label={live ? "End session" : "Start speaking"}
-        className="relative mt-2 grid h-44 w-44 place-items-center rounded-full transition-transform duration-300 hover:scale-[1.03] active:scale-95"
-      >
-        {live && (
-          <>
-            <span className="pulsering absolute inset-0 rounded-full" style={{ background: "rgba(52,211,153,.25)" }} />
-            <span className="pulsering absolute inset-0 rounded-full" style={{ background: "rgba(34,211,238,.2)", animationDelay: "1s" }} />
-          </>
-        )}
-        <span
-          className="grid h-full w-full place-items-center rounded-full text-lg font-semibold"
-          style={{
-            background: live ? "linear-gradient(140deg,#fb7185,#ef4444)" : "linear-gradient(140deg,var(--c1),var(--c2))",
-            color: "#050810",
-            boxShadow: live
-              ? "0 20px 60px -12px rgba(239,68,68,.6), inset 0 2px 0 rgba(255,255,255,.4)"
-              : "0 20px 60px -12px rgba(52,211,153,.6), inset 0 2px 0 rgba(255,255,255,.45)",
-          }}
-        >
-          {s.status === "connecting" ? <Dots /> : live ? "End" : <MicIcon />}
-        </span>
-      </button>
-      <p className="h-5 text-sm text-[var(--muted)]" aria-live="polite">
-        {status}
-      </p>
-
-      {s.feedback && (
-        <div className="glass w-full max-w-lg rounded-2xl p-4 animate-fadeup" style={{ borderColor: "rgba(52,211,153,.2)" }}>
-          <div className="mb-1 flex items-center justify-between text-xs text-emerald-300/80">
-            <span>Pronunciation &middot; "{s.feedback.phrase}"</span>
-            <span className="tabular-nums">{s.feedback.accuracy}/100</span>
+      <section aria-label="Conversation" className="min-w-0">
+        {s.feedback && (
+          <div className="mb-4 rounded-2xl p-4 shadow-[inset_0_0_0_1.5px_var(--correct)]">
+            <p className="text-sm font-semibold text-correct">Try it like this</p>
+            <p className="mt-1 font-display text-lg font-bold">{s.feedback.phrase}</p>
+            <p className="mt-1 text-[15px]">{s.feedback.coaching}</p>
           </div>
-          <p className="text-sm">{s.feedback.coaching}</p>
+        )}
+        <div role="log" aria-live="polite" aria-label="Transcript" className="grid gap-2.5">
+          {s.turns.length === 0 && !partial ? (
+            <p className="rounded-2xl bg-card-2 px-5 py-4 text-[15px] text-muted">
+              Your conversation appears here as you talk, so you can read back anything you missed.
+            </p>
+          ) : (
+            <>
+              {s.turns.map((t, i) => (
+                <Line key={i} role={t.role} text={t.text} />
+              ))}
+              {partial && <Line role="agent" text={partial} pending />}
+            </>
+          )}
         </div>
-      )}
-
-      {(s.turns.length > 0 || partial) && (
-        <div className="w-full max-w-lg space-y-2">
-          {s.turns.map((t, i) => (
-            <Bubble key={i} role={t.role} text={t.text} />
-          ))}
-          {partial && <Bubble role="agent" text={partial} faint />}
-        </div>
-      )}
+      </section>
 
       {showTrial && <TrialModal onClose={onExit} />}
     </div>
+  );
+}
+
+// Pose, headline and help for each state of the conversation screen.
+const PHASES: Record<Phase, { pose: MascotPose; line: string; help?: React.ReactNode | ((limit: number) => React.ReactNode) }> = {
+  "mic-ask": {
+    pose: "mic-ask",
+    line: "Can I hear you?",
+    help: "Your browser will ask for the microphone. Christopher only listens while this conversation is open.",
+  },
+  ready: {
+    pose: "idle",
+    line: "Ready when you are.",
+    help: (limit) => `Your free conversation lasts ${limit} seconds. Say hello and he'll take it from there.`,
+  },
+  "mic-blocked": {
+    pose: "mic-blocked",
+    line: "Christopher can't hear you yet",
+    help: (
+      <ol className="mt-1 list-decimal space-y-1 pl-5 text-left">
+        <li>Click the lock or settings icon next to the web address.</li>
+        <li>Set Microphone to Allow.</li>
+        <li>Come back here and press Try again.</li>
+      </ol>
+    ),
+  },
+  "mic-missing": {
+    pose: "mic-blocked",
+    line: "No microphone found",
+    help: "Plug in a headset or microphone, or open Christopher on your phone, then try again.",
+  },
+  connecting: { pose: "reconnecting", line: "Getting Christopher on the line…" },
+  listening: { pose: "listen", line: "Listening. Take your time." },
+  thinking: { pose: "think", line: "Thinking about what you said" },
+  speaking: { pose: "speak", line: "Christopher is speaking" },
+  "handed-back": { pose: "goahead", line: "Go ahead, he's listening" },
+  dropped: {
+    pose: "reconnecting",
+    line: "The connection dropped",
+    help: "What you've said so far is saved. Reconnect to keep going.",
+  },
+  failed: {
+    pose: "reconnecting",
+    line: "Christopher couldn't connect",
+    help: "This is usually the network. Check your connection and try again.",
+  },
+  saving: { pose: "postcard", line: "Writing your postcard…" },
+};
+
+function Line({ role, text, pending }: { role: "user" | "agent"; text: string; pending?: boolean }) {
+  const mine = role === "user";
+  return (
+    <p
+      className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-[16px] leading-snug ${
+        mine ? "justify-self-end bg-[color-mix(in_srgb,var(--learner)_36%,var(--card))]" : "bg-card"
+      } ${pending ? "text-muted" : ""}`}
+    >
+      <span className="sr-only">{mine ? "You: " : "Christopher: "}</span>
+      {text}
+    </p>
+  );
+}
+
+function MicGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <path d="M12 19v3" />
+    </svg>
   );
 }
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SignedIn, SignedOut, SignUpButton } from "@clerk/nextjs";
 import { submitFeedback } from "../lib/api";
+import Mascot from "./Mascot";
 
 const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -13,71 +14,81 @@ export default function TrialModal({ onClose }: { onClose: () => void }) {
   const [message, setMessage] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   async function send() {
     if (busy || (!email.trim() && !message.trim())) return;
     setBusy(true);
+    setFailed(false);
     try {
       await submitFeedback(email.trim(), message.trim());
       setSent(true);
     } catch {
-      /* ignore */
+      setFailed(true);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 grid place-items-center p-4"
-      style={{ background: "rgba(4,5,10,.6)", backdropFilter: "blur(14px)", animation: "fadeIn .4s both" }}
-    >
-      <div className="glass w-full max-w-md rounded-[28px] p-8 animate-scalein" style={{ boxShadow: "0 40px 120px -30px rgba(0,0,0,.8)" }}>
-        <div className="mb-5 text-center">
-          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl text-2xl" style={{ background: "linear-gradient(140deg,var(--c1),var(--c3))" }}>
-            ✨
+    <div role="dialog" aria-modal="true" aria-labelledby="trial-title" className="sheet-backdrop">
+      <div className="sheet">
+        <div className="flex items-center gap-4">
+          <Mascot pose={sent ? "wave" : "postcard"} className="w-24 shrink-0" />
+          <div>
+            <h2 id="trial-title" className="font-display text-2xl font-extrabold leading-tight tracking-[-0.02em]">
+              {sent ? "Thank you, it's on its way" : "That was your free conversation"}
+            </h2>
+            <p className="mt-1 text-[15px] text-muted">
+              {sent
+                ? "You're on the list. We'll write when full access opens."
+                : "Leave your email to hear when full access opens, and tell us how it felt."}
+            </p>
           </div>
-          <h2 className="font-display text-2xl font-semibold tracking-tight">
-            {sent ? "Thank you!" : "That's your free trial"}
-          </h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {sent
-              ? "You're on the list. We'll be in touch when full access opens up."
-              : "Thanks for trying Christopher. Leave your email to join the waitlist and tell us what you think."}
-          </p>
         </div>
 
         {!sent ? (
-          <div className="flex flex-col gap-3">
+          <div className="mt-6 flex flex-col gap-3">
+            <label htmlFor="trial-email" className="text-sm font-semibold">
+              Email
+            </label>
             <input
+              id="trial-email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@email.com"
-              className="w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-3 py-2.5 text-sm outline-none focus:border-emerald-400/50"
+              placeholder="you@example.com"
+              className="w-full rounded-xl border-[1.5px] border-line bg-paper px-4 py-3 text-ink placeholder:text-muted"
             />
+            <label htmlFor="trial-msg" className="mt-1 text-sm font-semibold">
+              How did it feel? <span className="font-normal text-muted">(optional)</span>
+            </label>
             <textarea
+              id="trial-msg"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={3}
-              placeholder="What did you like? What would you improve?"
-              className="w-full resize-none rounded-xl border border-[var(--line)] bg-white/[0.04] px-3 py-2.5 text-sm outline-none focus:border-emerald-400/50"
+              placeholder="What helped, what felt awkward, what you'd want next"
+              className="w-full resize-none rounded-xl border-[1.5px] border-line bg-paper px-4 py-3 text-ink placeholder:text-muted"
             />
-            <button onClick={send} disabled={busy} className="btn-primary w-full disabled:opacity-50">
-              {busy ? "Sending..." : "Join the waitlist"}
+            <button type="button" onClick={send} disabled={busy || (!email.trim() && !message.trim())} className="btn mt-1 w-full">
+              {busy ? "Sending…" : "Join the waitlist"}
             </button>
+            {failed && (
+              <p role="alert" className="text-sm text-alert-ink">
+                That didn&apos;t send. Check your connection and press Join the waitlist again.
+              </p>
+            )}
           </div>
         ) : (
-          <GuestUpsell />
+          <div className="mt-6">
+            <GuestUpsell />
+          </div>
         )}
 
-        <p className="mt-5 text-center text-xs text-[var(--muted)]">
-          Full access unlocks at launch with paid plans.
-        </p>
-        <button onClick={onClose} className="mt-3 w-full text-sm text-[var(--muted)] transition hover:text-[var(--fg)]">
-          Back to dashboard
+        <button type="button" onClick={onClose} className="btn-quiet mt-4 w-full">
+          Back to your language
         </button>
       </div>
     </div>
@@ -88,18 +99,18 @@ export default function TrialModal({ onClose }: { onClose: () => void }) {
 // users see the paywall-coming message.
 function GuestUpsell() {
   if (!hasClerk) {
-    return <p className="text-center text-sm text-[var(--muted)]">Accounts are coming soon.</p>;
+    return <p className="text-center text-sm text-muted">Accounts are coming soon.</p>;
   }
   return (
     <div className="text-center">
       <SignedOut>
-        <p className="mb-3 text-sm text-[var(--fg)]">Create a free account for one more session.</p>
+        <p className="mb-3 text-[15px]">Create a free account and get one more conversation.</p>
         <SignUpButton mode="modal">
-          <button className="btn-primary w-full">Sign up - get another 60s</button>
+          <button type="button" className="btn w-full">Create a free account</button>
         </SignUpButton>
       </SignedOut>
       <SignedIn>
-        <p className="text-sm text-[var(--muted)]">You've used your free sessions. Paid plans are on the way.</p>
+        <p className="text-[15px] text-muted">You&apos;ve used your free conversations. Paid plans are on the way.</p>
       </SignedIn>
     </div>
   );

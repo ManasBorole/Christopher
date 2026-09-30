@@ -1,378 +1,399 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useReveal } from "../hooks/useReveal";
-import { MicIcon } from "./ui";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useScrollScene } from "../hooks/useScrollScene";
+import Mascot, { type MascotPose } from "./Mascot";
+import ThemeToggle from "./ThemeToggle";
+import Wordmark from "./Wordmark";
 
-/* The marketing entry: what Christopher is, before the app. Persuade surface,
-   built on the committed world (aurora + glass + gradient). CTAs hand control
-   back to the parent (onStart) which opens the sign-in / guest overlay. */
-export default function Landing({ onStart }: { onStart: () => void }) {
-  useReveal([]);
+// English names, matching what the picker stores (Intl.DisplayNames "en").
+const STARTERS = [
+  "Spanish", "French", "Japanese", "German", "Korean", "Hindi", "Italian",
+  "Portuguese", "Chinese", "Arabic", "Marathi", "Russian", "Turkish", "Dutch",
+];
+
+/* The way in for a nervous first-timer. One action, and it names the language.
+   onStart(language) hands off to the parent, which opens the guest / sign-in
+   sheet and then drops the learner straight into a conversation. */
+export default function Landing({
+  onStart,
+  onSignIn,
+}: {
+  onStart: (language: string) => void;
+  onSignIn: () => void;
+}) {
+  const [lang, setLang] = useState("Spanish");
+  const start = () => onStart(lang);
+
   return (
-    <main className="relative">
-      <LandingNav onStart={onStart} />
-      <Hero onStart={onStart} />
-      <HowItWorks />
-      <Pronunciation />
-      <Capabilities />
-      <FinalCta onStart={onStart} />
+    <main className="relative overflow-x-clip">
+      <LandingNav onSignIn={onSignIn} />
+      <Hero lang={lang} setLang={setLang} onStart={start} />
+      <Greetings lang={lang} onStart={start} />
+      <Meet />
+      <AfterTalk />
+      <Close lang={lang} onStart={start} />
       <Footer />
-      <style>{keyframes}</style>
     </main>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Nav                                                                 */
-/* ------------------------------------------------------------------ */
-function LandingNav({ onStart }: { onStart: () => void }) {
+function LandingNav({ onSignIn }: { onSignIn: () => void }) {
   return (
-    <nav className="sticky top-0 z-30 animate-fadein">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <a href="#top" className="flex items-center gap-2">
-          <BrandMark />
-          <span className="font-display text-lg font-semibold">Christopher</span>
-        </a>
-        <div className="hidden items-center gap-8 text-sm text-[var(--muted)] sm:flex">
-          <a href="#how" className="transition hover:text-[var(--fg)]">How it works</a>
-          <a href="#pronunciation" className="transition hover:text-[var(--fg)]">Pronunciation</a>
-          <a href="#features" className="transition hover:text-[var(--fg)]">Features</a>
+    <nav className="sticky top-0 z-30 bg-[color-mix(in_srgb,var(--paper)_90%,transparent)] pt-1.5">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <Wordmark />
+        <div className="flex items-center gap-3">
+          <span className="hidden sm:block">
+            <ThemeToggle />
+          </span>
+          <button type="button" onClick={onSignIn} className="text-[15px] font-semibold text-ink underline decoration-line decoration-2 underline-offset-4 hover:decoration-ink">
+            Sign in
+          </button>
         </div>
-        <button onClick={onStart} className="btn-primary px-5 py-2.5 text-sm">
-          Start free
-        </button>
       </div>
     </nav>
   );
 }
 
-function BrandMark({ size = 32 }: { size?: number }) {
+function StartButton({ lang, onStart }: { lang: string; onStart: () => void }) {
   return (
-    <span
-      className="grid place-items-center rounded-lg text-sm font-bold"
-      style={{ width: size, height: size, background: "linear-gradient(140deg,var(--c1),var(--c3))", color: "#04120c" }}
-    >
-      C
-    </span>
+    <button type="button" onClick={onStart} className="btn text-[17px]">
+      Start talking in {lang}
+    </button>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Hero                                                                */
+/* Hero: the postcard turns over as you scroll                         */
 /* ------------------------------------------------------------------ */
-function Hero({ onStart }: { onStart: () => void }) {
+function Hero({ lang, setLang, onStart }: { lang: string; setLang: (l: string) => void; onStart: () => void }) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const pinRef = useRef<HTMLDivElement>(null);
+  const flip = useCallback((p: number) => {
+    const el = cardRef.current;
+    if (!el) return;
+    const t = Math.min(1, Math.max(0, (p - 0.08) / 0.8));
+    const f = 1 - Math.pow(1 - t, 3); // ease out
+    const lift = Math.sin(f * Math.PI);
+    el.style.transform = `translateZ(${lift * 80}px) rotateX(${6 - f * 6 + lift * 5}deg) rotateY(${f * 180}deg) rotateZ(${-2.5 + f * 4.5}deg)`;
+    el.style.setProperty("--sheen", (lift * 0.9).toFixed(2));
+  }, []);
+  // The card is pinned in view while it turns, so the whole flip is seen and
+  // the page only moves on once the back is showing.
+  useScrollScene(pinRef, flip, { rest: 0 });
+
   return (
-    <section id="top" className="mx-auto grid max-w-6xl items-center gap-12 px-6 pt-10 pb-20 lg:grid-cols-[1.05fr_.95fr] lg:pt-16 lg:pb-28">
-      <div>
-        <p className="inline-flex items-center gap-2 rounded-full glass px-4 py-1.5 text-xs text-[var(--muted)] animate-fadeup">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          </span>
-          Real-time voice AI tutor
-        </p>
-        <h1 className="mt-5 font-display text-5xl font-semibold leading-[1.02] tracking-[-0.03em] sm:text-6xl lg:text-[4.4rem] animate-fadeup" style={{ animationDelay: ".06s" }}>
-          Learn a language
-          <br />
-          by actually <span className="gradient-text">speaking&nbsp;it.</span>
+    <section className="mx-auto grid max-w-6xl items-start gap-10 px-4 pb-16 pt-8 sm:px-6 lg:grid-cols-[1.12fr_1fr] lg:gap-12 lg:pb-24 lg:pt-14">
+      <div className="lg:sticky lg:top-28">
+        <h1 className="font-display text-[clamp(2.5rem,5.2vw,4.1rem)] font-extrabold leading-[1.02] tracking-[-0.035em] text-balance">
+          Say it out loud. Christopher will wait for you.
         </h1>
-        <p className="mt-6 max-w-md text-lg leading-relaxed text-[var(--muted)] animate-fadeup" style={{ animationDelay: ".12s" }}>
-          Christopher is a tutor you talk to out loud - like a real teacher. Natural
-          conversation, honest pronunciation coaching, and a memory that greets you back
-          by name. No flashcards, no quizzes.
+        <p className="mt-5 max-w-[38ch] text-lg leading-relaxed text-muted sm:text-[19px]">
+          A tutor you talk to in your new language. He listens to the whole sentence, answers like a person, and
+          quietly repeats the right way when you slip.
         </p>
-        <div className="mt-8 flex flex-wrap items-center gap-4 animate-fadeup" style={{ animationDelay: ".18s" }}>
-          <button onClick={onStart} className="btn-primary inline-flex items-center gap-2.5 text-base">
-            <span className="grid place-items-center" style={{ width: 20, height: 20 }}>
-              <MiniMic />
-            </span>
-            Start speaking free
-          </button>
-          <a href="#how" className="btn-ghost inline-flex items-center gap-2 text-base">
-            See how it works
-          </a>
+        <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-3">
+          <StartButton lang={lang} onStart={onStart} />
+          <label className="flex items-center gap-2 text-[15px] text-muted">
+            or pick
+            <select
+              value={lang}
+              onChange={(e) => setLang(e.target.value)}
+              aria-label="Language to practise"
+              className="rounded-[10px] border-[1.5px] border-line bg-card px-2.5 py-2 text-ink"
+            >
+              {STARTERS.map((l) => (
+                <option key={l}>{l}</option>
+              ))}
+            </select>
+          </label>
         </div>
-        <p className="mt-5 text-sm text-[var(--muted)] animate-fadeup" style={{ animationDelay: ".24s" }}>
-          Open the mic and say hello. That&apos;s the whole first lesson.
-        </p>
+        <p className="mt-4 text-[15px] text-muted">No account needed for your first conversation. 180+ languages inside.</p>
       </div>
 
-      <div className="animate-fadeup" style={{ animationDelay: ".16s" }}>
-        <ConversationDemo />
+      <div ref={pinRef} className="h-[150vh] motion-reduce:h-auto lg:h-[175vh]">
+        <div className="pc-scene sticky top-[18svh] lg:top-28">
+          <div ref={cardRef} className="pc">
+            <div className="pc-face pc-front">
+              <div className="pc-photo">
+                <Mascot pose="wave" priority />
+              </div>
+              <div className="pc-greeting">
+                <span className="font-hand text-2xl text-muted">Greetings from</span>
+                <span className="pc-big">
+                  your first <span>real conversation</span>
+                </span>
+              </div>
+            </div>
+            <div className="pc-face pc-back" aria-label="A sample exchange in Spanish">
+              <div className="pc-msg">
+                <p className="pc-line pc-t">
+                  <span className="pc-who">Christopher</span>
+                  <span lang="es">¿Qué pediste para cenar?</span>
+                </p>
+                <p className="pc-line pc-l">
+                  <span className="pc-who">You</span>
+                  <span lang="es">Yo pedí… una sopa?</span>
+                </p>
+                <p className="pc-line pc-t">
+                  <span className="pc-who">Christopher</span>
+                  <span lang="es">
+                    Ah, <span className="fix">pedí una sopa</span>. ¿Estaba buena?
+                  </span>
+                </p>
+                <p className="font-hand text-[17px] leading-tight text-correct">
+                  “pedí” already means “I ordered”, so the “yo” can go.
+                </p>
+              </div>
+              <div className="pc-addr" aria-hidden>
+                <div className="pc-stamp">
+                  <span lang="es">¡Hola!</span>
+                </div>
+                <div className="grid gap-2.5">
+                  <b className="font-hand text-xl font-normal">To: you, in Madrid</b>
+                  <i />
+                  <i />
+                  <i />
+                </div>
+              </div>
+              <div className="pc-postmark" aria-hidden>
+                UNDERSTOOD
+                <br />
+                FIRST TRY
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
-/* The authored motion moment: a live tutor exchange that plays itself,
-   waveform reacting while the tutor "speaks". */
-const SCRIPT: { role: "agent" | "user"; text: string; note?: string }[] = [
-  { role: "agent", text: "Hello! Which language would you like to learn today?" },
-  { role: "user", text: "Spanish" },
-  { role: "agent", text: "Perfect. Repeat after me - “Me llamo Ana.”" },
-  { role: "user", text: "Me llamo Ana" },
-  { role: "agent", text: "Beautiful. The “ll” softens to a “y” - you nailed it.", note: "96%" },
+/* ------------------------------------------------------------------ */
+/* Greetings: fly through hellos in their own scripts                  */
+/* ------------------------------------------------------------------ */
+const HELLOS: [string, string, string, boolean?][] = [
+  ["Hola", "Spanish", "es"], ["こんにちは", "Japanese", "ja"], ["नमस्ते", "Hindi", "hi"], ["مرحبا", "Arabic", "ar", true],
+  ["Bonjour", "French", "fr"], ["안녕하세요", "Korean", "ko"], ["Привет", "Russian", "ru"], ["שלום", "Hebrew", "he", true],
+  ["Olá", "Portuguese", "pt"], ["Γειά σου", "Greek", "el"], ["नमस्कार", "Marathi", "mr"], ["Merhaba", "Turkish", "tr"],
+  ["Xin chào", "Vietnamese", "vi"], ["سلام", "Persian", "fa", true], ["Habari", "Swahili", "sw"], ["வணக்கம்", "Tamil", "ta"],
+  ["হ্যালো", "Bengali", "bn"], ["สวัสดี", "Thai", "th"], ["Ciao", "Italian", "it"], ["Hallo", "German", "de"],
+  ["你好", "Chinese", "zh"], ["Cześć", "Polish", "pl"], ["ہیلو", "Urdu", "ur", true], ["Sawubona", "Zulu", "zu"],
 ];
+const DEPTH = 3200;
+// Deterministic spread on a golden-angle ring, receding into the page.
+const SPOTS = HELLOS.map((_, i) => {
+  const a = i * 2.39996;
+  const r = 180 + (i % 3) * 110;
+  return { x: Math.cos(a) * r * 1.5, y: Math.sin(a) * r * 0.5, z: -(i / HELLOS.length) * DEPTH, rot: ((i * 53) % 30) - 15 };
+});
 
-function ConversationDemo() {
-  const [shown, setShown] = useState(0);
+function Greetings({ lang, onStart }: { lang: string; onStart: () => void }) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const items = useRef<(HTMLDivElement | null)[]>([]);
+  const copyRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const gaps = SCRIPT.map((l) => 900 + l.text.length * 34);
-    let i = 0;
-    let timer: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      i = i >= SCRIPT.length ? 0 : i + 1;
-      setShown(i);
-      timer = setTimeout(tick, i === 0 ? 700 : i >= SCRIPT.length ? 2600 : gaps[i - 1]);
-    };
-    timer = setTimeout(tick, 700);
-    return () => clearTimeout(timer);
+  const draw = useCallback((p: number) => {
+    const cam = p * (DEPTH + 500);
+    const narrow = innerWidth < 700 ? 0.45 : 1;
+    const copy = Math.max(0, 1 - p * 3.2); // heading visibility
+    // While the heading shows, the stickers sit below it; as it fades they
+    // rise to use the whole screen.
+    const drop = copy * (stageRef.current?.clientHeight ?? innerHeight) * 0.2;
+    SPOTS.forEach((s, i) => {
+      const el = items.current[i];
+      if (!el) return;
+      const z = s.z + cam; // > 0: already passed the viewer
+      const vis = z > 520 ? 0 : Math.min(1, Math.max(0, (z + DEPTH) / 900));
+      const blur = z < -1400 ? Math.min(6, (-z - 1400) / 300) : 0;
+      el.style.opacity = vis.toFixed(3);
+      el.style.filter = blur ? `blur(${blur.toFixed(1)}px)` : "none";
+      el.style.transform = `translate(-50%,-50%) translate3d(${s.x * narrow}px,${s.y + drop}px,${z}px) rotate(${s.rot + p * 20}deg)`;
+      el.style.zIndex = String(Math.round(4000 + z));
+    });
+    if (copyRef.current) copyRef.current.style.opacity = String(copy);
+    // The last beat: a blank sticker lands in the middle, waiting for theirs.
+    const end = Math.min(1, Math.max(0, (p - 0.78) * 5));
+    const card = endRef.current;
+    if (card) {
+      card.style.opacity = String(end);
+      card.style.transform = `translate(-50%,-50%) scale(${(0.9 + end * 0.1).toFixed(3)}) rotate(${(-4 + end * 2.5).toFixed(2)}deg)`;
+      card.style.pointerEvents = end > 0.6 ? "auto" : "none";
+    }
   }, []);
-
-  const agentTalking = shown > 0 && SCRIPT[shown - 1]?.role === "agent";
+  useScrollScene(sectionRef, draw, { rest: 0.45 });
 
   return (
-    <div className="glass relative overflow-hidden rounded-[32px] p-5 sm:p-6" style={{ boxShadow: "0 50px 120px -40px rgba(0,0,0,.85)" }}>
-      <div
-        className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full opacity-40 blur-3xl"
-        style={{ background: "linear-gradient(140deg,var(--c1),var(--c3))" }}
-      />
-      {/* live header */}
-      <div className="mb-5 flex items-center gap-3">
-        <div className="relative grid h-11 w-11 place-items-center rounded-2xl" style={{ background: "linear-gradient(140deg,var(--c1),var(--c3))", color: "#04120c" }}>
-          <MicIcon />
+    <section ref={sectionRef} aria-labelledby="hello-h" className="relative h-[280vh] motion-reduce:h-auto">
+      <div className="sticky top-16 h-[calc(100svh-4rem)] min-h-[520px] overflow-hidden motion-reduce:relative motion-reduce:top-0 motion-reduce:h-[640px]">
+        <div ref={copyRef} className="pointer-events-none absolute inset-x-4 top-[8%] z-10 text-center">
+          <h2 id="hello-h" className="font-display text-[clamp(2rem,4.6vw,3.5rem)] font-extrabold tracking-[-0.025em]">
+            One tutor. Every hello.
+          </h2>
+          <p className="mt-2 text-muted">180+ languages, each in its own script and its own direction.</p>
         </div>
-        <div className="leading-tight">
-          <p className="text-sm font-semibold">Christopher</p>
-          <p className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            {agentTalking ? "speaking…" : "listening…"}
-          </p>
-        </div>
-        <div className="ml-auto flex h-8 items-end gap-[3px]" aria-hidden>
-          {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-            <span
-              key={i}
-              className="w-[3px] rounded-full"
-              style={{
-                background: "linear-gradient(var(--c1),var(--c2))",
-                height: 8,
-                animation: agentTalking ? `wave 1s ${i * 0.09}s ease-in-out infinite` : "none",
-                opacity: agentTalking ? 1 : 0.3,
+        {/* full-screen field in its own layer, always beneath the heading */}
+        <div ref={stageRef} className="absolute inset-0 z-0 overflow-hidden [perspective:800px]" aria-hidden>
+          {HELLOS.map(([word, name, code, rtl], i) => (
+            <div
+              key={code}
+              ref={(el) => {
+                items.current[i] = el;
               }}
-            />
+              className={`sticker absolute left-1/2 top-1/2 whitespace-nowrap px-4 py-2.5 will-change-transform ${
+                i % 4 === 0 ? "hello-tutor" : i % 4 === 2 ? "hello-learner" : ""
+              }`}
+            >
+              <b lang={code} dir={rtl ? "rtl" : undefined} className="block font-display text-[30px] font-bold leading-tight">
+                {word}
+              </b>
+              <span className="text-[13px] opacity-80">{name}</span>
+            </div>
           ))}
         </div>
-      </div>
-
-      {/* transcript */}
-      <div className="flex min-h-[288px] flex-col justify-end gap-2.5">
-        {SCRIPT.slice(0, shown).map((l, i) => (
-          <DemoBubble key={i} role={l.role} text={l.text} note={l.note} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DemoBubble({ role, text, note }: { role: "agent" | "user"; text: string; note?: string }) {
-  const mine = role === "user";
-  return (
-    <div className={`flex ${mine ? "justify-end" : "justify-start"}`} style={{ animation: "popIn .5s cubic-bezier(.2,.8,.2,1) both" }}>
-      <div
-        className="max-w-[86%] rounded-2xl px-4 py-2.5 text-sm leading-snug"
-        style={
-          mine
-            ? { background: "linear-gradient(120deg,var(--c1),var(--c2))", color: "#05140d" }
-            : { background: "var(--glass-strong)", border: "1px solid var(--line)" }
-        }
-      >
-        {text}
-        {note && (
-          <span className="ml-2 rounded-full bg-emerald-400/15 px-2 py-0.5 text-xs font-semibold text-emerald-300">
-            {note}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* How it works                                                        */
-/* ------------------------------------------------------------------ */
-const STEPS = [
-  { n: "1", title: "Say hello", body: "Tap the mic and start talking. Christopher answers in your language and asks what you want to learn." },
-  { n: "2", title: "Pick a language, out loud", body: "Just say it - “Spanish.” No menus, no level tests. The lesson starts in the same breath." },
-  { n: "3", title: "Speak & get coached", body: "Repeat each phrase. Christopher scores your real pronunciation and tells you exactly what to adjust." },
-];
-
-function HowItWorks() {
-  return (
-    <section id="how" className="mx-auto max-w-6xl px-6 py-20 lg:py-28">
-      <SectionHead
-        title={<>Three spoken steps to your <span className="gradient-text">first sentence.</span></>}
-        sub="No onboarding wizard. The conversation is the product."
-      />
-      <div className="relative mt-14 grid gap-10 sm:grid-cols-3">
-        {/* connecting line */}
-        <div className="pointer-events-none absolute left-0 right-0 top-6 hidden h-px sm:block" style={{ background: "linear-gradient(90deg,transparent,var(--line) 12%,var(--line) 88%,transparent)" }} />
-        {STEPS.map((s, i) => (
-          <div key={s.n} className="reveal relative" style={{ transitionDelay: `${i * 90}ms` }}>
-            <div className="relative z-10 grid h-12 w-12 place-items-center rounded-2xl glass font-display text-lg font-semibold">
-              <span className="gradient-text">{s.n}</span>
-            </div>
-            <h3 className="mt-5 font-display text-xl font-semibold">{s.title}</h3>
-            <p className="mt-2 text-[var(--muted)]">{s.body}</p>
+        <div
+          ref={endRef}
+          className="absolute left-1/2 top-1/2 z-10 w-[min(22rem,calc(100%-2rem))] rounded-[18px] border-[2.5px] border-dashed border-muted bg-card px-6 py-7 text-center opacity-0 shadow-[0_24px_40px_-24px_rgb(var(--shadow)/0.6)]"
+        >
+          <p className="font-display text-[28px] font-extrabold leading-tight tracking-[-0.02em]">Your hello goes here</p>
+          <p className="mt-1 text-[15px] text-muted">Say it out loud. Christopher is listening.</p>
+          <div className="mt-5">
+            <StartButton lang={lang} onStart={onStart} />
           </div>
-        ))}
+        </div>
       </div>
     </section>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Pronunciation - the showpiece                                       */
+/* Meet Christopher: his body language is the conversation state       */
 /* ------------------------------------------------------------------ */
-function Pronunciation() {
+const MOMENTS: { key: string; label: string; pose: MascotPose; talking?: boolean; line: string; note: string }[] = [
+  { key: "listen", label: "Listening", pose: "listen", line: "Listening. Take your time.", note: "Leans in with his paws together. He never rushes you." },
+  { key: "think", label: "Thinking", pose: "think", line: "Thinking about what you said", note: "Paw to his head for a moment before he answers." },
+  { key: "speak", label: "Speaking", pose: "speak", talking: true, line: "Christopher is speaking", note: "Talks with his paws while his voice is playing." },
+  { key: "goahead", label: "You cut in", pose: "goahead", line: "You cut in, so he stopped", note: "Stops mid-word and hands the turn back to you." },
+];
+
+function Meet() {
+  const ref = useRef<HTMLElement>(null);
+  const [pose, setPose] = useState<MascotPose>("idle");
+  const [active, setActive] = useState<string | null>(null);
+
+  // Wave once when he first comes into view.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let t: ReturnType<typeof setTimeout>;
+    const io = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) return;
+      io.disconnect();
+      setPose("wave");
+      t = setTimeout(() => setPose((p) => (p === "wave" ? "idle" : p)), 1800);
+    }, { threshold: 0.4 });
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      clearTimeout(t);
+    };
+  }, []);
+
+  const m = MOMENTS.find((x) => x.key === active);
+
   return (
-    <section id="pronunciation" className="mx-auto max-w-6xl px-6 py-20 lg:py-28">
-      <div className="grid items-center gap-14 lg:grid-cols-2">
-        <div className="reveal">
-          <h2 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">
-            Real pronunciation scoring.{" "}
-            <span className="gradient-text">Not vibes.</span>
-          </h2>
-          <p className="mt-5 max-w-md text-lg leading-relaxed text-[var(--muted)]">
-            When you repeat a phrase, Christopher listens to that exact clip and scores it -
-            accuracy, fluency, the sounds you missed. Then it turns the numbers into coaching
-            a teacher would actually say.
-          </p>
-          <ul className="mt-7 space-y-3">
-            {[
-              "Per-word and per-sound accuracy, not a single vague grade",
-              "Feedback framed to encourage - never a raw number",
-              "Scored from your real voice, out-of-band from the live call",
-            ].map((t) => (
-              <li key={t} className="flex items-start gap-3 text-[var(--fg)]">
-                <CheckIcon />
-                <span>{t}</span>
+    <section ref={ref} aria-labelledby="meet-h" className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-24 sm:px-6 md:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)] lg:gap-16 lg:py-32">
+      <div className="mx-auto w-full max-w-[380px]">
+        <Mascot pose={pose} talking={!!m?.talking} />
+        <p aria-live="polite" className="mt-5 min-h-[1.5em] text-center font-display text-xl font-bold">
+          {m ? m.line : "Hi, I'm Christopher."}
+        </p>
+      </div>
+      <div>
+        <h2 id="meet-h" className="font-display text-[clamp(2rem,4.2vw,3.1rem)] font-extrabold leading-[1.05] tracking-[-0.025em] text-balance">
+          Meet Christopher. You&apos;ll always know whose turn it is.
+        </h2>
+        <p className="mt-4 max-w-[48ch] text-lg text-muted">
+          A patient fox with a satchel full of phrases. His body language follows the conversation, so you can tell at
+          a glance whether he&apos;s listening, thinking, or talking.
+        </p>
+        <div role="group" aria-label="See how Christopher reacts" className="mt-7 flex flex-wrap gap-2">
+          {MOMENTS.map((x) => (
+            <button
+              key={x.key}
+              type="button"
+              aria-pressed={active === x.key}
+              onClick={() => {
+                setActive(x.key);
+                setPose(x.pose);
+              }}
+              className="rounded-full border-[1.5px] border-line bg-card px-4 py-2 text-[15px] font-semibold aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-paper"
+            >
+              {x.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-4 min-h-[3em] max-w-[46ch] text-[15px] text-muted">{m ? m.note : "Press a moment to see how he reacts."}</p>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* After each conversation: a postcard, not a grade                    */
+/* ------------------------------------------------------------------ */
+function AfterTalk() {
+  return (
+    <section aria-labelledby="after-h" className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-28 sm:px-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,.9fr)] lg:gap-16">
+      <div className="md:order-2">
+        <h2 id="after-h" className="font-display text-[clamp(2rem,4.2vw,3.1rem)] font-extrabold leading-[1.05] tracking-[-0.025em] text-balance">
+          After every conversation, a postcard.
+        </h2>
+        <p className="mt-4 max-w-[46ch] text-lg text-muted">
+          The words you actually used, the one thing worth trying next time, and nothing that feels like a test score.
+          Christopher remembers it for your next chat.
+        </p>
+      </div>
+      <div className="relative mx-auto w-full max-w-[520px] md:order-1">
+        <article className="sticker relative z-10 -rotate-2 p-5 sm:p-6">
+          <p className="font-hand text-xl text-muted">Greetings from</p>
+          <h3 className="font-display text-3xl font-extrabold tracking-[-0.02em] text-tutor">Spanish, day 3</h3>
+          <p className="mt-4 text-sm font-semibold text-muted">Words you used</p>
+          <ul className="mt-2 flex flex-wrap gap-2" lang="es">
+            {["cenar", "pedí", "sopa", "buena", "la cuenta"].map((w) => (
+              <li key={w} className="rounded-[4px] border-[1.5px] border-dashed border-tutor px-2.5 py-1 text-[15px]">
+                {w}
               </li>
             ))}
           </ul>
-        </div>
-
-        <ScoreCard />
+          <p className="mt-4 text-sm font-semibold text-muted">Next time</p>
+          <p className="mt-1">Ordering in a café, in the past tense.</p>
+        </article>
+        <Mascot pose="postcard" className="absolute -bottom-10 -right-2 z-20 w-28 rotate-3 sm:-right-8 sm:w-36" />
       </div>
     </section>
   );
 }
 
-function ScoreCard() {
+/* ------------------------------------------------------------------ */
+/* Close                                                               */
+/* ------------------------------------------------------------------ */
+function Close({ lang, onStart }: { lang: string; onStart: () => void }) {
   return (
-    <div className="reveal glass rounded-[28px] p-7" style={{ transitionDelay: "120ms", boxShadow: "0 40px 100px -40px rgba(0,0,0,.8)" }}>
-      <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">You said</p>
-      <p className="mt-2 font-display text-3xl font-semibold">
-        &ldquo;Me llamo Ana&rdquo;
-      </p>
-
-      {/* per-word chips */}
-      <div className="mt-5 flex flex-wrap gap-2">
-        {[
-          { w: "Me", ok: true },
-          { w: "lla·mo", ok: true },
-          { w: "A·na", ok: true },
-        ].map((c) => (
-          <span key={c.w} className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 text-sm" style={{ border: "1px solid var(--line)" }}>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            {c.w}
-          </span>
-        ))}
-      </div>
-
-      {/* accuracy meter */}
-      <div className="mt-7">
-        <div className="mb-2 flex items-baseline justify-between">
-          <span className="text-sm text-[var(--muted)]">Accuracy</span>
-          <span className="font-display text-2xl font-semibold text-emerald-300">96%</span>
-        </div>
-        <div className="h-2.5 overflow-hidden rounded-full bg-white/[0.06]">
-          <div className="meterfill h-full rounded-full" style={{ ["--v" as string]: "0.96", transformOrigin: "left", background: "linear-gradient(90deg,var(--c1),var(--c2))" }} />
-        </div>
-      </div>
-
-      {/* coaching line */}
-      <div className="mt-6 rounded-2xl p-4" style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.22)" }}>
-        <p className="text-sm leading-relaxed">
-          <span className="font-semibold text-emerald-300">Christopher:</span>{" "}
-          The &ldquo;ll&rdquo; in <em>llamo</em> softens to a &ldquo;y&rdquo; sound - you got it just right. Try
-          it a touch slower next time and it&apos;s perfect.
+    <section className="mx-auto grid max-w-6xl items-center gap-8 px-4 pb-24 sm:px-6 md:grid-cols-[auto_1fr] md:gap-12">
+      <Mascot pose="idle" className="w-40 sm:w-48" />
+      <div>
+        <h2 className="font-display text-[clamp(2rem,4.2vw,3.1rem)] font-extrabold leading-[1.05] tracking-[-0.025em] text-balance">
+          Your first conversation takes about a minute.
+        </h2>
+        <p className="mt-3 max-w-[46ch] text-lg text-muted">
+          Say hello, answer one question, hear it said back the right way. That&apos;s the whole first lesson.
         </p>
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Capabilities strip                                                  */
-/* ------------------------------------------------------------------ */
-const CAPS = [
-  { icon: <ChatIcon />, title: "Conversation, not drills", body: "Learn by talking about your day, your work, your plans - the way you actually use a language." },
-  { icon: <MemoryIcon />, title: "It remembers you", body: "Your name, your level, the words you've practiced, the mistakes you keep making - restored every visit." },
-  { icon: <TrendIcon />, title: "Adapts as you improve", body: "Christopher raises the difficulty on its own. No levels to pick, no gates to unlock." },
-  { icon: <GlobeIcon />, title: "A course per language", body: "Each language keeps its own progress, vocabulary, and history. Switch whenever you like." },
-];
-
-function Capabilities() {
-  return (
-    <section id="features" className="mx-auto max-w-6xl px-6 py-20 lg:py-28">
-      <SectionHead
-        title={<>Everything a good tutor does - <span className="gradient-text">between lessons, too.</span></>}
-        sub="The parts that make it feel like a relationship, not an app."
-      />
-      <div className="mt-14 grid gap-x-10 gap-y-12 sm:grid-cols-2">
-        {CAPS.map((c, i) => (
-          <div key={c.title} className="reveal flex gap-5" style={{ transitionDelay: `${i * 80}ms` }}>
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl glass text-emerald-300">
-              {c.icon}
-            </div>
-            <div>
-              <h3 className="font-display text-xl font-semibold">{c.title}</h3>
-              <p className="mt-1.5 text-[var(--muted)]">{c.body}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Final CTA                                                           */
-/* ------------------------------------------------------------------ */
-function FinalCta({ onStart }: { onStart: () => void }) {
-  return (
-    <section className="mx-auto max-w-6xl px-6 pb-24">
-      <div className="reveal relative overflow-hidden rounded-[36px] glass px-8 py-16 text-center sm:py-20">
-        <div className="pointer-events-none absolute inset-0 opacity-60" style={{ background: "radial-gradient(60% 120% at 50% 0%, rgba(52,211,153,0.18), transparent 70%)" }} />
-        <div className="relative">
-          <div className="mx-auto mb-7 grid h-16 w-16 place-items-center rounded-[22px] text-[#04120c]" style={{ background: "linear-gradient(140deg,var(--c1),var(--c2),var(--c3))", boxShadow: "0 20px 60px -15px rgba(52,211,153,.6)" }}>
-            <MicIcon />
-          </div>
-          <h2 className="mx-auto max-w-2xl font-display text-4xl font-semibold tracking-tight sm:text-5xl">
-            Say hello to your <span className="gradient-text">tutor.</span>
-          </h2>
-          <p className="mx-auto mt-4 max-w-md text-lg text-[var(--muted)]">
-            Your first conversation is free. Open the mic and start speaking.
-          </p>
-          <button onClick={onStart} className="btn-primary mt-8 inline-flex items-center gap-2.5 text-base">
-            <span className="grid place-items-center" style={{ width: 20, height: 20 }}>
-              <MiniMic />
-            </span>
-            Start speaking free
-          </button>
+        <div className="mt-6">
+          <StartButton lang={lang} onStart={onStart} />
         </div>
       </div>
     </section>
@@ -381,54 +402,14 @@ function FinalCta({ onStart }: { onStart: () => void }) {
 
 function Footer() {
   return (
-    <footer className="mx-auto max-w-6xl px-6 pb-10">
-      <div className="flex flex-col items-center justify-between gap-4 border-t pt-8 text-sm text-[var(--muted)] sm:flex-row" style={{ borderColor: "var(--line)" }}>
-        <div className="flex items-center gap-2">
-          <BrandMark size={24} />
-          <span className="font-display font-semibold text-[var(--fg)]">Christopher</span>
-        </div>
-        <p>Speak. Learn. Fluently.</p>
+    <footer className="mx-auto max-w-6xl px-4 pb-10 sm:px-6">
+      <div className="flex flex-col justify-between gap-4 border-t-[1.5px] border-line pt-7 text-sm text-muted sm:flex-row sm:items-center">
+        <Wordmark size={28} />
+        <p>A voice tutor for 180+ languages.</p>
+        <span className="sm:hidden">
+          <ThemeToggle />
+        </span>
       </div>
     </footer>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/* Shared bits                                                         */
-/* ------------------------------------------------------------------ */
-function SectionHead({ title, sub }: { title: React.ReactNode; sub: string }) {
-  return (
-    <div className="reveal max-w-2xl">
-      <h2 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">{title}</h2>
-      <p className="mt-4 text-lg text-[var(--muted)]">{sub}</p>
-    </div>
-  );
-}
-
-/* ---- authored icons (consistent 1.6 stroke) ---- */
-const S = { fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-function ChatIcon() {
-  return <svg width="22" height="22" viewBox="0 0 24 24" {...S} aria-hidden><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.3A8 8 0 1 1 21 12Z" /><path d="M8.5 11.5h7M8.5 14.5h4" /></svg>;
-}
-function MemoryIcon() {
-  return <svg width="22" height="22" viewBox="0 0 24 24" {...S} aria-hidden><path d="M12 3a6 6 0 0 0-6 6c0 2.2 1.2 3.6 2.2 4.7.8.9 1.3 1.5 1.3 2.8v.5h5v-.5c0-1.3.5-1.9 1.3-2.8C16.8 12.6 18 11.2 18 9a6 6 0 0 0-6-6Z" /><path d="M9.5 20.5h5M10.5 22.5h3" /></svg>;
-}
-function TrendIcon() {
-  return <svg width="22" height="22" viewBox="0 0 24 24" {...S} aria-hidden><path d="M4 15.5 9 10l3.5 3.5L20 6" /><path d="M20 10.5V6h-4.5" /></svg>;
-}
-function GlobeIcon() {
-  return <svg width="22" height="22" viewBox="0 0 24 24" {...S} aria-hidden><circle cx="12" cy="12" r="9" /><path d="M3.5 12h17M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" /></svg>;
-}
-function CheckIcon() {
-  return <svg width="22" height="22" viewBox="0 0 24 24" className="mt-0.5 shrink-0 text-emerald-400" {...S} aria-hidden><path d="m5 12.5 4.5 4.5L19 7" /></svg>;
-}
-function MiniMic() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="22" /></svg>;
-}
-
-const keyframes = `
-@keyframes wave { 0%,100%{height:8px} 50%{height:26px} }
-@keyframes popIn { from{opacity:0;transform:translateY(10px) scale(.97)} to{opacity:1;transform:none} }
-.reveal .meterfill{ transform:scaleX(0); }
-.reveal.in .meterfill{ transform:scaleX(var(--v)); transition:transform 1.3s cubic-bezier(.2,.8,.2,1) .25s; }
-`;

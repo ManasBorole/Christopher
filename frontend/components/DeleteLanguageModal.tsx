@@ -56,41 +56,28 @@ export default function DeleteLanguageModal({
       aria-describedby="del-msg"
       onKeyDown={onKeyDown}
       onMouseDown={(e) => e.target === e.currentTarget && onCancel()}
-      className="fixed inset-0 z-50 grid place-items-center p-4"
-      style={{ background: "rgba(2,3,8,.82)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", animation: "fadeIn .4s both" }}
+      className="sheet-backdrop"
     >
-      <div
-        ref={panelRef}
-        className="w-full max-w-md rounded-[28px] p-8 animate-scalein"
-        style={{
-          // Solid, opaque surface (not the translucent .glass) so the confirmation
-          // reads clearly instead of blending into the background. Sits distinctly
-          // lighter than the darkened scrim, with a brighter border for separation.
-          background: "linear-gradient(180deg,#141826,#0d101b)",
-          border: "1px solid rgba(255,255,255,.16)",
-          boxShadow: "0 40px 120px -30px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.06)",
-        }}
-      >
-        <div className="mb-5 text-center">
-          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl text-2xl" style={{ background: "linear-gradient(140deg,#f87171,#c084fc)" }}>
-            ⚠️
-          </div>
-          <h2 id="del-title" className="font-display text-2xl font-semibold tracking-tight">
-            Delete Language?
-          </h2>
-          <p id="del-msg" className="mt-2 text-sm text-[var(--muted)]">
-            Deleting this language will permanently remove all of your learning progress for
-            this language. If you decide to learn it again in the future, you will need to start
-            from the beginning.
-          </p>
-        </div>
+      <div ref={panelRef} className="sheet">
+        <h2 id="del-title" className="font-display text-2xl font-extrabold tracking-[-0.02em]">
+          Remove {language}?
+        </h2>
+        <p id="del-msg" className="mt-2 text-[15px] text-muted">
+          This deletes your {language} words and conversation history. If you come back to {language} later,
+          Christopher starts from the beginning.
+        </p>
 
-        <div className="flex flex-col gap-3">
-          <button onClick={onConfirm} disabled={busy} className="btn-primary w-full disabled:opacity-50" style={{ background: "linear-gradient(100deg,#f87171,#fb7185)", color: "#1a0606" }}>
-            {busy ? "Deleting…" : "I'm OK losing my progress"}
+        <div className="mt-6 flex flex-col gap-3">
+          <button ref={cancelRef} type="button" onClick={onCancel} disabled={busy} className="btn w-full">
+            Keep {language}
           </button>
-          <button ref={cancelRef} onClick={onCancel} disabled={busy} className="btn-ghost w-full">
-            Cancel
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="btn-quiet w-full text-alert-ink shadow-[inset_0_0_0_1.5px_var(--alert-ink)]"
+          >
+            {busy ? "Removing…" : `Remove ${language} and its progress`}
           </button>
         </div>
       </div>

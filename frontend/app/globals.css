@@ -1,23 +1,97 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------ */
-/* Design tokens                                                       */
+/* Airmail tokens. Every colour in the app comes from here.            */
+/* Light is the default; dark follows the system unless the learner    */
+/* picked one (html[data-theme]).                                      */
 /* ------------------------------------------------------------------ */
 :root {
+  color-scheme: light;
+  --paper: #eef2f1; /* page: cool sage airmail paper */
+  --card: #ffffff; /* stickers, postcards, sheets */
+  --card-2: #e3eae8; /* recessed wells */
+  --ink: #1e2b30; /* primary text */
+  --muted: #51636a; /* secondary text, AA on paper */
+  --line: #c6d2d0; /* hairlines, input borders */
+  --tutor: #1f6f78; /* Christopher's voice: harbour teal */
+  --on-tutor: #ffffff;
+  --learner: #e8b23a; /* the learner's voice: marigold */
+  --on-learner: #1e2b30;
+  --correct: #2f5da8; /* gentle corrections: airmail blue */
+  --stamp: #d64545; /* airmail red: stripe, postmarks */
+  --stamp-deep: #9e2f2f;
+  --alert-ink: #9e2f2f; /* problem text, never a shouting red */
+  --focus: #2f5da8;
+  --shadow: 20 40 45; /* rgb triple for shadows */
+  --mascot-bg: #c6a590; /* the studio backdrop baked into the mascot art; same in both themes */
+  --brass: #c99b45; /* tag rail and eyelets */
+  --brass-hi: #f1d896;
+  --brass-deep: #8a6424;
+  /* Non-Latin fallbacks. CJK uses the OS faces (Yu Gothic / Hiragino / Malgun)
+     instead of shipping multi-MB fonts. */
+  --scripts: var(--font-deva), var(--font-arab), var(--font-hebr), "Hiragino Sans", "Yu Gothic UI",
+    "Noto Sans CJK JP", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", "PingFang SC",
+    "Microsoft YaHei", "Nirmala UI", "Segoe UI", sans-serif;
+
+}
+
+/* A quiet harbour in the evening: deep teal-slate, never black. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #172529;
+    --card: #223840;
+    --card-2: #1b2e33;
+    --ink: #e7eeec;
+    --muted: #a6b8b9;
+    --line: #354b51;
+    --tutor: #6cc4c7;
+    --on-tutor: #0f2629;
+    --learner: #f0b84a;
+    --on-learner: #1e2b30;
+    --correct: #95b8f2;
+    --stamp: #e0645a;
+    --stamp-deep: #a8453e;
+    --alert-ink: #f08a7e;
+    --focus: #95b8f2;
+    --shadow: 0 0 0;
+  }
+}
+:root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #06070c;
-  --bg-soft: #0b0d16;
-  --fg: #ecedf3;
-  --muted: #9aa0b4;
-  --line: rgba(255, 255, 255, 0.09);
-  --glass: rgba(255, 255, 255, 0.045);
-  --glass-strong: rgba(255, 255, 255, 0.07);
-  /* brand gradient */
-  --c1: #34d399; /* emerald */
-  --c2: #22d3ee; /* cyan    */
-  --c3: #818cf8; /* indigo  */
-  --c4: #c084fc; /* violet  */
-  --ring: rgba(52, 211, 153, 0.5);
+  --paper: #172529;
+  --card: #223840;
+  --card-2: #1b2e33;
+  --ink: #e7eeec;
+  --muted: #a6b8b9;
+  --line: #354b51;
+  --tutor: #6cc4c7;
+  --on-tutor: #0f2629;
+  --learner: #f0b84a;
+  --on-learner: #1e2b30;
+  --correct: #95b8f2;
+  --stamp: #e0645a;
+  --stamp-deep: #a8453e;
+  --alert-ink: #f08a7e;
+  --focus: #95b8f2;
+  --shadow: 0 0 0;
+}
+
+/* Tailwind utilities read the same tokens: bg-paper, text-muted, border-line... */
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-tutor: var(--tutor);
+  --color-on-tutor: var(--on-tutor);
+  --color-learner: var(--learner);
+  --color-on-learner: var(--on-learner);
+  --color-correct: var(--correct);
+  --color-stamp: var(--stamp);
+  --color-alert-ink: var(--alert-ink);
 }
 
 * {
@@ -29,222 +103,649 @@ html {
 }
 
 body {
-  background: var(--bg);
-  color: var(--fg);
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans), var(--scripts), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
 }
 
 .font-display {
-  font-family: var(--font-display), var(--font-sans), serif;
+  font-family: var(--font-display), var(--scripts), var(--font-sans), sans-serif;
+}
+.font-hand {
+  font-family: var(--font-hand), var(--scripts), cursive;
 }
 
 /* ------------------------------------------------------------------ */
-/* Ambient background - layered aurora blobs + fine grain              */
+/* Airmail primitives                                                  */
 /* ------------------------------------------------------------------ */
-.aurora {
+/* the striped edge of an airmail envelope, pinned to the top of the app */
+.airmail-edge {
   position: fixed;
-  inset: 0;
-  z-index: -2;
+  inset: 0 0 auto;
+  height: 6px;
+  z-index: 60;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--stamp) 0 16px,
+    transparent 16px 26px,
+    var(--correct) 26px 42px,
+    transparent 42px 52px
+  );
+}
+
+/* a die-cut sticker: white edge + soft contact shadow */
+.sticker {
+  background: var(--card);
+  border: 6px solid var(--card);
+  border-radius: 18px;
+  box-shadow: 0 1px 0 rgb(var(--shadow) / 0.06), 0 12px 24px -12px rgb(var(--shadow) / 0.5);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.85rem 1.5rem;
+  font-weight: 600;
+  background: var(--tutor);
+  color: var(--on-tutor);
+  box-shadow: 0 10px 22px -12px rgb(var(--shadow) / 0.6);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s;
+}
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 26px -14px rgb(var(--shadow) / 0.7);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn-quiet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 600;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+  transition: box-shadow 0.2s ease, background-color 0.2s ease;
+}
+.btn-quiet:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+
+/* gentle correction: the right phrase underlined, never struck through */
+.fix {
+  text-decoration: underline wavy var(--correct) 2px;
+  text-underline-offset: 5px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Mascot: a photo on a postcard. He breathes while idle, bobs while   */
+/* the tutor's audio is playing, and cross-fades between poses.        */
+/* ------------------------------------------------------------------ */
+.mascot {
+  position: relative;
+  aspect-ratio: 1145 / 1374;
+  border-radius: 22px;
   overflow: hidden;
+  isolation: isolate;
+  background: var(--mascot-bg);
+  box-shadow: 0 0 0 6px var(--card), 0 26px 44px -24px rgb(var(--shadow) / 0.6);
+}
+/* pointer tilt: scaled up a little so the edges never show while turned */
+.mascot-tilt {
+  position: absolute;
+  inset: 0;
+  transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) scale(1.035);
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mascot-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(60% 45% at var(--light-x, 50%) var(--light-y, 35%), rgb(255 255 255 / 0.16), transparent 70%);
+  mix-blend-mode: soft-light;
+}
+.mascot-settle,
+.mascot-sway,
+.mascot-body {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 92%;
+}
+/* a slow weight shift, out of step with the breath so it never looks looped */
+.mascot-sway {
+  animation: mascot-sway 7.3s ease-in-out infinite;
+}
+.mascot-body {
+  animation: mascot-breathe 4.4s ease-in-out infinite;
+}
+.mascot.is-talking .mascot-body {
+  animation: mascot-talk 0.46s ease-in-out infinite alternate;
+}
+.mascot-layer,
+.mascot-still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* mouth shapes cut from the speaking frames, feathered onto the open mouth */
+.mascot-mouth {
+  position: absolute;
+  max-width: none;
+  opacity: 0;
+  transition: opacity 70ms linear;
   pointer-events: none;
 }
-.aurora::before,
-.aurora::after {
-  content: "";
-  position: absolute;
-  width: 60vmax;
-  height: 60vmax;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.5;
+.mascot-mouth.is-on {
+  opacity: 1;
+}
+/* Both poses move during the change: the old one softens and settles back
+   while the new one sharpens into place, so it reads as motion, not a cut. */
+.mascot-layer.is-entering {
+  z-index: 1;
+  animation: mascot-in 0.56s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.mascot-layer.is-leaving {
+  animation: mascot-out 0.56s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes mascot-in {
+  from {
+    opacity: 0;
+    transform: scale(1.018) translateY(5px);
+    filter: blur(2.5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes mascot-out {
+  from {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  45% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.992) translateY(2px);
+    filter: blur(2px);
+  }
+}
+@keyframes mascot-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.006, 1.013);
+  }
+}
+@keyframes mascot-sway {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  30% {
+    transform: rotate(0.45deg) translateX(1px);
+  }
+  70% {
+    transform: rotate(-0.35deg) translateX(-1px);
+  }
+}
+@keyframes mascot-talk {
+  from {
+    transform: translateY(0) rotate(0);
+  }
+  to {
+    transform: translateY(-2px) rotate(0.3deg) scale(1.003);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Landing: the postcard that turns over                               */
+/* ------------------------------------------------------------------ */
+.pc-scene {
+  perspective: 1400px;
+  display: grid;
+  place-items: center;
+}
+.pc {
+  position: relative;
+  width: min(580px, 100%);
+  aspect-ratio: 3 / 2;
+  transform-style: preserve-3d;
+  transform: rotateX(6deg) rotateZ(-2.5deg);
   will-change: transform;
 }
-.aurora::before {
-  top: -20vmax;
-  left: -10vmax;
-  background: radial-gradient(circle at 30% 30%, var(--c1), transparent 60%),
-    radial-gradient(circle at 70% 70%, var(--c2), transparent 60%);
-  animation: drift1 22s ease-in-out infinite alternate;
+.pc-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: var(--card);
+  backface-visibility: hidden;
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgb(var(--shadow) / 0.05), 0 40px 60px -30px rgb(var(--shadow) / 0.55);
 }
-.aurora::after {
-  bottom: -25vmax;
-  right: -15vmax;
-  background: radial-gradient(circle at 40% 40%, var(--c3), transparent 60%),
-    radial-gradient(circle at 60% 60%, var(--c4), transparent 60%);
-  animation: drift2 26s ease-in-out infinite alternate;
+/* light catching the card mid-turn */
+.pc-face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / 0.35) 48%, transparent 62%);
+  opacity: var(--sheen, 0);
 }
-/* grain overlay */
-.grain {
+.pc-front {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: clamp(12px, 3vw, 24px);
+  align-items: stretch;
+  padding: clamp(12px, 3vw, 20px);
+  border: 8px solid transparent;
+  border-image: repeating-linear-gradient(
+      135deg,
+      var(--stamp) 0 12px,
+      var(--card) 12px 20px,
+      var(--correct) 20px 32px,
+      var(--card) 32px 40px
+    )
+    8;
+}
+.pc-photo {
+  height: 100%;
+  aspect-ratio: 1145 / 1374;
+}
+.pc-photo .mascot {
+  height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 0 0 4px var(--card), 0 10px 18px -10px rgb(var(--shadow) / 0.5);
+  transform: rotate(-2deg);
+}
+.pc-greeting {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-block: 4px;
+}
+.pc-big {
+  /* sized to the card, so "conversation" always fits beside the photo */
+  font: 800 6.6cqi / 0.95 var(--font-display), sans-serif;
+  letter-spacing: -0.035em;
+  color: var(--tutor);
+}
+.pc-big span {
+  display: block;
+  color: var(--stamp);
+}
+.pc-back {
+  transform: rotateY(180deg);
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 18px;
+  padding: 20px 22px;
+}
+.pc-msg {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding-right: 18px;
+  border-right: 1.5px solid var(--line);
+}
+.pc-line {
+  font-size: 15px;
+  line-height: 1.35;
+}
+.pc-who {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pc-t .pc-who {
+  color: var(--tutor);
+}
+.pc-l .pc-who {
+  color: var(--muted);
+}
+.pc-addr {
+  display: grid;
+  align-content: space-between;
+}
+.pc-addr i {
+  display: block;
+  height: 1.5px;
+  background: var(--line);
+}
+.pc-stamp {
+  justify-self: end;
+  width: 74px;
+  height: 88px;
+  padding: 5px;
+  border: 2px dashed var(--line);
+  transform: rotate(3deg);
+}
+.pc-stamp span {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  background: var(--tutor);
+  color: var(--on-tutor);
+  font: 700 18px/1 var(--font-display), sans-serif;
+}
+.pc-postmark {
+  position: absolute;
+  right: 64px;
+  top: 48px;
+  width: 92px;
+  height: 92px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  border-radius: 50%;
+  border: 2px solid var(--stamp);
+  color: var(--stamp);
+  opacity: 0.75;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+  transform: rotate(-14deg);
+}
+@media (max-width: 560px) {
+  .pc {
+    aspect-ratio: 4 / 3.3;
+  }
+  .pc-back {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+  .pc-msg {
+    border: 0;
+    padding: 0;
+  }
+  .pc-addr {
+    display: none;
+  }
+  .pc-postmark {
+    right: 12px;
+    top: auto;
+    bottom: 12px;
+    width: 68px;
+    height: 68px;
+    font-size: 8px;
+  }
+}
+
+/* greeting stickers in the two voice colours; the white die-cut edge stays */
+.hello-tutor {
+  background: var(--tutor);
+  border-color: var(--tutor);
+  color: var(--on-tutor);
+  box-shadow: 0 0 0 6px var(--card), 0 14px 24px -12px rgb(var(--shadow) / 0.55);
+}
+.hello-learner {
+  background: var(--learner);
+  border-color: var(--learner);
+  color: var(--on-learner);
+  box-shadow: 0 0 0 6px var(--card), 0 14px 24px -12px rgb(var(--shadow) / 0.55);
+}
+
+/* ------------------------------------------------------------------ */
+/* Sheets: bottom sheet on phones, centred card from 640px             */
+/* ------------------------------------------------------------------ */
+.sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.045;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  z-index: 50;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  background: rgb(var(--shadow) / 0.45);
+  animation: sheet-fade 0.3s ease both;
 }
-
-@keyframes drift1 {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
+.sheet {
+  width: 100%;
+  max-width: 30rem;
+  max-height: 92svh;
+  overflow-y: auto;
+  background: var(--card);
+  border-radius: 24px 24px 0 0;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -20px 50px -20px rgb(var(--shadow) / 0.5);
+  animation: sheet-up 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.sheet-backdrop.is-leaving {
+  animation: sheet-fade 0.32s ease reverse both;
+}
+.sheet-backdrop.is-leaving .sheet {
+  animation: sheet-up 0.32s ease reverse both;
+}
+@media (min-width: 640px) {
+  .sheet-backdrop {
+    align-items: center;
+    padding: 16px;
   }
-  to {
-    transform: translate3d(8vmax, 6vmax, 0) scale(1.15);
+  .sheet {
+    border-radius: 24px;
+    padding: 28px;
+    box-shadow: 0 40px 80px -30px rgb(var(--shadow) / 0.6);
   }
 }
-@keyframes drift2 {
+@keyframes sheet-fade {
   from {
-    transform: translate3d(0, 0, 0) scale(1.1);
+    opacity: 0;
   }
-  to {
-    transform: translate3d(-7vmax, -5vmax, 0) scale(1);
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
   }
 }
 
 /* ------------------------------------------------------------------ */
-/* Reusable premium primitives                                         */
+/* Luggage tags hanging from a brass rail, one per language            */
 /* ------------------------------------------------------------------ */
-.glass {
-  background: var(--glass);
-  border: 1px solid var(--line);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-}
-
-.gradient-text {
-  background: linear-gradient(100deg, var(--c1), var(--c2) 40%, var(--c3) 70%, var(--c4));
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: shimmer 8s linear infinite;
-}
-@keyframes shimmer {
-  to {
-    background-position: 200% center;
-  }
-}
-
-.btn-primary {
+.tag-slot {
   position: relative;
-  border-radius: 9999px;
-  padding: 0.8rem 1.6rem;
-  font-weight: 600;
-  color: #04120c;
-  background: linear-gradient(100deg, var(--c1), var(--c2));
-  box-shadow: 0 8px 30px -8px rgba(52, 211, 153, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s;
+  list-style: none;
+  --tag-edge: var(--tutor);
+  --tilt: -1.2deg;
+  filter: drop-shadow(0 12px 14px rgb(var(--shadow) / 0.16));
+  animation: tag-drop 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
 }
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 44px -10px rgba(52, 211, 153, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+.tag-slot:nth-child(3n + 2) {
+  --tag-edge: var(--learner);
+  --tilt: 0.9deg;
 }
-.btn-primary:active {
-  transform: translateY(0);
+.tag-slot:nth-child(3n + 3) {
+  --tag-edge: var(--correct);
+  --tilt: -0.4deg;
 }
-
-.btn-ghost {
-  border-radius: 9999px;
-  padding: 0.75rem 1.5rem;
-  font-weight: 500;
-  color: var(--fg);
-  background: var(--glass-strong);
-  border: 1px solid var(--line);
-  transition: background 0.2s, transform 0.2s, border-color 0.2s;
+/* rail segment: overhangs into the gaps so a row reads as one rod */
+.tag-slot::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: -12px;
+  right: -12px;
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(var(--brass-hi), var(--brass) 55%, var(--brass-deep));
 }
-.btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.11);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
+/* tag + string swing together about the point where the string meets the rail */
+.tag-hang {
+  position: relative;
+  padding-top: 46px;
+  transform-origin: 50% 12px;
+  transform: rotate(var(--tilt));
+}
+.tag-hang::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: 2px;
+  height: 56px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--muted);
+  opacity: 0.55;
+  z-index: 1;
+}
+.tag-slot:hover .tag-hang,
+.tag-slot:focus-within .tag-hang {
+  animation: tag-swing 1.9s ease-out;
+}
+.tag {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 250px;
+  padding: 44px 22px 26px;
+  background: var(--card);
+  box-shadow: inset 0 -8px 0 var(--tag-edge);
+  clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%, 0 20px);
+}
+/* paper grain */
+.tag::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .42 0 0 0 0 .38 0 0 0 .12 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+:root[data-theme="dark"] .tag::after {
+  mix-blend-mode: screen;
+  opacity: 0.25;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tag::after {
+    mix-blend-mode: screen;
+    opacity: 0.25;
+  }
+}
+/* the brass eyelet the string goes through */
+.tag::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 15px;
+  width: 15px;
+  height: 15px;
+  margin-left: -7.5px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 3px var(--brass), 0 1px 1px rgb(var(--shadow) / 0.3);
+  z-index: 2;
+}
+.tag.is-blank {
+  background: transparent;
+  box-shadow: none;
+  clip-path: none;
+  border: 2px dashed var(--line);
+  border-radius: 16px;
+  transition: border-color 0.2s;
+}
+.tag.is-blank::after {
+  display: none;
+}
+.tag-slot:hover .tag.is-blank {
+  border-color: var(--ink);
+}
+/* round airmail postmark with a double ring */
+.postmark {
+  position: absolute;
+  right: 14px;
+  top: 34px;
+  width: 78px;
+  height: 78px;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--stamp);
+  box-shadow: inset 0 0 0 3px var(--card), inset 0 0 0 4.5px var(--stamp);
+  color: var(--stamp);
+  opacity: 0.85;
+  transform: rotate(-12deg);
+  text-align: center;
+  font-size: 8.5px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* one tiny stamp per word collected */
+.word-stamp {
+  display: inline-block;
+  width: 15px;
+  height: 19px;
+  border-radius: 2px;
+  background: var(--tag-edge);
+  box-shadow: 0 0 0 2px var(--card), 0 1px 3px 1px rgb(var(--shadow) / 0.25);
+}
+.word-stamp:nth-child(odd) {
+  transform: rotate(-4deg);
+}
+.word-stamp:nth-child(even) {
+  transform: rotate(3deg);
+}
+@keyframes tag-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-26px);
+  }
+}
+@keyframes tag-swing {
+  0% {
+    transform: rotate(var(--tilt));
+  }
+  14% {
+    transform: rotate(calc(var(--tilt) + 4deg));
+  }
+  34% {
+    transform: rotate(calc(var(--tilt) - 3deg));
+  }
+  54% {
+    transform: rotate(calc(var(--tilt) + 1.8deg));
+  }
+  76% {
+    transform: rotate(calc(var(--tilt) - 0.8deg));
+  }
+  100% {
+    transform: rotate(var(--tilt));
+  }
 }
 
 /* focus visibility for accessibility */
-:where(button, a, [tabindex]):focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-  border-radius: 12px;
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
 }
 
-/* ------------------------------------------------------------------ */
-/* Entrance animations                                                 */
-/* ------------------------------------------------------------------ */
-@keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-.animate-fadeup {
-  animation: fadeUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-.animate-fadein {
-  animation: fadeIn 0.9s ease both;
-}
-.animate-scalein {
-  animation: scaleIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-.floaty {
-  animation: float 6s ease-in-out infinite;
-}
-
-/* scroll reveal: hidden until .in is added by IntersectionObserver */
-.reveal {
-  opacity: 0;
-  transform: translateY(26px);
-  transition: opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.reveal.in {
-  opacity: 1;
-  transform: none;
-}
-
-/* mic pulse rings */
-@keyframes pulsering {
-  0% {
-    transform: scale(1);
-    opacity: 0.55;
-  }
-  100% {
-    transform: scale(2.1);
-    opacity: 0;
-  }
-}
-.pulsering {
-  animation: pulsering 2s ease-out infinite;
-}
 
 @media (prefers-reduced-motion: reduce) {
   *,

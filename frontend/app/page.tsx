@@ -11,31 +11,46 @@ import App, { type AppScreen } from "../components/App";
 // of exiting the tab. Splash + auth are transient overlays, never history.
 type Nav = { nav: "landing" } | { nav: "app"; screen: AppScreen };
 
+// Write our screen INTO the existing history state rather than replacing it.
+// Next's App Router tags its entries (__NA + its tree); an entry without the tag
+// makes it hard-reload the page on Back, which dropped learners back on the
+// app home instead of the landing.
+function writeHistory(kind: "push" | "replace", nav: Nav) {
+  const state = { ...(history.state ?? {}), nav: nav.nav, screen: nav.nav === "app" ? nav.screen : undefined };
+  if (kind === "push") history.pushState(state, "");
+  else history.replaceState(state, "");
+}
+
+function readHistory(state: unknown): Nav {
+  const s = state as { nav?: string; screen?: AppScreen } | null;
+  return s?.nav === "app" && s.screen ? { nav: "app", screen: s.screen } : { nav: "landing" };
+}
+
 export default function Page() {
   const [booting, setBooting] = useState(true);
   const [authOpen, setAuthOpen] = useState(false);
+  const [pendingLang, setPendingLang] = useState<string | null>(null);
   const [current, setCurrent] = useState<Nav>({ nav: "landing" });
 
-  // Brand cold-open, then seed history: landing (base) [+ app home for returning
-  // visitors this session]. Back button walks this stack, never off the tab.
-  //
-  // For a returning visitor we mount the app home RIGHT AWAY (not after the timer)
-  // so its data fetch runs *during* the brand splash instead of only starting once
-  // the splash clears - and the splash itself is shorter. The splash renders as an
-  // overlay on top, so the grid is usually populated by the time it lifts.
+  // Brand cold-open, then show whichever screen this history entry belongs to
+  // (a reload keeps you where you were). Never push an entry here: Chrome and
+  // Edge skip entries a page adds without a user gesture, so an entry pushed on
+  // load made Back jump straight past the landing and off the site. Entries
+  // are only ever pushed from clicks.
   useEffect(() => {
     const entered = sessionStorage.getItem("vta_entered");
-    history.replaceState({ nav: "landing" } satisfies Nav, "");
-    if (entered) {
-      const home: Nav = { nav: "app", screen: { v: "home" } };
-      history.pushState(home, "");
-      setCurrent(home);
+    let initial = readHistory(history.state);
+    // A reload mid-conversation can't resume that session; reopen its course.
+    if (initial.nav === "app" && initial.screen.v === "session") {
+      initial = { nav: "app", screen: { v: "dashboard", courseId: initial.screen.courseId } };
     }
+    writeHistory("replace", initial);
+    setCurrent(initial);
     const t = setTimeout(() => setBooting(false), entered ? 900 : 1900);
 
     const onPop = (e: PopStateEvent) => {
       setAuthOpen(false);
-      setCurrent((e.state as Nav) ?? { nav: "landing" });
+      setCurrent(readHistory(e.state));
     };
     window.addEventListener("popstate", onPop);
     return () => {
@@ -45,7 +60,7 @@ export default function Page() {
   }, []);
 
   function push(next: Nav) {
-    history.pushState(next, "");
+    writeHistory("push", next);
     setCurrent(next);
   }
   const back = () => history.back();
@@ -64,9 +79,18 @@ export default function Page() {
   return (
     <>
       {current.nav === "landing" ? (
-        <Landing onStart={() => setAuthOpen(true)} />
+        <Landing
+          onStart={(lang) => {
+            setPendingLang(lang);
+            setAuthOpen(true);
+          }}
+          onSignIn={() => {
+            setPendingLang(null);
+            setAuthOpen(true);
+          }}
+        />
       ) : (
-        <div style={{ animation: "reveal .9s cubic-bezier(.2,.8,.2,1) both" }}>
+        <div style={{ animation: "app-in .5s ease both" }}>
           <App
             screen={current.screen}
             onHome={() => push({ nav: "app", screen: { v: "home" } })}
@@ -75,12 +99,18 @@ export default function Page() {
               push({ nav: "app", screen: { v: "session", courseId: (current.screen as { courseId: string }).courseId, sessionId, language, userName } })
             }
             onBack={back}
+            autoStart={pendingLang}
+            onAutoStarted={(courseId, sessionId, language, userName) => {
+              setPendingLang(null);
+              push({ nav: "app", screen: { v: "session", courseId, sessionId, language, userName } });
+            }}
+            onAutoStartFailed={() => setPendingLang(null)}
           />
-          <style>{`@keyframes reveal{from{opacity:0;transform:translateY(22px) scale(.985)}to{opacity:1;transform:none}}`}</style>
+          <style>{`@keyframes app-in{from{opacity:0}}`}</style>
         </div>
       )}
 
-      {authOpen && <AuthOverlay onEnter={enterApp} />}
+      {authOpen && <AuthOverlay onEnter={enterApp} onClose={() => setAuthOpen(false)} />}
       {booting && <Splash />}
     </>
   );
