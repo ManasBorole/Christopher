@@ -6,7 +6,7 @@
 
 <p align="center">
   A voice tutor you talk to out loud, in more than 180 languages.<br />
-  <a href="https://christopherai.vercel.app"><strong>Try it at christopherai.vercel.app</strong></a>
+  <a href="https://christopherai.vercel.app">Try it at christopherai.vercel.app</a>
 </p>
 
 > This project was originally developed in July 2026. I'm publishing it here in August 2026 as part of sharing my past work.
