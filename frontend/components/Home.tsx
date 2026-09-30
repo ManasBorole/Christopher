@@ -100,16 +100,11 @@ export default function Home({
         </div>
       ) : (
         <>
-          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1 className="font-display text-[clamp(2rem,5vw,3.2rem)] font-extrabold leading-[1.05] tracking-[-0.025em]">
-                Your languages
-              </h1>
-              <p className="mt-2 text-muted">Each one keeps its own words and conversations.</p>
-            </div>
-            <button type="button" onClick={() => setAdding(true)} className="btn-quiet">
-              Add a language
-            </button>
+          <div className="mb-8">
+            <h1 className="font-display text-[clamp(2rem,5vw,3.2rem)] font-extrabold leading-[1.05] tracking-[-0.025em]">
+              Your languages
+            </h1>
+            <p className="mt-2 text-muted">Each one keeps its own words and conversations.</p>
           </div>
 
           <ul className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -124,6 +119,17 @@ export default function Home({
                 onDelete={() => setPendingDelete(c)}
               />
             ))}
+            <li className="tag-slot" style={{ ["--i" as string]: courses.length }}>
+              <div className="tag-hang">
+                <button type="button" onClick={() => setAdding(true)} className="tag is-blank w-full items-center justify-center text-center">
+                  <span aria-hidden className="font-display text-5xl font-light leading-none text-muted">
+                    +
+                  </span>
+                  <span className="mt-3 font-display text-xl font-extrabold">Add a language</span>
+                  <span className="mt-1 text-sm text-muted">One more tag for your suitcase.</span>
+                </button>
+              </div>
+            </li>
           </ul>
         </>
       )}
