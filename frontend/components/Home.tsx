@@ -5,7 +5,8 @@ import type { CourseCard } from "@vta/shared";
 
 import { listCourses, createCourse, deleteCourse, cachedCourses } from "../lib/api";
 import { findLanguage } from "../lib/languages";
-import { timeAgo } from "./ui";
+import { greeting } from "../lib/greetings";
+import { lastChat } from "../lib/lastChat";
 import LanguagePicker from "./LanguagePicker";
 import DeleteLanguageModal from "./DeleteLanguageModal";
 import Mascot from "./Mascot";
@@ -65,9 +66,13 @@ export default function Home({ onOpenCourse }: { onOpenCourse: (id: string) => v
   return (
     <section className="mx-auto max-w-5xl px-4 pb-20 pt-8 sm:px-6 sm:pt-12">
       {courses === null ? (
-        <ul className="grid gap-5 pt-[88px] sm:grid-cols-2 lg:grid-cols-3" aria-busy aria-label="Loading your languages">
+        <ul className="grid gap-x-6 gap-y-4 pt-[88px] sm:grid-cols-2 lg:grid-cols-3" aria-busy aria-label="Loading your languages">
           {[0, 1, 2].map((i) => (
-            <li key={i} className="tag h-[124px] animate-pulse" aria-hidden />
+            <li key={i} className="tag-slot" aria-hidden>
+              <div className="tag-hang">
+                <div className="tag animate-pulse" />
+              </div>
+            </li>
           ))}
         </ul>
       ) : empty ? (
@@ -99,9 +104,9 @@ export default function Home({ onOpenCourse }: { onOpenCourse: (id: string) => v
             </button>
           </div>
 
-          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {courses.map((c) => (
-              <Tag key={c.id} c={c} onOpen={() => onOpenCourse(c.id)} onDelete={() => setPendingDelete(c)} />
+          <ul className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+            {courses.map((c, i) => (
+              <Tag key={c.id} c={c} index={i} onOpen={() => onOpenCourse(c.id)} onDelete={() => setPendingDelete(c)} />
             ))}
           </ul>
         </>
@@ -146,34 +151,66 @@ export default function Home({ onOpenCourse }: { onOpenCourse: (id: string) => v
   );
 }
 
-function Tag({ c, onOpen, onDelete }: { c: CourseCard; onOpen: () => void; onDelete: () => void }) {
+function Tag({ c, index, onOpen, onDelete }: { c: CourseCard; index: number; onOpen: () => void; onDelete: () => void }) {
   const l = findLanguage(c.language);
-  const words = `${c.vocabCount} ${c.vocabCount === 1 ? "word" : "words"}`;
-  const talks = `${c.sessionCount} ${c.sessionCount === 1 ? "conversation" : "conversations"}`;
+  const hello = greeting(l?.code);
+  const started = c.sessionCount > 0;
+  const shown = Math.min(c.vocabCount, 5);
   return (
-    <li className="tag">
-      {/* full-tag open target sits under the delete button */}
-      <button type="button" onClick={onOpen} aria-label={`Open ${c.language}`} className="tag-open absolute inset-0 z-0" />
-      <div className="pointer-events-none relative z-10 pr-8">
-        <p lang={l?.code} dir={l?.rtl ? "rtl" : undefined} className="font-display text-[28px] font-extrabold leading-tight">
-          {l?.native ?? c.language}
-        </p>
-        {l && l.native !== c.language && <p className="text-sm text-muted">{c.language}</p>}
-        <p className="mt-3 text-sm text-muted">
-          {words}, {talks}
-        </p>
-        <p className="text-sm text-muted">Spoke {timeAgo(c.updatedAt)}</p>
+    <li className="tag-slot" style={{ ["--i" as string]: index }}>
+      <div className="tag-hang">
+        <div className="tag">
+          {/* full-tag open target sits under the delete button */}
+          <button type="button" onClick={onOpen} aria-label={`Open ${c.language}`} className="tag-open absolute inset-0 z-[1]" />
+          <div className="pointer-events-none relative z-[2] flex flex-1 flex-col">
+            <p lang={l?.code} dir={l?.rtl ? "rtl" : undefined} className="pr-20 font-display text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em]">
+              {l?.native ?? c.language}
+            </p>
+            {l && l.native !== c.language && <p className="mt-1 text-sm text-muted">{c.language}</p>}
+            {hello && (
+              <p lang={l?.code} dir={l?.rtl ? "rtl" : undefined} className="mt-3 font-hand text-[22px] leading-none text-tutor">
+                {hello}
+              </p>
+            )}
+
+            <div className="mt-auto pt-6">
+              {c.vocabCount > 0 ? (
+                <div className="flex items-center gap-2.5">
+                  <span className="flex gap-1.5" aria-hidden>
+                    {Array.from({ length: shown }, (_, k) => (
+                      <span key={k} className="word-stamp" />
+                    ))}
+                  </span>
+                  <span className="text-sm text-muted">
+                    {c.vocabCount} {c.vocabCount === 1 ? "word" : "words"} collected
+                  </span>
+                </div>
+              ) : (
+                <p className="text-sm text-muted">{started ? "No words collected yet." : `Not started yet. Say ${hello ?? "hello"}.`}</p>
+              )}
+            </div>
+          </div>
+
+          {started && (
+            <p className="postmark pointer-events-none z-[2]">
+              Last chat
+              <br />
+              {lastChat(c.updatedAt)}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label={`Remove ${c.language}`}
+            className="absolute bottom-4 right-3 z-[3] grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-card-2 hover:text-ink"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
       </div>
-      <button
-        type="button"
-        onClick={onDelete}
-        aria-label={`Remove ${c.language}`}
-        className="absolute right-3 top-3 z-20 grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-card-2 hover:text-ink"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
-          <path d="M6 6l12 12M18 6L6 18" />
-        </svg>
-      </button>
     </li>
   );
 }
