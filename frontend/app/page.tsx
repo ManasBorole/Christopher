@@ -11,6 +11,21 @@ import App, { type AppScreen } from "../components/App";
 // of exiting the tab. Splash + auth are transient overlays, never history.
 type Nav = { nav: "landing" } | { nav: "app"; screen: AppScreen };
 
+// Write our screen INTO the existing history state rather than replacing it.
+// Next's App Router tags its entries (__NA + its tree); an entry without the tag
+// makes it hard-reload the page on Back, which dropped learners back on the
+// app home instead of the landing.
+function writeHistory(kind: "push" | "replace", nav: Nav) {
+  const state = { ...(history.state ?? {}), nav: nav.nav, screen: nav.nav === "app" ? nav.screen : undefined };
+  if (kind === "push") history.pushState(state, "");
+  else history.replaceState(state, "");
+}
+
+function readHistory(state: unknown): Nav {
+  const s = state as { nav?: string; screen?: AppScreen } | null;
+  return s?.nav === "app" && s.screen ? { nav: "app", screen: s.screen } : { nav: "landing" };
+}
+
 export default function Page() {
   const [booting, setBooting] = useState(true);
   const [authOpen, setAuthOpen] = useState(false);
@@ -26,17 +41,17 @@ export default function Page() {
   // overlay on top, so the grid is usually populated by the time it lifts.
   useEffect(() => {
     const entered = sessionStorage.getItem("vta_entered");
-    history.replaceState({ nav: "landing" } satisfies Nav, "");
+    writeHistory("replace", { nav: "landing" });
     if (entered) {
       const home: Nav = { nav: "app", screen: { v: "home" } };
-      history.pushState(home, "");
+      writeHistory("push", home);
       setCurrent(home);
     }
     const t = setTimeout(() => setBooting(false), entered ? 900 : 1900);
 
     const onPop = (e: PopStateEvent) => {
       setAuthOpen(false);
-      setCurrent((e.state as Nav) ?? { nav: "landing" });
+      setCurrent(readHistory(e.state));
     };
     window.addEventListener("popstate", onPop);
     return () => {
@@ -46,7 +61,7 @@ export default function Page() {
   }, []);
 
   function push(next: Nav) {
-    history.pushState(next, "");
+    writeHistory("push", next);
     setCurrent(next);
   }
   const back = () => history.back();
