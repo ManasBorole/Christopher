@@ -69,6 +69,7 @@ function StartButton({ lang, onStart }: { lang: string; onStart: () => void }) {
 /* ------------------------------------------------------------------ */
 function Hero({ lang, setLang, onStart }: { lang: string; setLang: (l: string) => void; onStart: () => void }) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const pinRef = useRef<HTMLDivElement>(null);
   const flip = useCallback((p: number) => {
     const el = cardRef.current;
     if (!el) return;
@@ -78,11 +79,13 @@ function Hero({ lang, setLang, onStart }: { lang: string; setLang: (l: string) =
     el.style.transform = `translateZ(${lift * 80}px) rotateX(${6 - f * 6 + lift * 5}deg) rotateY(${f * 180}deg) rotateZ(${-2.5 + f * 4.5}deg)`;
     el.style.setProperty("--sheen", (lift * 0.9).toFixed(2));
   }, []);
-  useScrollScene(cardRef, flip, { mode: "reveal", span: 0.7, rest: 0 });
+  // The card is pinned in view while it turns, so the whole flip is seen and
+  // the page only moves on once the back is showing.
+  useScrollScene(pinRef, flip, { rest: 0 });
 
   return (
-    <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-24 pt-8 sm:px-6 lg:grid-cols-[1.12fr_1fr] lg:gap-12 lg:pb-36 lg:pt-14">
-      <div>
+    <section className="mx-auto grid max-w-6xl items-start gap-10 px-4 pb-16 pt-8 sm:px-6 lg:grid-cols-[1.12fr_1fr] lg:gap-12 lg:pb-24 lg:pt-14">
+      <div className="lg:sticky lg:top-28">
         <h1 className="font-display text-[clamp(2.5rem,5.2vw,4.1rem)] font-extrabold leading-[1.02] tracking-[-0.035em] text-balance">
           Say it out loud. Christopher will wait for you.
         </h1>
@@ -109,54 +112,56 @@ function Hero({ lang, setLang, onStart }: { lang: string; setLang: (l: string) =
         <p className="mt-4 text-[15px] text-muted">No account needed for your first conversation. 180+ languages inside.</p>
       </div>
 
-      <div className="pc-scene">
-        <div ref={cardRef} className="pc">
-          <div className="pc-face pc-front">
-            <div className="pc-photo">
-              <Mascot pose="wave" priority />
-            </div>
-            <div className="pc-greeting">
-              <span className="font-hand text-2xl text-muted">Greetings from</span>
-              <span className="pc-big">
-                your first <span>real conversation</span>
-              </span>
-            </div>
-          </div>
-          <div className="pc-face pc-back" aria-label="A sample exchange in Spanish">
-            <div className="pc-msg">
-              <p className="pc-line pc-t">
-                <span className="pc-who">Christopher</span>
-                <span lang="es">¿Qué pediste para cenar?</span>
-              </p>
-              <p className="pc-line pc-l">
-                <span className="pc-who">You</span>
-                <span lang="es">Yo pedí… una sopa?</span>
-              </p>
-              <p className="pc-line pc-t">
-                <span className="pc-who">Christopher</span>
-                <span lang="es">
-                  Ah, <span className="fix">pedí una sopa</span>. ¿Estaba buena?
+      <div ref={pinRef} className="h-[150vh] motion-reduce:h-auto lg:h-[175vh]">
+        <div className="pc-scene sticky top-[18svh] lg:top-28">
+          <div ref={cardRef} className="pc">
+            <div className="pc-face pc-front">
+              <div className="pc-photo">
+                <Mascot pose="wave" priority />
+              </div>
+              <div className="pc-greeting">
+                <span className="font-hand text-2xl text-muted">Greetings from</span>
+                <span className="pc-big">
+                  your first <span>real conversation</span>
                 </span>
-              </p>
-              <p className="font-hand text-[17px] leading-tight text-correct">
-                “pedí” already means “I ordered”, so the “yo” can go.
-              </p>
-            </div>
-            <div className="pc-addr" aria-hidden>
-              <div className="pc-stamp">
-                <span lang="es">¡Hola!</span>
-              </div>
-              <div className="grid gap-2.5">
-                <b className="font-hand text-xl font-normal">To: you, in Madrid</b>
-                <i />
-                <i />
-                <i />
               </div>
             </div>
-            <div className="pc-postmark" aria-hidden>
-              UNDERSTOOD
-              <br />
-              FIRST TRY
+            <div className="pc-face pc-back" aria-label="A sample exchange in Spanish">
+              <div className="pc-msg">
+                <p className="pc-line pc-t">
+                  <span className="pc-who">Christopher</span>
+                  <span lang="es">¿Qué pediste para cenar?</span>
+                </p>
+                <p className="pc-line pc-l">
+                  <span className="pc-who">You</span>
+                  <span lang="es">Yo pedí… una sopa?</span>
+                </p>
+                <p className="pc-line pc-t">
+                  <span className="pc-who">Christopher</span>
+                  <span lang="es">
+                    Ah, <span className="fix">pedí una sopa</span>. ¿Estaba buena?
+                  </span>
+                </p>
+                <p className="font-hand text-[17px] leading-tight text-correct">
+                  “pedí” already means “I ordered”, so the “yo” can go.
+                </p>
+              </div>
+              <div className="pc-addr" aria-hidden>
+                <div className="pc-stamp">
+                  <span lang="es">¡Hola!</span>
+                </div>
+                <div className="grid gap-2.5">
+                  <b className="font-hand text-xl font-normal">To: you, in Madrid</b>
+                  <i />
+                  <i />
+                  <i />
+                </div>
+              </div>
+              <div className="pc-postmark" aria-hidden>
+                UNDERSTOOD
+                <br />
+                FIRST TRY
+              </div>
             </div>
           </div>
         </div>
