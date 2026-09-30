@@ -1,343 +1,270 @@
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--                                 HEADER                                    -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<p align="center">
+  <img src="frontend/public/mascot/wave.webp" width="180" alt="Christopher, a cartoon fox in a teal jacket with a satchel, waving hello" />
+</p>
 
-<div align="center">
+<h1 align="center">Christopher</h1>
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:34d399,45:22d3ee,100:818cf8&height=210&section=header&text=Christopher&fontSize=74&fontColor=ffffff&animation=fadeIn&fontAlignY=36&desc=AI%20Voice%20Language%20Tutor&descSize=20&descAlignY=60" width="100%" alt="Christopher — AI Voice Language Tutor" />
+<p align="center">
+  A voice tutor you talk to out loud, in more than 180 languages.<br />
+  <a href="https://christopherai.vercel.app"><strong>Try it at christopherai.vercel.app</strong></a>
+</p>
 
-<br />
+> This project was originally developed in July 2026. I'm publishing it here in August 2026 as part of sharing my past work.
 
-<a href="https://readme-typing-svg.demolab.com">
-  <img src="https://readme-typing-svg.demolab.com?font=Space+Grotesk&weight=600&size=24&duration=3000&pause=900&color=34D399&center=true&vCenter=true&width=640&height=48&lines=Speak.+Learn.+Fluently.;Learn+any+language+by+talking+out+loud.;Real-time+voice.+Real+pronunciation+scores." alt="Speak. Learn. Fluently." />
-</a>
+## See it working
 
-<br /><br />
+<!--
+  Demo video (30–60 seconds, with sound): drag an MP4 into this file in GitHub's
+  editor and paste the URL it gives you on its own line here.
+-->
 
-<a href="https://christopherai.vercel.app/">
-  <img alt="Live Demo" src="https://img.shields.io/badge/%E2%96%B6%20Live%20Demo-christopherai.vercel.app-34d399?style=for-the-badge&labelColor=05140d" />
-</a>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/landing-dark.png" />
+  <img src="docs/screenshots/landing-light.png" alt="The landing page: the headline 'Say it out loud. Christopher will wait for you.', a 'Start talking in Spanish' button with a language menu, and a postcard showing Christopher waving" />
+</picture>
 
-<br /><br />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/picker-dark.png" />
+  <img src="docs/screenshots/picker-light.png" alt="The 'Add a language' sheet with 'ma' typed into search, listing languages by their own names: Magyar (Hungarian), Macedonian, Malagasy, Melayu (Malay), മലയാളം (Malayalam), Maltese, मराठी (Marathi)" />
+</picture>
 
-<!-- ── Badges ─────────────────────────────────────────────────────────────── -->
+<!--
+  Live conversation screenshot: save as docs/screenshots/conversation-light.png and
+  conversation-dark.png, then uncomment.
 
-<img alt="TypeScript"  src="https://img.shields.io/badge/TypeScript-5.5-3178C6?style=flat-square&logo=typescript&logoColor=white" />
-<img alt="Next.js"     src="https://img.shields.io/badge/Next.js-15-000000?style=flat-square&logo=nextdotjs&logoColor=white" />
-<img alt="React"       src="https://img.shields.io/badge/React-19-149ECA?style=flat-square&logo=react&logoColor=white" />
-<img alt="OpenAI"      src="https://img.shields.io/badge/OpenAI-Realtime-412991?style=flat-square&logo=openai&logoColor=white" />
-<img alt="Prisma"      src="https://img.shields.io/badge/Prisma-5-2D3748?style=flat-square&logo=prisma&logoColor=white" />
-<img alt="PostgreSQL"  src="https://img.shields.io/badge/Neon-Postgres-008bb9?style=flat-square&logo=postgresql&logoColor=white" />
-<img alt="Tailwind"    src="https://img.shields.io/badge/Tailwind-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/conversation-dark.png" />
+  <img src="docs/screenshots/conversation-light.png" alt="A live conversation: Christopher in his speaking pose beside the transcript" />
+</picture>
+-->
 
-<br />
+<!--
+  End-of-conversation postcard: save as docs/screenshots/postcard-light.png and
+  postcard-dark.png, then uncomment.
 
-<img alt="Status"        src="https://img.shields.io/badge/status-Phase_1_complete-34d399?style=flat-square" />
-<img alt="Monorepo"      src="https://img.shields.io/badge/monorepo-npm_workspaces-818cf8?style=flat-square" />
-<img alt="Languages"     src="https://img.shields.io/badge/languages-180%2B-c084fc?style=flat-square" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/postcard-dark.png" />
+  <img src="docs/screenshots/postcard-light.png" alt="The postcard shown after a conversation: words used, things to try again, and what to practise next" />
+</picture>
+-->
 
-<br /><br />
+## What it does
 
-<!-- ── Quick nav ──────────────────────────────────────────────────────────── -->
+You pick a language, allow the microphone, and have a spoken conversation with Christopher. He listens to the whole sentence, answers like a person, and when you slip he repeats the phrase the right way instead of marking you wrong. He learns your name, native language and level as you talk and picks up where you left off next time. When you end the conversation you get a postcard: the words you used, what to try again, and what to practise next.
 
-<b>
-<a href="#-why-christopher">Why</a> &nbsp;•&nbsp;
-<a href="#-features">Features</a> &nbsp;•&nbsp;
-<a href="#-architecture">Architecture</a> &nbsp;•&nbsp;
-<a href="#-quick-start">Quick Start</a> &nbsp;•&nbsp;
-<a href="#-configuration">Config</a> &nbsp;•&nbsp;
-<a href="#-deploy">Deploy</a> &nbsp;•&nbsp;
-<a href="#-roadmap">Roadmap</a>
-</b>
+- Live voice conversation in the browser over WebRTC, with a streaming transcript
+- Spoken pronunciation and grammar coaching from the tutor during the conversation
+- Memory per language: name, native language, level, words practised, past notes
+- A welcome back by name at the start of the next conversation
+- An end-of-conversation summary, and a word list with English meanings on each language's page
+- A searchable picker for 183 languages, shown by their own names, including right-to-left scripts
+- Works as a guest straight away; Clerk sign-in is optional
+- Light and dark themes, and Christopher's pose follows the conversation: listening, thinking, speaking, stepping back when you cut in
 
-</div>
+## How it works
 
-<img src="./.github/assets/divider.svg" width="100%" alt="" />
-
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--                                  WHY                                      -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-
- **Note:** This project was originally developed in **Jul 2026**. I am publishing it here in **Aug 2026** as part of sharing my past work.
-
-## ✦ Why Christopher
-
-Language apps make you tap flashcards. **Christopher makes you _talk_.**
-
-It's a tutor you speak to out loud - like a real teacher. You have a live, natural
-voice conversation; it listens to your actual pronunciation, scores it phrase by
-phrase, tells you exactly what to adjust, and remembers you next time. No levels to
-pick, no gates to unlock - it adapts on its own as you improve.
-
-> **The core loop:** _talk → get coached on the exact clip you just said → the tutor
-> voices the feedback → your progress is remembered._
-
-<img src="./.github/assets/divider.svg" width="100%" alt="" />
-
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--                                FEATURES                                   -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-
-## ⚡ Features
-
-|            | Capability | What it does |
-| :--------: | :--------- | :----------- |
-| 🎙️ | **Live voice conversation** | Full-duplex WebRTC straight from the browser to OpenAI Realtime, secured with ephemeral tokens. |
-| 🗣️ | **Real pronunciation scoring** | You repeat a phrase; the audio model listens to *that exact clip* and returns accuracy + targeted coaching. |
-| 🧠 | **Stateful memory** | The tutor learns your name, native language, and level - persisted to Postgres and injected back on return. |
-| 👋 | **Welcome back** | Reopens where you left off and greets returning learners by name. |
-| 📊 | **End-of-session summary** | On stop, an LLM distills the transcript into vocabulary, recurring mistakes, grammar tips, and a next lesson. |
-| 📚 | **Auto-building vocabulary** | Every scored phrase feeds your growing word bank per language. |
-| 🌍 | **180+ languages** | Searchable, ISO 639 selector powered natively by `Intl.DisplayNames`. |
-| ⏱️ | **Deterministic turn-taking** | The client drives `response.create`, so no double-replies or crosstalk. |
-| 🔐 | **Guest-first, auth-optional** | Works instantly as an anonymous guest; Clerk sign-in is a drop-in upgrade |
-
-<img src="./.github/assets/divider.svg" width="100%" alt="" />
-
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--                              ARCHITECTURE                                 -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-
-## 🏗 Architecture
-
-A tidy npm-workspaces monorepo. Every model call is behind a **swappable seam** - the
-`ConversationEngine` interface lets Phase 2 drop in a custom `STT → LLM → TTS` pipeline
-without touching the UI.
+The browser talks to OpenAI's Realtime API directly over WebRTC. The backend never relays the conversation audio; it hands out a short-lived token, stores courses and transcripts in Postgres, and writes the summary when a conversation ends.
 
 ```mermaid
 flowchart LR
-    subgraph Browser["🌐 Frontend · Next.js 15"]
-        UI["Mic UI + Zustand store"]
-        RE["RealtimeEngine<br/>(WebRTC)"]
+    subgraph browser["Browser: Next.js frontend"]
+        ui["Screens and session store"]
+        engine["RealtimeEngine (WebRTC)"]
     end
 
-    subgraph Server["⚙️ Backend · Express + tsx"]
-        S["/session · ephemeral token"]
-        P["/pronounce · audio scoring"]
-        C["/courses · /sessions CRUD"]
+    subgraph api["Backend: Express"]
+        token["POST /session<br/>short-lived token"]
+        data["Courses, sessions, turns, usage"]
+        summary["POST /sessions/:id/end<br/>summary"]
     end
 
-    OA(("🤖 OpenAI<br/>Realtime + Audio"))
-    DB[("🐘 Neon Postgres<br/>via Prisma")]
+    realtime["OpenAI Realtime API"]
+    chat["OpenAI chat completions"]
+    db[("Postgres via Prisma")]
 
-    UI --> RE
-    RE <-->|"WebRTC audio + events"| OA
-    RE -->|"token request"| S
-    S -->|"mint"| OA
-    RE -->|"repeat clip"| P
-    P -->|"listen + score"| OA
-    UI -->|"turns · profile · summary"| C
-    C <--> DB
+    ui --> engine
+    engine -->|"asks for a token"| token
+    token -->|"creates a client secret"| realtime
+    engine <-->|"voice and events over WebRTC"| realtime
+    ui -->|"turns, profile, course data"| data
+    data --> db
+    summary -->|"transcript in, summary out"| chat
+    summary --> db
+```
 
-    classDef fe fill:#34d399,stroke:#0d3b2e,color:#000;
-    classDef be fill:#818cf8,stroke:#26306b,color:#000;
-    classDef ext fill:#c084fc,stroke:#4a2a6b,color:#000;
-    class UI,RE fe;
-    class S,P,C be;
-    class OA,DB ext;
+One turn of a conversation:
+
+```mermaid
+sequenceDiagram
+    participant L as Learner
+    participant B as Browser
+    participant O as OpenAI Realtime
+    participant A as Backend
+
+    L->>B: speaks
+    B->>O: microphone audio over WebRTC
+    O->>O: voice activity detection hears the turn end
+    O-->>B: transcript of what the learner said
+    O-->>B: Christopher's spoken reply, with its transcript
+    B->>A: saves both turns
+    opt Christopher learns a name, native language or level
+        O-->>B: update_profile tool call
+        B->>A: PATCH /courses/:id
+        B-->>O: tool result, and the reply continues
+    end
 ```
 
 ### Project layout
 
 ```text
-Voice Agent/
-├── shared/      @vta/shared — Zod schemas + shared TS types (raw TS, no build)
-├── backend/     Express — /session, /pronounce, /courses & /sessions CRUD (Prisma → Neon)
-│   └── src/routes/         one file per concern; the pronounce route is the scoring seam
-├── services/    Python reference scorer for the pronounce seam (FastAPI, standalone)
-│   └── pronunciation/      Levenshtein-based transcript scoring + coaching + self-check
-└── frontend/    Next.js 15 — RealtimeEngine (WebRTC), Zustand store, premium mic UI
-    ├── components/         Landing, Home, SessionView, modals…
-    └── lib/engine/         ConversationEngine seam (Realtime today, custom pipeline later)
+Christopher/
+├── shared/      @vta/shared: Zod schemas and TypeScript types used by both sides (raw TS, no build)
+├── backend/     Express API: /session, courses, sessions, usage, /pronounce (Prisma, Postgres)
+│   └── src/prompts/tutor.ts   the tutor's system prompt
+├── frontend/    Next.js 15 app
+│   ├── components/            landing, languages, course page, conversation, mascot
+│   └── lib/engine/            ConversationEngine interface and the RealtimeEngine
+├── services/    Python reference scorer for /pronounce (standalone, not wired in)
+└── design/      scripts that export the mascot images
 ```
 
-<img src="./.github/assets/divider.svg" width="100%" alt="" />
+## Engineering decisions
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--                               TECH STACK                                  -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
+**Short-lived tokens for browser-to-OpenAI WebRTC.** The conversation has to be low-latency, so audio goes straight from the browser to OpenAI instead of through my server. That means the browser needs a credential, and the real API key can't leave the backend. `POST /session` creates a client secret with the session's instructions, voice and tools already set ([`session.ts`](backend/src/routes/session.ts)), and the browser uses it only for the SDP handshake ([`RealtimeEngine.ts`](frontend/lib/engine/RealtimeEngine.ts)). The trade-off: the server can't see the live audio, so everything it needs comes back as events the client forwards.
 
-## 🧩 Tech Stack
+**The server decides when a turn ends.** An earlier version had the client send `response.create` itself. Every misheard blip started a fresh reply, and the tutor would re-greet and loop. Turn detection now runs on OpenAI's server VAD with `create_response: true`, a 0.6 threshold to ignore room noise, 550 ms of silence so learners can pause mid-sentence, and 300 ms of prefix padding so short words keep their start. The client sends one `response.create` for the opening greeting and nothing after. The trade-off is less control over timing in exchange for a conversation that doesn't trip over itself.
 
-| Layer | Choices |
-| :---- | :------ |
-| **Frontend** | Next.js 15 · React 19 · Zustand · Tailwind CSS 4 · WebRTC |
-| **Backend** | Express · tsx (no compile step) · Multer · Zod |
-| **AI** | OpenAI Realtime (voice) · `gpt-4o-mini-audio-preview` (pronunciation) · `gpt-4o-mini` (summaries) |
-| **Data** | Prisma ORM · Neon Postgres |
-| **Services** | Python · FastAPI - standalone reference scorer for the pronounce seam |
-| **Auth** | Clerk _(optional - guest-first by default)_ |
-| **Shared** | `@vta/shared` workspace - Zod contracts across the wire |
+**Transcription locked to the language being learned.** Short target-language clips were being detected as a neighbouring language, for example Japanese transcribed as Chinese, which fed the tutor nonsense. The session uses `gpt-4o-transcribe` and pins its language when the course's language is one of the 20 names in the lookup table in `session.ts`. Other languages fall back to auto-detection.
 
-<img src="./.github/assets/divider.svg" width="100%" alt="" />
+**Memory as a tool call, not a replayed transcript.** The tutor calls `update_profile` as soon as it learns a name, native language or level; the client saves it to the course. Every conversation starts fresh, with that memory, the words practised and past notes appended to the instructions. Replaying old transcripts would cost more and drift; the trade-off is that only what's summarised carries over.
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--                              QUICK START                                  -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
+**Judging pronunciation by listening, not by transcript.** A transcript diff passes mispronunciations, because the speech-to-text model quietly corrects them. So pronunciation feedback comes from a model that hears the audio. Today that's the Realtime model itself, coaching in the conversation as the tutor prompt describes. The backend also has a separate `/pronounce` route that sends one clip to an audio model and returns an accuracy score and coaching, and `services/pronunciation/` holds a Python reference scorer with the same shape. Neither is connected to the current frontend.
 
-## 🚀 Quick Start
+**One seam for the conversation engine.** The UI talks to a small `ConversationEngine` interface ([`ConversationEngine.ts`](frontend/lib/engine/ConversationEngine.ts)): connect, interrupt, disconnect, and callbacks for status, transcript, speaking and profile. `RealtimeEngine` is the only implementation; the screens and store don't know it's OpenAI.
 
-> **Prerequisites** - Node 18+, an **OpenAI** key with Realtime + audio access, and a
-> **Neon** Postgres connection string.
+**Languages from the platform, not a hard-coded list.** The picker keeps only ISO 639-1 codes and asks `Intl.DisplayNames` for the English name and the language's own name ([`languages.ts`](frontend/lib/languages.ts)). That gives 183 languages with correct native spellings and no strings to maintain. The trade-off is that names follow the browser's CLDR data.
+
+**Guest first, sign-in optional.** Every request resolves to an owner: `clerk:<userId>` from a verified Clerk token, or `guest:<uuid>` from a header the browser generates ([`owner.ts`](backend/src/owner.ts)). Nobody has to create an account to try it. Without Clerk keys, the middleware is a passthrough and the app runs guest-only. The trade-off: a guest id is just a header, so the free trial is easy to reset by clearing storage.
+
+**A trial that's only spent when the call goes live.** `/session` checks the allowance but doesn't consume it; the client consumes one session once the WebRTC connection is actually up ([`gate.ts`](backend/src/gate.ts)). A failed or abandoned connect never burns the learner's free conversation.
+
+**Shared contracts.** Types and Zod schemas for summaries, profiles, tokens and course data live in one workspace package, [`shared/src/index.ts`](shared/src/index.ts), imported by both sides as raw TypeScript. The backend validates the summary model's output against `SummarySchema` before saving it.
+
+**Self-checks instead of a test framework.** Each piece of logic with real branches has a small runnable file that asserts its behaviour and needs no keys or database. They're listed under [Run it locally](#run-it-locally).
+
+## Run it locally
+
+### What you need
+
+- Node.js 18.18 or later (20 or later is fine)
+- A Postgres database. A free [Neon](https://neon.tech) project works.
+- An OpenAI API key with access to the Realtime API
+- A browser with a microphone
+
+### Steps
 
 ```bash
-# 1 · Install (npm workspaces - once, from the repo root)
+git clone https://github.com/ManasBorole/Christopher.git
+cd Christopher
+
+# Installs all three workspaces; also runs `prisma generate` for the backend
 npm install
 
-# 2 · Environment
-cp .env.example backend/.env                                   # add OPENAI_API_KEY + DATABASE_URL
-printf 'NEXT_PUBLIC_BACKEND_URL=http://localhost:8787\n' > frontend/.env.local
+# Backend settings: fill in OPENAI_API_KEY and DATABASE_URL
+cp backend/.env.example backend/.env
 
-# 3 · Database (Neon)
-npm run prisma:generate --workspace=backend
-npm run prisma:push     --workspace=backend                    # create tables
+# Frontend settings: optional, the defaults work locally
+cp frontend/.env.example frontend/.env.local
 
-# 4 · Run — two terminals
-npm run dev:backend      # → http://localhost:8787
-npm run dev:frontend     # → http://localhost:3000
+# Create the tables
+npm run prisma:push --workspace=backend
+
+# Start each in its own terminal
+npm run dev:backend     # API on http://localhost:8787
+npm run dev:frontend    # app on http://localhost:3000
 ```
 
-<div align="center">
-<br />
-Open <b><a href="http://localhost:3000">localhost:3000</a></b> → tap <b>Speak</b> → say hello. 👋
-<br /><br />
-</div>
+### What you should see
 
-<img src="./.github/assets/divider.svg" width="100%" alt="" />
+- The backend prints `backend on http://localhost:8787`, and http://localhost:8787/health returns `{"ok":true}`.
+- http://localhost:3000 shows the landing page.
+- Press **Start talking in Spanish**, then **Try it as a guest**, then allow the microphone. Christopher greets you and asks your name.
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--                             CONFIGURATION                                 -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
+### If something goes wrong
 
-## 🔧 Configuration
+- **The backend exits with `Missing env: OPENAI_API_KEY`** (or `DATABASE_URL`). `backend/.env` is missing a value.
+- **"Christopher can't hear you yet."** The browser blocked the microphone. Allow it from the icon next to the address bar and press **Try again**.
+- **"Christopher couldn't connect."** Check the backend terminal. `openai_session_failed` usually means the key has no Realtime access.
+- **Errors about a table that doesn't exist.** Run `npm run prisma:push --workspace=backend`.
+- **`npm run dev` only starts the backend on Windows.** The root script uses `&`, which runs the two commands one after the other in `cmd`. Use the two terminals above.
+- **"That was your free conversation."** The trial allows one 60-second conversation per owner. Raise `FREE_SESSIONS` / `FREE_SECONDS`, or add your owner id to `UNLIMITED_OWNERS` (a guest id is `guest:` plus the `vta_guest` value in the site's localStorage).
 
-<details open>
-<summary><b><code>backend/.env</code></b></summary>
+### Self-checks
 
-| Variable | Required | Description |
-| :------- | :------: | :---------- |
-| `OPENAI_API_KEY` | ✅ | Key with Realtime + audio access. |
-| `DATABASE_URL` | ✅ | Neon Postgres connection string. |
-| `OPENAI_REALTIME_MODEL` | - | Voice model. Default `gpt-realtime-mini`. |
-| `OPENAI_REALTIME_VOICE` | - | Voice preset. Default `alloy`. |
-| `OPENAI_PRONUNCIATION_MODEL` | - | Audio scorer. Default `gpt-4o-mini-audio-preview`. |
-| `OPENAI_SUMMARY_MODEL` | - | Summary LLM. Default `gpt-4o-mini`. |
-| `FREE_SESSIONS` / `FREE_SECONDS` | - | Per-owner free-trial gate. Defaults `1` / `60`. |
-| `FRONTEND_ORIGIN` | - | CORS origin. Default `http://localhost:3000`. |
-| `CLERK_SECRET_KEY` | - | Omit to run guest-only. |
+These run with no keys or database:
+
+| Command | Checks |
+| --- | --- |
+| `npx tsx frontend/lib/languages.selfcheck.ts` | Native names, right-to-left flags, search by English or native name |
+| `npx tsx frontend/lib/sessionPhase.selfcheck.ts` | Which screen state each engine event maps to |
+| `npx tsx frontend/lib/transcript.selfcheck.ts` | Dropping noise mis-transcribed as speech |
+| `npx tsx frontend/lib/lastChat.selfcheck.ts` | "Last chat" wording on the course tags |
+| `npx tsx frontend/lib/recorder.selfcheck.ts` | Audio downsampling and PCM encoding for clips |
+| `npm run check --workspace=backend` | Backend typecheck, plus WAV wrapping and coaching thresholds for `/pronounce` |
+| `pip install -r services/pronunciation/requirements.txt`<br/>`python services/pronunciation/main.py` | The Python reference scorer |
+
+## Configuration
+
+<details>
+<summary><code>backend/.env</code></summary>
+
+| Variable | Required | Default | What it does |
+| --- | --- | --- | --- |
+| `OPENAI_API_KEY` | Yes | | Realtime voice, summaries and word translations |
+| `DATABASE_URL` | Yes | | Postgres connection string |
+| `PORT` | No | `8787` | Port the API listens on |
+| `FRONTEND_ORIGIN` | No | `http://localhost:3000` | Allowed origins, comma-separated. In development any localhost port is also allowed. |
+| `OPENAI_REALTIME_MODEL` | No | `gpt-realtime` | Voice model for the conversation |
+| `OPENAI_REALTIME_VOICE` | No | `alloy` | Christopher's voice |
+| `OPENAI_SUMMARY_MODEL` | No | `gpt-4o-mini` | Writes summaries and translates learned words |
+| `OPENAI_PRONUNCIATION_MODEL` | No | `gpt-audio-mini` | Audio model behind `/pronounce` |
+| `FREE_SESSIONS` | No | `1` | Free conversations per owner |
+| `FREE_SECONDS` | No | `60` | Length of each free conversation |
+| `UNLIMITED_OWNERS` | No | | Owner ids that skip the trial, comma-separated |
+| `CLERK_SECRET_KEY` | No | | Verifies signed-in users. Leave empty for guest-only. |
 
 </details>
 
 <details>
-<summary><b><code>frontend/.env.local</code></b></summary>
+<summary><code>frontend/.env.local</code></summary>
 
-| Variable | Required | Description |
-| :------- | :------: | :---------- |
-| `NEXT_PUBLIC_BACKEND_URL` | ✅ | Backend base URL. |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | - | Enables the Sign-in button. Omit for guest-only. |
+| Variable | Required | Default | What it does |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_BACKEND_URL` | No | `http://localhost:8787` | Where the API runs |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | No | | Shows the sign-in buttons |
+| `CLERK_SECRET_KEY` | No | | Turns on Clerk's middleware. Set it together with the publishable key. |
 
 </details>
 
-### Scripts
+## Deploy
 
-| Command | Runs |
-| :------ | :--- |
-| `npm run dev:backend` | Express API with hot reload |
-| `npm run dev:frontend` | Next.js dev server |
-| `npm run build` | Build all workspaces |
-| `npx tsx backend/src/pronounce.selfcheck.ts` | Coaching-threshold self-check - _no keys/DB needed_ |
-| `npx tsx frontend/lib/recorder.selfcheck.ts` | Audio downsample + PCM self-check - _no keys/DB needed_ |
-| `python services/pronunciation/main.py` | Python reference-scorer self-check - _no keys/DB needed_ |
+This is an npm-workspaces monorepo, and `@vta/shared` is imported as raw TypeScript, so each host has to install from the repository root for that package to resolve.
 
-<img src="./.github/assets/divider.svg" width="100%" alt="" />
+- **Frontend:** a Next.js app in `frontend/`. The live site runs on Vercel. Point the project's root directory at `frontend` and keep installs at the repository root. Set `NEXT_PUBLIC_BACKEND_URL` to the API's URL, plus the Clerk keys if you use sign-in. `.vercelignore` keeps the Python service out of the build.
+- **Backend:** a Node process. Install from the root (this runs `prisma generate`), start with `npm run start --workspace=backend`, set the `backend/.env` values, set `FRONTEND_ORIGIN` to the frontend's URL, and set `NODE_ENV=production` so CORS allows only those origins.
+- **Database:** run `npm run prisma:push --workspace=backend` once against the production `DATABASE_URL`.
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--                            THE SCORING LOOP                               -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
+## Limitations
 
-## 🎯 How Pronunciation Scoring Works
+- Pronunciation feedback is the conversation model's judgement by ear, not phoneme-level scoring.
+- The free trial defaults to one 60-second conversation per owner, and guest owners can reset it by clearing browser storage.
+- Every conversation runs on the OpenAI Realtime API, which is billed by audio usage; the trial gate is the only cost control.
+- Transcription is pinned to the learned language only for the 20 language names in `session.ts`; the rest rely on auto-detection, which can confuse similar languages on short clips.
+- The picker lists 183 languages, but how well Christopher teaches each one depends on the Realtime model, not on this app.
+- I've checked the interface in Chromium. I haven't verified voice conversations in Safari or Firefox for this README.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant You
-    participant Tutor as 🗣️ Tutor
-    participant Engine as RealtimeEngine
-    participant AI as 🤖 Audio model
+## License and author
 
-    Tutor->>Engine: assess_pronunciation("buenos días")
-    You->>Engine: repeat it (VAD-bounded clip off the live mic)
-    Engine->>AI: send that exact clip + reference
-    AI-->>Engine: accuracy + word-level + coaching
-    Engine-->>Tutor: coaching as tool output
-    Tutor-->>You: voices the feedback + banner
-```
+No license is granted: all rights reserved.
 
-`/pronounce` is a **swappable seam** - drop in Azure Pronunciation Assessment or Speechace
-for true phoneme-level scores by rewriting only `backend/src/routes/pronounce.ts`.
-
-A standalone **Python (FastAPI)** reference implementation of this seam lives in
-`services/pronunciation/`. It grades a transcript against the reference phrase using
-Levenshtein-based similarity — a dependency-free phoneme-distance stand-in — and returns the
-same per-word score + coaching shape, so it can back `/pronounce` without the audio model.
-Run `python services/pronunciation/main.py` for its assert-based self-check, or serve it with
-`uvicorn services.pronunciation.main:app`.
-
-<img src="./.github/assets/divider.svg" width="100%" alt="" />
-
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--                                DEPLOY                                     -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-
-## ☁️ Deploy
-
-It's an npm-workspaces monorepo, so **every host must install from the repo root** so
-`@vta/shared` resolves.
-
-| Target | Host | Notes |
-| :----- | :--- | :---- |
-| **Backend** | Railway | Root = repo. Build `npm install` (runs `prisma generate`). Start `npm run start --workspace=backend`. Set all `backend/.env` + `FRONTEND_ORIGIN` = your Vercel URL. |
-| **Frontend** | Vercel | Root = `frontend`, keep root install so `@vta/shared` resolves. Set `NEXT_PUBLIC_BACKEND_URL` = your Railway URL. |
-| **Database** | Neon | Run `npm run prisma:push --workspace=backend` once against `DATABASE_URL`. |
-
-<img src="./.github/assets/divider.svg" width="100%" alt="" />
-
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--                                ROADMAP                                    -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-
-## 🗺 Roadmap
-
-**Phase 1 - functionally complete** ✅
-
-- [x] WebRTC live conversation with ephemeral-token auth
-- [x] Streaming transcript · speaking indicator · session timer
-- [x] Deterministic turn-taking (no double-replies)
-- [x] Pronunciation loop - capture → listen → score → coach
-- [x] Stateful memory (`update_profile` → Neon)
-- [x] Welcome-back greeting for returning learners
-- [x] End-of-session LLM summary card
-- [x] Auto-building per-language vocabulary
-
-**Phase 2 - next** 🔜
-
-- [ ] Swap in the custom `STT → LLM → TTS` `CustomPipelineEngine` behind the same seam
-- [ ] Phoneme-level scoring provider (Azure / Speechace)
-
-<img src="./.github/assets/divider.svg" width="100%" alt="" />
-
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--                                FOOTER                                     -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-
-<div align="center">
-
-### Built with intent, not boilerplate.
-
-Every model call sits behind a seam · every schema is shared · guest-first by default.
-
-<br /><br />
-
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:818cf8,55:22d3ee,100:34d399&height=120&section=footer" width="100%" alt="" />
-
-</div>
+Built by [Manas Borole](https://github.com/ManasBorole).
