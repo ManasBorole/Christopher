@@ -60,7 +60,9 @@ You pick a language, allow the microphone, and have a spoken conversation with C
 - An end-of-conversation summary, and a word list with English meanings on each language's page
 - A searchable picker for 183 languages, shown by their own names, including right-to-left scripts
 - Works as a guest straight away; Clerk sign-in is optional
-- Light and dark themes, and Christopher's pose follows the conversation: listening, thinking, speaking, stepping back when you cut in
+- Light and dark themes in the app, and Christopher's pose follows the conversation: listening, thinking, speaking, stepping back when you cut in
+- A scroll-driven 3D landing page: airmail postcards in 183 scripts drift over a harbour at dusk, gather into a sphere you can drag, and end as a giant postcard addressed to Christopher
+- A "Hear it" demo on the landing that plays a short recorded conversation in 14 languages, with subtitles
 
 ## How it works
 
@@ -124,6 +126,8 @@ Christopher/
 │   └── src/prompts/tutor.ts   the tutor's system prompt
 ├── frontend/    Next.js 15 app
 │   ├── components/            landing, languages, course page, conversation, mascot
+│   │   └── airmail/           the landing's WebGL scene: flock, dust, sphere, ending, preloader
+│   ├── public/hear/           recorded Hear it clips, one folder per language
 │   └── lib/engine/            ConversationEngine interface and the RealtimeEngine
 ├── services/    Python reference scorer for /pronounce (standalone, not wired in)
 └── design/      scripts that export the mascot images
