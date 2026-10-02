@@ -44,7 +44,8 @@ function inkOf(root: HTMLElement, x: CanvasRenderingContext2D, r: DOMRect) {
 export function createDust(canvas: HTMLCanvasElement, beats: Beat[], RM: boolean, MOB: boolean) {
   let dR: THREE.WebGLRenderer | null = null, dCam: THREE.OrthographicCamera | null = null;
   const dScene = new THREE.Scene();
-  let ready = false, drawn = false;
+  let ready = false, drawn = false, gen = 0;
+  const idle = (fn: () => void) => (window.requestIdleCallback ?? setTimeout)(fn);
 
   const drop = (b: Beat) => {
     if (!b.pts || !b.glow) return;
@@ -67,10 +68,11 @@ export function createDust(canvas: HTMLCanvasElement, beats: Beat[], RM: boolean
         return;
       }
     }
-    dR.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+    dR.setPixelRatio(Math.min(devicePixelRatio || 1, MOB ? 1.25 : 1.5));
     dR.setSize(innerWidth, innerHeight, false);
     dCam = new THREE.OrthographicCamera(0, innerWidth, 0, innerHeight, -1, 1);
     const S = 2, budget = MOB ? 40000 : 200000;
+    // ink every panel now (the particle budget is shared), but sample only the hero's: the rest wait for idle time
     const jobs: { b: Beat; r: DOMRect; w: number; h: number; d: Uint8ClampedArray; n: number }[] = [];
     for (const b of beats) {
       const r = b.el.getBoundingClientRect();
@@ -84,8 +86,8 @@ export function createDust(canvas: HTMLCanvasElement, beats: Beat[], RM: boolean
       for (let i = 3; i < d.length; i += 4) if (d[i] > 100) n++;
       jobs.push({ b, r, w, h, d, n });
     }
-    const total = jobs.reduce((a, j) => a + j.n, 0), st = Math.max(1, Math.sqrt(total / budget));
-    for (const j of jobs) {
+    const total = jobs.reduce((a, j) => a + j.n, 0), st = Math.max(1, Math.sqrt(total / budget)), pr = dR.getPixelRatio();
+    const sample = (j: (typeof jobs)[number]) => {
       const R = rng(j.w * 7 + j.h), O: number[] = [], Sd: number[] = [];
       let lo = 1e9, hi = -1e9;
       for (let y = 0; y < j.h; y += st)
@@ -108,7 +110,6 @@ export function createDust(canvas: HTMLCanvasElement, beats: Beat[], RM: boolean
       g.setAttribute("aO", new THREE.BufferAttribute(new Float32Array(O), 2));
       g.setAttribute("aS", new THREE.BufferAttribute(new Float32Array(Sd), 3));
       g.setAttribute("position", new THREE.BufferAttribute(new Float32Array((O.length / 2) * 3), 3));
-      const pr = dR.getPixelRatio();
       const mk = (glow: boolean) =>
         new THREE.ShaderMaterial({
           vertexShader: DUST_VS,
@@ -135,8 +136,16 @@ export function createDust(canvas: HTMLCanvasElement, beats: Beat[], RM: boolean
       pts.visible = glow.visible = false;
       dScene.add(glow, pts);
       Object.assign(j.b, { pts, glow, dl: lo, dw: Math.max(40, hi - lo), span: Math.max(240, (hi - lo) * 0.85) });
-    }
-    ready = true;
+    };
+    const my = ++gen;
+    const next = () => {
+      const j = jobs.shift();
+      if (!j || my !== gen) return;
+      sample(j);
+      ready = true;
+      idle(next);
+    };
+    next();
   }
 
   // reveal: the hero's own entrance (after the preloader), since it has no scroll-in
@@ -166,6 +175,7 @@ export function createDust(canvas: HTMLCanvasElement, beats: Beat[], RM: boolean
     measure,
     draw,
     dispose() {
+      gen++;
       beats.forEach(drop);
       for (const b of beats) b.dl = b.dw = undefined;
       dR?.dispose();
