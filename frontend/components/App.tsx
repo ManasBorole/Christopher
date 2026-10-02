@@ -10,6 +10,7 @@ import Wordmark from "./Wordmark";
 import Home from "./Home";
 import Dashboard from "./Dashboard";
 import SessionView from "./SessionView";
+import { WakingNotice } from "./ui";
 
 const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -90,6 +91,8 @@ export default function App({
           </div>
         </div>
       </nav>
+
+      <WakingNotice />
 
       {screen.v === "home" && autoStart && (
         <section aria-live="polite" className="mx-auto flex max-w-md flex-col items-center gap-6 px-4 py-16 text-center">

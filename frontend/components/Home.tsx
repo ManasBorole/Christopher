@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CourseCard } from "@vta/shared";
 
-import { listCourses, createCourse, deleteCourse, cachedCourses } from "../lib/api";
+import { listCourses, createCourse, deleteCourse, cachedCourses, getCourse } from "../lib/api";
 import { findLanguage } from "../lib/languages";
 import { greeting } from "../lib/greetings";
 import { lastChat } from "../lib/lastChat";
@@ -22,24 +22,31 @@ export default function Home({
   onContinue: (c: CourseCard) => void;
   continuing: string | null;
 }) {
-  // Seed from the cache so a revisit (backing out of a course) paints the tags
-  // immediately instead of flashing placeholders; still revalidate on mount.
+  // Seed from this browser's cache so a revisit or reload paints the tags on the
+  // first frame instead of placeholders; still revalidate on mount.
   const [courses, setCourses] = useState<CourseCard[] | null>(() => cachedCourses());
+  const [failed, setFailed] = useState(false);
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [addError, setAddError] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<CourseCard | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    // Always reach a terminal state: a rejected load (backend down, network) must
-    // drop to an actionable empty state, never hang on placeholders.
+  const alive = useRef(true);
+  function load() {
+    setFailed(false);
+    // Always reach a terminal state. listCourses retries a sleeping server for
+    // about a minute; if it still fails with nothing cached, offer a retry rather
+    // than a false "no languages yet".
     listCourses()
-      .then((c) => alive && setCourses(c))
-      .catch(() => alive && setCourses([]));
+      .then((c) => alive.current && setCourses(c))
+      .catch(() => alive.current && setFailed(true));
+  }
+  useEffect(() => {
+    alive.current = true;
+    load();
     return () => {
-      alive = false;
+      alive.current = false;
     };
   }, []);
 
@@ -73,7 +80,18 @@ export default function Home({
 
   return (
     <section className="mx-auto max-w-5xl px-4 pb-20 pt-8 sm:px-6 sm:pt-12">
-      {courses === null ? (
+      {courses === null && failed ? (
+        <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
+          <Mascot pose="reconnecting" className="w-36 shrink-0" />
+          <div>
+            <h1 className="font-display text-3xl font-extrabold tracking-[-0.02em]">Your languages did not load</h1>
+            <p className="mt-2 max-w-[44ch] text-muted">Christopher could not reach the server. Check your connection, then try again.</p>
+            <button type="button" onClick={load} className="btn mt-5">
+              Try again
+            </button>
+          </div>
+        </div>
+      ) : courses === null ? (
         <ul className="grid gap-x-6 gap-y-4 pt-[88px] sm:grid-cols-2 lg:grid-cols-3" aria-busy aria-label="Loading your languages">
           {[0, 1, 2].map((i) => (
             <li key={i} className="tag-slot" aria-hidden>
@@ -192,7 +210,15 @@ function Tag({
       <div className="tag-hang">
         <div className="tag">
           {/* full-tag open target sits under the delete button */}
-          <button type="button" onClick={onOpen} aria-label={`Open ${c.language}`} className="tag-open absolute inset-0 z-[1]" />
+          <button
+            type="button"
+            onClick={onOpen}
+            // start loading the course page as soon as the learner reaches for it
+            onPointerEnter={() => getCourse(c.id)}
+            onFocus={() => getCourse(c.id)}
+            aria-label={`Open ${c.language}`}
+            className="tag-open absolute inset-0 z-[1]"
+          />
           <div className="pointer-events-none relative z-[2] flex flex-1 flex-col">
             <p lang={l?.code} dir={l?.rtl ? "rtl" : undefined} className="pr-24 font-display text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em]">
               {l?.native ?? c.language}
