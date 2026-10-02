@@ -51,9 +51,17 @@ export function createFlock(n: number, featured: number, atlas: THREE.Texture, c
   mesh.frustumCulled = false;
 
   const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler(), tmpV = new THREE.Vector3(), tmpS = new THREE.Vector3();
-  const push = [0, 0, 0];
+  const push = [0, 0, 0], sh = [0, 0];
+  const exO = new Float32Array(n * 3), fadeK = new Float32Array(n).fill(1), prj = new THREE.Vector3();
+  const camR = new THREE.Vector3(), camU = new THREE.Vector3();
 
-  function update(t: number, dt: number, zones: Zone[]) {
+  // rects: the visible copy panels in NDC; cards slide out of them and fade if they still overlap
+  function update(t: number, dt: number, zones: Zone[], camera: THREE.PerspectiveCamera, rects: Rect[]) {
+    camera.updateMatrixWorld();
+    camR.setFromMatrixColumn(camera.matrixWorld, 0);
+    camU.setFromMatrixColumn(camera.matrixWorld, 1);
+    const asp = camera.aspect, tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const ke = 1 - Math.exp(-dt * 12), kf = 1 - Math.exp(-dt * 16);
     for (let i = 0; i < n; i++) {
       const c = cards[i], k3 = i * 3;
       let x = pos[k3], y = pos[k3 + 1], z = pos[k3 + 2];
@@ -83,7 +91,38 @@ export function createFlock(n: number, featured: number, atlas: THREE.Texture, c
       tmpV.set(x + off[k3], y + off[k3 + 1], z + off[k3 + 2]);
       tmpE.set(ph * 3 + t * c.spin, 0.55 * Math.sin(t * 0.21 + ph) + vy * 0.4, 0.3 * Math.sin(t * 0.27 + ph * 2) - 0.15);
       tmpQ.setFromEuler(tmpE);
-      const s = c.sc;
+      let s = c.sc;
+      // keep the copy clean: slide cards out of the text panels, fade any that still overlap
+      let ex = 0, ey = 0, hit = false, near = false;
+      if (rects.length) {
+        prj.copy(tmpV).project(camera);
+        const dist = Math.max(0.5, tmpV.distanceTo(camera.position)), half = (s * 0.62) / (dist * tanH);
+        if (prj.z < 1)
+          for (const R of rects)
+            if (clearShift(prj.x, prj.y, half / asp, half, R, sh)) {
+              ex += sh[0];
+              ey += sh[1];
+            }
+        ex *= dist * tanH * asp;
+        ey *= dist * tanH;
+      }
+      exO[k3] += (camR.x * ex + camU.x * ey - exO[k3]) * ke;
+      exO[k3 + 1] += (camR.y * ex + camU.y * ey - exO[k3 + 1]) * ke;
+      exO[k3 + 2] += (camR.z * ex + camU.z * ey - exO[k3 + 2]) * ke;
+      tmpV.x += exO[k3];
+      tmpV.y += exO[k3 + 1];
+      tmpV.z += exO[k3 + 2];
+      if (rects.length) {
+        prj.copy(tmpV).project(camera);
+        const dist = Math.max(0.5, tmpV.distanceTo(camera.position)), half = (s * 0.62) / (dist * tanH);
+        if (prj.z < 1)
+          for (const R of rects) {
+            if (clearShift(prj.x, prj.y, half / asp, half, R, sh)) hit = true;
+            else if (clearShift(prj.x, prj.y, (half * 1.6) / asp, half * 1.6, R, sh)) near = true;
+          }
+      }
+      fadeK[i] = hit ? 0 : fadeK[i] + ((near ? 0 : 1) - fadeK[i]) * kf;
+      s *= fadeK[i];
       tmpS.set(s, s, s);
       tmpM.compose(tmpV, tmpQ, tmpS);
       mesh.setMatrixAt(i, tmpM);
@@ -92,6 +131,27 @@ export function createFlock(n: number, featured: number, atlas: THREE.Texture, c
   }
 
   return { mesh, material, update };
+}
+
+export type Rect = [number, number, number, number];
+
+// how far (NDC) a card at (x,y) with half-size (rx,ry) must move to clear the rect; prefers vertical exits (the wind is horizontal)
+function clearShift(x: number, y: number, rx: number, ry: number, R: Rect, out: number[]) {
+  const [x0, x1, y0, y1] = R;
+  out[0] = out[1] = 0;
+  if (x + rx < x0 || x - rx > x1 || y + ry < y0 || y - ry > y1) return false;
+  const up = y1 + ry - y, dn = y0 - ry - y, rt = x1 + rx - x, lf = x0 - rx - x;
+  const opts = [
+    [0, up, up],
+    [0, dn, -dn],
+    [rt, 0, rt * 1.6],
+    [lf, 0, -lf * 1.6],
+  ];
+  let best = opts[0];
+  for (const o of opts) if (o[2] < best[2]) best = o;
+  out[0] = best[0];
+  out[1] = best[1];
+  return true;
 }
 
 function segPush(px: number, py: number, pz: number, zn: Zone, out: number[]) {
