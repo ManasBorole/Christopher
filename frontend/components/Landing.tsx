@@ -8,7 +8,7 @@ import Wordmark from "./Wordmark";
 
 // English names, matching what the picker stores (Intl.DisplayNames "en").
 const STARTERS = [
-  "Spanish", "French", "Japanese", "German", "Korean", "Hindi", "Italian",
+  "Japanese", "Spanish", "French", "German", "Korean", "Hindi", "Italian",
   "Portuguese", "Chinese", "Arabic", "Marathi", "Russian", "Turkish", "Dutch",
 ];
 
@@ -22,7 +22,7 @@ export default function Landing({
   onStart: (language: string) => void;
   onSignIn: () => void;
 }) {
-  const [lang, setLang] = useState("Spanish");
+  const [lang, setLang] = useState("Japanese");
   const start = () => onStart(lang);
 
   return (
@@ -126,32 +126,32 @@ function Hero({ lang, setLang, onStart }: { lang: string; setLang: (l: string) =
                 </span>
               </div>
             </div>
-            <div className="pc-face pc-back" aria-label="A sample exchange in Spanish">
+            <div className="pc-face pc-back" aria-label="A sample exchange in Japanese">
               <div className="pc-msg">
                 <p className="pc-line pc-t">
                   <span className="pc-who">Christopher</span>
-                  <span lang="es">¿Qué pediste para cenar?</span>
+                  <span lang="ja">きのう、なにを たべましたか？</span>
                 </p>
                 <p className="pc-line pc-l">
                   <span className="pc-who">You</span>
-                  <span lang="es">Yo pedí… una sopa?</span>
+                  <span lang="ja">すしを… たべます？</span>
                 </p>
                 <p className="pc-line pc-t">
                   <span className="pc-who">Christopher</span>
-                  <span lang="es">
-                    Ah, <span className="fix">pedí una sopa</span>. ¿Estaba buena?
+                  <span lang="ja">
+                    いいですね！<span className="fix">すしを たべました</span>ね。
                   </span>
                 </p>
                 <p className="font-hand text-[17px] leading-tight text-correct">
-                  “pedí” already means “I ordered”, so the “yo” can go.
+                  Yesterday is past, so たべます (eat) becomes たべました (ate).
                 </p>
               </div>
               <div className="pc-addr" aria-hidden>
                 <div className="pc-stamp">
-                  <span lang="es">¡Hola!</span>
+                  <span lang="ja">やあ！</span>
                 </div>
                 <div className="grid gap-2.5">
-                  <b className="font-hand text-xl font-normal">To: you, in Madrid</b>
+                  <b className="font-hand text-xl font-normal">To: you, in Tokyo</b>
                   <i />
                   <i />
                   <i />
@@ -360,17 +360,17 @@ function AfterTalk() {
       <div className="relative mx-auto w-full max-w-[520px] md:order-1">
         <article className="sticker relative z-10 -rotate-2 p-5 sm:p-6">
           <p className="font-hand text-xl text-muted">Greetings from</p>
-          <h3 className="font-display text-3xl font-extrabold tracking-[-0.02em] text-tutor">Spanish, day 3</h3>
+          <h3 className="font-display text-3xl font-extrabold tracking-[-0.02em] text-tutor">Japanese, day 3</h3>
           <p className="mt-4 text-sm font-semibold text-muted">Words you used</p>
-          <ul className="mt-2 flex flex-wrap gap-2" lang="es">
-            {["cenar", "pedí", "sopa", "buena", "la cuenta"].map((w) => (
+          <ul className="mt-2 flex flex-wrap gap-2" lang="ja">
+            {["すし", "たべました", "サーモン", "大好き", "おいしい"].map((w) => (
               <li key={w} className="rounded-[4px] border-[1.5px] border-dashed border-tutor px-2.5 py-1 text-[15px]">
                 {w}
               </li>
             ))}
           </ul>
           <p className="mt-4 text-sm font-semibold text-muted">Next time</p>
-          <p className="mt-1">Ordering in a café, in the past tense.</p>
+          <p className="mt-1">Ordering at a sushi counter, in the past tense.</p>
         </article>
         <Mascot pose="postcard" className="absolute -bottom-10 -right-2 z-20 w-28 rotate-3 sm:-right-8 sm:w-36" />
       </div>
