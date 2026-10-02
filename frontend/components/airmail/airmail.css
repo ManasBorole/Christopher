@@ -10,6 +10,10 @@ html:has(.am.nogl),
 html:has(.am.nogl) body {
   background: #16444a;
 }
+/* the landing has its own header; the app's airmail edge comes back when it unmounts */
+html:has(.am) .airmail-edge {
+  display: none;
+}
 html.lenis,
 html.lenis body {
   height: auto;
