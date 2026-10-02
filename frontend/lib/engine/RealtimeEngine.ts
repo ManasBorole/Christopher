@@ -1,6 +1,7 @@
 import type { ConversationEngine, ConversationEvents } from "./ConversationEngine";
 import { ownerHeaders } from "../auth";
 import { LineTracker } from "./lines";
+import { stageNote, type Stage } from "../stage";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8787";
 const OPENAI_RT = "https://api.openai.com/v1/realtime/calls";
@@ -42,6 +43,7 @@ export class RealtimeEngine implements ConversationEngine {
   private meter?: AnalyserNode; // taps the mic so the UI can tell a silent/wrong mic
   private ev: ConversationEvents = {};
   private lines = new LineTracker((l) => this.ev.onLine?.(l));
+  private stage: Stage | null = null; // last known conversation stage, for the learner's notes
 
   async connect(events: ConversationEvents, sessionId?: string): Promise<void> {
     this.ev = events;
@@ -150,6 +152,11 @@ export class RealtimeEngine implements ConversationEngine {
     try {
       const p = JSON.parse(argsJson ?? "{}");
       name = typeof p.userName === "string" ? p.userName.trim() : "";
+      const stage = Number(p.stage);
+      if ([1, 2, 3, 4].includes(stage)) {
+        p.stage = stage;
+        this.setStage(stage as Stage, "model");
+      } else delete p.stage;
       this.ev.onProfile?.(p);
     } catch {
       /* ignore malformed args */
@@ -167,6 +174,22 @@ export class RealtimeEngine implements ConversationEngine {
       })
     );
     this.dc.send(JSON.stringify({ type: "response.create" }));
+  }
+
+  // The stage moved. The model's own moves are only recorded; a learner's
+  // nudge reaches the live model as a system note. Adding an item never starts
+  // a reply or cuts one off, so this costs nothing and waits for his next turn.
+  // Not connected yet: nothing to send, /session reads the saved stage.
+  setStage(stage: Stage, reason: "learner" | "model") {
+    const from = this.stage;
+    this.stage = stage;
+    if (reason !== "learner" || this.dc?.readyState !== "open") return;
+    this.dc.send(
+      JSON.stringify({
+        type: "conversation.item.create",
+        item: { type: "message", role: "system", content: [{ type: "input_text", text: stageNote(stage, from) }] },
+      })
+    );
   }
 
   interrupt() {

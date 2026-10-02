@@ -130,8 +130,12 @@ export function listCourses(): Promise<CourseCard[]> {
   return coursesInflight;
 }
 
-export async function createCourse(language: string): Promise<{ id: string; language: string }> {
-  const r = await call("/courses", { method: "POST", json: { language } });
+// `stage` = the answer to "How much {Language} do you know?" (1-4), if asked.
+export async function createCourse(
+  language: string,
+  stage?: number
+): Promise<{ id: string; language: string; stage: number | null }> {
+  const r = await call("/courses", { method: "POST", json: { language, stage } });
   if (!r.ok) throw new Error(`/courses ${r.status}`);
   return r.json();
 }
