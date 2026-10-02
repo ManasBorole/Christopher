@@ -18,35 +18,33 @@
   editor and paste the URL it gives you on its own line here.
 -->
 
-<img src="docs/screenshots/landing-hero.webp" alt="The landing page: the headline 'Say it out loud. Christopher will wait for you.' over a dusk harbour full of airmail postcards drifting in the wind, a 'Start talking in Japanese' button and a language menu" />
-
-<img src="docs/screenshots/landing-sphere.webp" alt="Further down the landing: '183 languages, each in its own script.' beside a sphere made of 183 postcards, each greeting from a different language" />
-
-<img src="docs/screenshots/landing-end.webp" alt="The end of the landing: a giant airmail postcard addressed 'To Christopher', with a stamp of Christopher, a postmark and a 'Start talking in Japanese' button on the address lines" />
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/picker-dark.png" />
-  <img src="docs/screenshots/picker-light.png" alt="The 'Add a language' sheet with 'ma' typed into search, listing languages by their own names: Magyar (Hungarian), Macedonian, Malagasy, Melayu (Malay), മലയാളം (Malayalam), Maltese, मराठी (Marathi)" />
-</picture>
-
-<!--
-  Live conversation screenshot: save as docs/screenshots/conversation-light.png and
-  conversation-dark.png, then uncomment.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/conversation-dark.png" />
-  <img src="docs/screenshots/conversation-light.png" alt="A live conversation: Christopher in his speaking pose beside the transcript" />
-</picture>
--->
+<p align="center">
+  <img src="docs/screenshots/landing-hero.webp" width="49%" alt="The landing page: the headline 'Say it out loud. Christopher will wait for you.' over a dusk harbour full of airmail postcards drifting in the wind, a 'Start talking in Japanese' button and a language menu" />
+  <img src="docs/screenshots/landing-sphere.webp" width="49%" alt="Further down the landing: '183 languages, each in its own script.' beside a sphere made of 183 postcards, each greeting from a different language" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/landing-end.webp" width="49%" alt="The end of the landing: a giant airmail postcard addressed 'To Christopher', with a stamp of Christopher, a postmark and a 'Start talking in Japanese' button on the address lines" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/picker-dark.png" />
+    <img src="docs/screenshots/picker-light.png" width="49%" alt="The 'Add a language' sheet with 'ma' typed into search, listing languages by their own names: Magyar (Hungarian), Macedonian, Malagasy, Melayu (Malay), മലയാളം (Malayalam), Maltese, मराठी (Marathi)" />
+  </picture>
+</p>
 
 <!--
-  End-of-conversation postcard: save as docs/screenshots/postcard-light.png and
-  postcard-dark.png, then uncomment.
+  Live conversation and end-of-conversation postcard: save them as
+  docs/screenshots/conversation-{light,dark}.png and postcard-{light,dark}.png,
+  then uncomment this row.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/postcard-dark.png" />
-  <img src="docs/screenshots/postcard-light.png" alt="The postcard shown after a conversation: words used, things to try again, and what to practise next" />
-</picture>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/conversation-dark.png" />
+    <img src="docs/screenshots/conversation-light.png" width="49%" alt="A live conversation: Christopher in his speaking pose beside the transcript" />
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/postcard-dark.png" />
+    <img src="docs/screenshots/postcard-light.png" width="49%" alt="The postcard shown after a conversation: words used, things to try again, and what to practise next" />
+  </picture>
+</p>
 -->
 
 ## What it does
