@@ -222,6 +222,7 @@ export default function SessionView({
     ending,
     handedBack,
     mic,
+    heard,
     unheard: cannotHear({ heard, quietMs }),
   });
   const ui = PHASES[phase];
@@ -299,7 +300,7 @@ export default function SessionView({
               Let me talk
             </button>
           )}
-          {(phase === "listening" || phase === "thinking" || phase === "speaking" || phase === "handed-back" || phase === "dropped" || phase === "unheard") && (
+          {(phase === "invite" || phase === "listening" || phase === "thinking" || phase === "speaking" || phase === "handed-back" || phase === "dropped" || phase === "unheard") && (
             <button type="button" onClick={end} className="btn-quiet">
               End conversation
             </button>
@@ -346,7 +347,7 @@ const PHASES: Record<Phase, { pose: MascotPose; line: string; help?: React.React
   ready: {
     pose: "idle",
     line: "Ready when you are.",
-    help: (limit) => `Your free conversation lasts ${limit} seconds. Say hello and he'll take it from there.`,
+    help: (limit) => `Your free conversation lasts ${limit} seconds. Say hello and Christopher takes it from there.`,
   },
   "mic-blocked": {
     pose: "mic-blocked",
@@ -365,6 +366,11 @@ const PHASES: Record<Phase, { pose: MascotPose; line: string; help?: React.React
     help: "Plug in a headset or microphone, or open Christopher on your phone, then try again.",
   },
   connecting: { pose: "reconnecting", line: "Getting Christopher on the line…" },
+  invite: {
+    pose: "listen",
+    line: "Say hello to start.",
+    help: "Christopher is on the line. Say it out loud and he answers.",
+  },
   listening: { pose: "listen", line: "Listening. Take your time." },
   unheard: {
     pose: "mic-blocked",

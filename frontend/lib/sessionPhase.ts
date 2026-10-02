@@ -10,6 +10,7 @@ export type Phase =
   | "connecting"
   | "speaking" // tutor audio is playing
   | "thinking" // learner finished a turn, tutor hasn't answered yet
+  | "invite" // live, waiting for the learner to say the first words
   | "listening"
   | "unheard" // live, but no learner speech has reached Christopher yet
   | "handed-back" // learner just cut the tutor off
@@ -25,12 +26,15 @@ export type PhaseInput = {
   ending: boolean;
   handedBack: boolean;
   mic: PermissionState | "unknown";
+  heard?: boolean; // learner speech has reached Christopher on this connection
   unheard?: boolean; // from cannotHear()
 };
 
 // How long the line can stay quiet (no learner speech detected, no mic sound,
-// Christopher not talking) before we say he cannot hear them.
-export const HEAR_WAIT_MS = 7000;
+// Christopher not talking) before we say he cannot hear them. The learner
+// speaks first (Christopher waits for their hello), so this runs from the
+// moment the line opens and leaves time to read the invite and start.
+export const HEAR_WAIT_MS = 10000;
 // Mic RMS that counts as "sound". Room noise after noise suppression sits well
 // below it; quiet speech (about -46 dBFS) sits above. Calibration knob.
 export const MIC_FLOOR = 0.005;
@@ -55,7 +59,8 @@ export function sessionPhase(i: PhaseInput): Phase {
     if (i.agentSpeaking) return "speaking";
     if (i.handedBack) return "handed-back";
     if (i.lastTurn === "user") return "thinking";
-    return i.unheard ? "unheard" : "listening";
+    if (i.unheard) return "unheard";
+    return i.heard === false ? "invite" : "listening";
   }
   if (i.lastError) {
     if (/permission denied/i.test(i.lastError)) return "mic-blocked";

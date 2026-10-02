@@ -27,8 +27,10 @@ async function getMic(): Promise<MediaStream> {
 //
 // Turn-taking is SERVER-DRIVEN (session turn_detection.create_response=true): the
 // server VAD decides when the learner has stopped and auto-generates the tutor's
-// reply, and it maintains the conversation. The client only kicks off the opening
-// greeting and relays the update_profile tool. Pronunciation is judged by the
+// reply, and it maintains the conversation. The learner speaks first: the client
+// never asks for a reply itself (beyond acking update_profile), so a connection
+// where nobody talks costs nothing. Christopher's greeting is his answer to the
+// learner's first words. Pronunciation is judged by the
 // audio-native model itself, spoken as natural coaching - no separate capture/score.
 export class RealtimeEngine implements ConversationEngine {
   private pc?: RTCPeerConnection;
@@ -38,7 +40,6 @@ export class RealtimeEngine implements ConversationEngine {
   private audioCtx?: AudioContext;
   private meter?: AnalyserNode; // taps the mic so the UI can tell a silent/wrong mic
   private ev: ConversationEvents = {};
-  private greeted = false; // the tutor's opening line is requested exactly once
 
   async connect(events: ConversationEvents, sessionId?: string): Promise<void> {
     this.ev = events;
@@ -71,11 +72,10 @@ export class RealtimeEngine implements ConversationEngine {
       // Only report "live" once the transport is actually CONNECTED. Emitting it
       // right after the SDP answer lit up "Listening…" while ICE/DTLS was still
       // negotiating, so the learner's first utterance went nowhere. Gating on
-      // `connected` means the mic is really flowing - and it's where we greet.
+      // `connected` means the mic is really flowing.
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "connected") {
           this.ev.onStatus?.("live");
-          this.maybeGreet();
         } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
           this.ev.onStatus?.("error", `connection ${pc.connectionState}`);
         }
@@ -87,8 +87,6 @@ export class RealtimeEngine implements ConversationEngine {
 
       this.dc = pc.createDataChannel("oai-events");
       this.dc.onmessage = (m) => this.onEvent(JSON.parse(m.data));
-      // The channel and the transport can finish in either order; greet when both are ready.
-      this.dc.onopen = () => this.maybeGreet();
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -153,16 +151,6 @@ export class RealtimeEngine implements ConversationEngine {
         if (e.name === "update_profile") this.updateProfile(e.call_id, e.arguments);
         break;
     }
-  }
-
-  // Tutor speaks first. Fire exactly once, and only when BOTH the transport is
-  // connected and the data channel is open (they can finish in either order).
-  // After this, the server VAD drives every reply, so we never trigger one again.
-  private maybeGreet() {
-    if (this.greeted) return;
-    if (this.pc?.connectionState !== "connected" || this.dc?.readyState !== "open") return;
-    this.greeted = true;
-    this.dc.send(JSON.stringify({ type: "response.create" }));
   }
 
   // Tutor learned the learner's name/languages/level - bubble up + ack so the
@@ -230,7 +218,6 @@ export class RealtimeEngine implements ConversationEngine {
     if (this.audioEl) this.audioEl.srcObject = null;
     void this.audioCtx?.close().catch(() => {});
     this.pc = this.dc = this.mic = this.audioEl = this.audioCtx = this.meter = undefined;
-    this.greeted = false;
     this.ev.onStatus?.("idle");
   }
 }

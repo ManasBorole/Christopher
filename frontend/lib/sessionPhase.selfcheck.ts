@@ -22,6 +22,11 @@ assert.equal(p({ status: "live", agentSpeaking: true, handedBack: true }), "spea
 
 // nothing reaching Christopher: only while he is waiting on the learner
 assert.equal(p({ status: "live", unheard: true }), "unheard");
+// the learner speaks first: until he hears them, the screen invites them to start
+assert.equal(p({ status: "live", heard: false }), "invite");
+assert.equal(p({ status: "live", heard: true }), "listening");
+assert.equal(p({ status: "live", heard: false, unheard: true }), "unheard");
+assert.equal(p({ status: "live", heard: false, agentSpeaking: true }), "speaking");
 assert.equal(p({ status: "live", unheard: true, agentSpeaking: true }), "speaking");
 assert.equal(p({ status: "live", unheard: true, lastTurn: "user" }), "thinking");
 assert.equal(cannotHear({ heard: false, quietMs: HEAR_WAIT_MS - 1 }), false);
