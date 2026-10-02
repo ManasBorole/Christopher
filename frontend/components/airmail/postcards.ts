@@ -5,6 +5,92 @@ import { C, FONT, grain, miniPostmark, paperFill, stamp, stripeBorder, type Ctx2
 
 type Img = HTMLImageElement | null | undefined;
 
+// the card Christopher sends after a conversation: words used, one thing to retry, next topic
+export function drawAfter(c: Ctx2D, img: Img) {
+  const W = c.canvas.width, H = c.canvas.height;
+  paperFill(c, 0, 0, W, H, "#f0e4cc", 1, 2, 901);
+  stripeBorder(c, 0, 0, W, H, W * 0.026);
+  c.strokeStyle = "rgba(80,60,40,.3)";
+  c.lineWidth = 3;
+  c.beginPath();
+  c.moveTo(W * 0.6, H * 0.1);
+  c.lineTo(W * 0.6, H * 0.9);
+  c.stroke();
+  const X = W * 0.07;
+  c.textAlign = "left";
+  c.fillStyle = C.teal;
+  c.font = `${H * 0.06}px ${FONT.hand}`;
+  c.fillText("Greetings from", X, H * 0.15);
+  c.fillStyle = C.ink;
+  c.font = `700 ${H * 0.1}px ${FONT.jp}`;
+  c.fillText("日本語", X, H * 0.27);
+  const jw = c.measureText("日本語").width;
+  c.fillStyle = C.brown;
+  c.font = `600 ${H * 0.056}px ${FONT.display}`;
+  c.fillText("Japanese", X + jw + 18, H * 0.265);
+  let y = H * 0.38;
+  const head = (t: string) => {
+    c.fillStyle = C.ochre;
+    c.font = `700 ${H * 0.03}px ${FONT.sans}`;
+    c.fillText(t, X, y);
+    y += H * 0.065;
+  };
+  // a run of [text, colour, japanese?, gap after] pieces on one line
+  const run = (parts: [string, string, boolean, number][]) => {
+    let x = X;
+    for (const [t, col, jp, gap] of parts) {
+      c.fillStyle = col;
+      c.font = jp ? `500 ${H * 0.046}px ${FONT.jp}` : `500 ${H * 0.036}px ${FONT.sans}`;
+      c.fillText(t, x, y);
+      x += c.measureText(t).width + gap;
+    }
+  };
+  head("Words you used");
+  for (const [j, e] of [
+    ["大好き", "love"],
+    ["たべました", "ate"],
+    ["サーモン", "salmon"],
+  ]) {
+    run([
+      [j, C.ink, true, 16],
+      [e, C.brown, false, 0],
+    ]);
+    y += H * 0.064;
+  }
+  y += H * 0.03;
+  head("Worth another try");
+  run([
+    ["たべます", C.blue, true, 12],
+    ["to", C.brown, false, 12],
+    ["たべました", C.blue, true, 2],
+    [", for yesterday", C.brown, false, 0],
+  ]);
+  y += H * 0.095;
+  head("Next time");
+  c.fillStyle = C.ink;
+  c.font = `500 ${H * 0.042}px ${FONT.sans}`;
+  c.fillText("Ordering at a sushi counter", X, y);
+  // right side
+  stamp(c, W * 0.79, H * 0.09, W * 0.14, W * 0.168, null, img ?? null, "#f3e8d2");
+  c.fillStyle = C.pen;
+  c.font = `${H * 0.062}px ${FONT.hand}`;
+  c.save();
+  c.translate(W * 0.64, H * 0.5);
+  c.rotate(-0.03);
+  c.fillText("Sam, that was", 0, 0);
+  c.fillText("brilliant.", 0, H * 0.085);
+  c.fillText("See you tomorrow?", 0, H * 0.17);
+  c.restore();
+  c.strokeStyle = "rgba(80,60,40,.35)";
+  c.lineWidth = 2;
+  for (let k = 0; k < 2; k++) {
+    c.beginPath();
+    c.moveTo(W * 0.65, H * (0.8 + k * 0.08));
+    c.lineTo(W * 0.93, H * (0.8 + k * 0.08));
+    c.stroke();
+  }
+}
+
 // a printed photo of Christopher with a handwritten caption; the grain is baked once per canvas
 const grains = new WeakMap<HTMLCanvasElement, ImageData>();
 export function drawPolaroid(c: Ctx2D, img: Img, caption: string) {

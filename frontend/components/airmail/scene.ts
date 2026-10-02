@@ -3,15 +3,15 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
 import * as THREE from "three";
 import { QE, QP, measureBeats, readBeats, updateHTML } from "./beats";
-import { ATLAS_COLS, ATLAS_ROWS, JP, LANGS, drawAtlas } from "./cards";
+import { ATLAS_COLS, ATLAS_ROWS, JP, LANGS, drawAtlas, drawBack } from "./cards";
 import { createSphereDrag } from "./drag";
 import { createFlock, paperMat, type Rect, type Uniforms, type Zone } from "./flock";
 import { createHear } from "./hear";
 import { loadImages, type ImgName } from "./images";
 import { clamp, easeOut, lerp, sm, smr } from "./math";
-import { FONT, cv, readFonts } from "./paper";
-import { drawHeroBack, drawHeroFront, drawPolaroid } from "./postcards";
-import { DOME_FRAG, DOME_VERT } from "./shaders";
+import { FONT, cv, drawPostmark, readFonts } from "./paper";
+import { drawAfter, drawHeroBack, drawHeroFront, drawPolaroid } from "./postcards";
+import { DOME_FRAG, DOME_VERT, TRAIL_FRAG, TRAIL_VERT } from "./shaders";
 
 /* "Airmail in flight": the landing's WebGL harbour. Every language's postcard
    rides the evening wind over the water, and the camera narrates the scroll.
@@ -136,7 +136,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   const imgs = images.imgs;
 
   const N = MOB ? 183 : 340, F = 183;
-  const H0 = V(0, 1.3, -3), S0 = V(0, 1.8, -8), G0 = V(0, 0.8, 2);
+  const H0 = V(0, 1.3, -3), S0 = V(0, 1.8, -8), G0 = V(0, 0.8, 2), Q0 = V(0, -1.5, 2.5);
   const SR = MOB ? 4.4 : 5.2;
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 800);
@@ -145,7 +145,10 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   let flock: ReturnType<typeof createFlock> | null = null;
   let sky: THREE.Mesh | null = null;
   let hero: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
-  type Polaroid = { mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>; ctx: CanvasRenderingContext2D; tex: THREE.Texture; cap: string; w: number };
+  let after: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
+  let trail: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null = null;
+  const TS = 48; // trail segments
+  type Polaroid ={ mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>; ctx: CanvasRenderingContext2D; tex: THREE.Texture; cap: string; w: number };
   const polas: Polaroid[] = [];
 
   async function build(gl: THREE.WebGLRenderer) {
@@ -202,6 +205,55 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     hero.frustumCulled = false;
     scene.add(hero);
 
+    // after-conversation postcard
+    const af = cv(HW, HH);
+    drawAfter(af.getContext("2d")!, imgs.postcard);
+    const ab = cv(1024, 683);
+    drawBack(ab.getContext("2d")!, 0, 0, 1024, 683, 3, 0.9, 1.5);
+    const pm = cv(512, 512);
+    drawPostmark(pm.getContext("2d")!, 512);
+    after = new THREE.Mesh(
+      new THREE.PlaneGeometry(3, 2, 56, 36),
+      paperMat(shared, { POSTMARK: "" }, {
+        tFront: { value: canvasTex(af) },
+        tBack: { value: canvasTex(ab) },
+        tPost: { value: canvasTex(pm) },
+        uPM: { value: new THREE.Vector4(0.795, 0.7, 0.2, 0.3) },
+        uStamp: { value: new THREE.Vector2(1, 0) },
+      })
+    );
+    after.material.uniforms.uSize.value.set(3, 2);
+    after.frustumCulled = false;
+    scene.add(after);
+
+    // the paper plane's trail ribbon
+    const tg = new THREE.BufferGeometry();
+    tg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(TS * 2 * 3), 3));
+    tg.setAttribute("aA", new THREE.BufferAttribute(new Float32Array(TS * 2), 1));
+    const av = new Float32Array(TS * 2);
+    for (let j = 0; j < TS; j++) av[j * 2 + 1] = 1;
+    tg.setAttribute("aV", new THREE.BufferAttribute(av, 1));
+    const idx: number[] = [];
+    for (let j = 0; j < TS - 1; j++) {
+      const a = j * 2;
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+    tg.setIndex(idx);
+    trail = new THREE.Mesh(
+      tg,
+      new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        uniforms: { uO: { value: 0 } },
+        vertexShader: TRAIL_VERT,
+        fragmentShader: TRAIL_FRAG,
+      })
+    );
+    trail.frustumCulled = false;
+    scene.add(trail);
+
     // polaroids: Christopher's four conversation states
     const back = cv(8, 8), bx = back.getContext("2d")!;
     bx.fillStyle = "#efe6d3";
@@ -246,6 +298,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     const hf = frameOn(H0, 3, 2, V(0, 0, 1)), hf2 = frameOn(H0, 3, 2, V(0.04, 0.02, 1), 0.95);
     const sf = frameOn(S0, SR * 2.1, SR * 2.1, V(0, 0.08, 1)), sf2 = frameOn(S0, SR * 2.1, SR * 2.1, V(-0.08, 0.04, 1), 0.92);
     const gf = frameOn(G0, 4.3, 3.0, V(0, 0.05, 1)), gf2 = frameOn(G0, 4.3, 3.0, V(0.06, 0.06, 1), 0.96);
+    const qf = frameOn(Q0, 3.1, 2.1, V(0, 1, 0.42)), qf2 = frameOn(Q0, 3.6, 3.6, V(0.05, 1, 0.55), 1.1);
     const z0 = mob ? 20 : 14.5;
     KEYS = [
       [0.0, V(0, 0, z0), V(0, 2.4, 0)],
@@ -257,6 +310,9 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       [0.53, ...sf2],
       [0.592, ...gf],
       [0.735, ...gf2],
+      [0.8, ...qf],
+      [0.865, ...qf2],
+      [0.905, V(0, 1.6, 9.5), V(0, -0.2, -8)],
       [0.955, V(0, 0.1, z0 - 3), V(0, 2.3, -30)],
       [1.0, V(0, 0, z0 - 2), V(0, 2.3, -30)],
     ];
@@ -353,6 +409,83 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     });
   }
 
+  /* ---------- the after-conversation postcard: stamp, fold into a plane, fly to the horizon ---------- */
+  const UP = V(0, 1, 0), lookM = new THREE.Matrix4(), qFace = new THREE.Quaternion(), tmpQ = new THREE.Quaternion(), tmpQ2 = new THREE.Quaternion();
+  let shakeT = -9, stamped = false;
+  const flightS = (p: number) => {
+    const fs = clamp((p - 0.884) / (0.955 - 0.884));
+    return fs * fs * (1.6 - 0.6 * fs);
+  };
+  const FL = [V(0, 0.6, -6), V(1.5, 4, -30), V(4, 9, -90)];
+  const flyA = V(), flyB = V(), flyC = V(), flyQ = V();
+  function flightPt(s: number, out: THREE.Vector3) {
+    const u = 1 - s;
+    flyQ.copy(Q0).add(V(0, 0.45, 0));
+    flyA.copy(FL[0]).add(flyQ);
+    flyB.copy(FL[1]).add(flyQ);
+    flyC.copy(FL[2]).add(flyQ);
+    return out
+      .set(0, 0, 0)
+      .addScaledVector(flyQ, u * u * u)
+      .addScaledVector(flyA, 3 * u * u * s)
+      .addScaledVector(flyB, 3 * u * s * s)
+      .addScaledVector(flyC, s * s * s);
+  }
+  function posePost(card: NonNullable<typeof after>, rib: NonNullable<typeof trail>, p: number, now: number) {
+    const vis = p > 0.735 && p < 0.97;
+    card.visible = vis;
+    rib.visible = vis && p > 0.88;
+    if (!vis) return;
+    const a = easeOut(clamp((p - 0.745) / (0.8 - 0.745)));
+    const u = 1 - a;
+    const st = V(8, 3, -6);
+    const lift = sm(0.835, 0.86, p);
+    const yaw = (smr(0.84, 0.875, p) * Math.PI) / 2;
+    const base = V(lerp(st.x, Q0.x, a), lerp(st.y, Q0.y, a) + Math.sin(a * Math.PI) * 1.2 + lift * 0.45, lerp(st.z, Q0.z, a));
+    // flat card: rotate -90 about X then yaw about world Y
+    qFace.setFromEuler(new THREE.Euler(0, yaw + u * 1.4, 0)).multiply(tmpQ.setFromEuler(new THREE.Euler(-Math.PI / 2 + u * 2.6, 0, u * 0.8)));
+    const U = card.material.uniforms;
+    U.uFold.value.set(smr(0.842, 0.868, p), smr(0.858, 0.886, p));
+    U.uFlut.value = 0.02 + u * 0.12;
+    U.uCurl.value = u * 0.5 + Math.sin(lift * Math.PI) * 0.15;
+    // stamp
+    const sp = smr(0.806, 0.816, p);
+    U.uStamp.value.set(lerp(0.62, 1, sp), sp);
+    if (p > 0.814 && !stamped) {
+      stamped = true;
+      shakeT = now;
+    }
+    if (p < 0.8) stamped = false;
+    // flight
+    const fs = clamp((p - 0.884) / (0.955 - 0.884));
+    const s = flightS(p);
+    if (fs > 0) {
+      const P = flightPt(s, V()), dir = flightPt(Math.min(1, s + 0.01), V()).sub(P).normalize();
+      const yv = V().crossVectors(UP, dir).normalize(), zv = V().crossVectors(dir, yv);
+      lookM.makeBasis(dir, yv, zv);
+      tmpQ2.setFromRotationMatrix(lookM);
+      tmpQ2.multiply(tmpQ.setFromAxisAngle(V(1, 0, 0), Math.sin(s * 5.5) * 0.35 * (1 - s)));
+      qFace.slerp(tmpQ2, smr(0, 0.12, fs));
+      base.copy(P);
+      card.scale.setScalar(1);
+    }
+    card.position.copy(base);
+    card.quaternion.copy(qFace);
+    // trail
+    const g = rib.geometry, P = g.attributes.position.array as Float32Array, A = g.attributes.aA.array as Float32Array;
+    for (let j = 0; j < TS; j++) {
+      const sj = Math.max(0, s - j * 0.0014), q = flightPt(sj, V()), d = flightPt(Math.min(1, sj + 0.01), V()).sub(q).normalize();
+      const side = V().crossVectors(d, UP).normalize();
+      q.addScaledVector(d, -1.4);
+      const wdt = 0.22 * (0.35 + (0.65 * j) / TS) * (0.4 + s);
+      P.set([q.x - side.x * wdt, q.y - side.y * wdt, q.z - side.z * wdt, q.x + side.x * wdt, q.y + side.y * wdt, q.z + side.z * wdt], j * 6);
+      const al = Math.pow(1 - j / TS, 1.6) * sm(0, 0.05, sj) * sm(0.04, 0.12, s);
+      A[j * 2] = A[j * 2 + 1] = al;
+    }
+    g.attributes.position.needsUpdate = g.attributes.aA.needsUpdate = true;
+    rib.material.uniforms.uO.value = sm(0.885, 0.9, p) * (1 - sm(0.95, 0.97, p));
+  }
+
   // speaking frames on his polaroid while a clip plays
   let speakTimer = 0;
   function speakFrames(on: boolean) {
@@ -381,8 +514,8 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   const camP = V(0, 0, 14.5), camT = V(0, 2.4, 0), wantP = V(), wantT = V();
   // clearing zones: the flock parts around each subject's line of sight, the pointer and the lens
   const zone = (r0: number, rk = 0): Zone => ({ a: V(), b: V(), r0, rk, w: 0 });
-  const zHero = zone(2.0), zPolas = zone(3.2), zPointer = zone(0.5, 0.05), zLens = zone(1.6);
-  const zones = [zHero, zPolas, zPointer, zLens];
+  const zHero = zone(2.0), zPolas = zone(3.2), zPost = zone(2.6), zPointer = zone(0.5, 0.05), zLens = zone(1.6);
+  const zones = [zHero, zPolas, zPost, zPointer, zLens];
   // a zone from the camera to a subject, on while the story is at it
   const aim = (z: Zone, at: THREE.Vector3, w: number) => {
     z.a.copy(camP);
@@ -399,13 +532,20 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     const vel = Math.abs(p - pPrev) / Math.max(dt, 1e-3);
     pPrev = p;
     updateHTML(beats, q, 1, RM);
-    if (!ready || !renderer || !flock || !sky || !hero) return;
+    if (!ready || !renderer || !flock || !sky || !hero || !after || !trail) return;
     tAcc += dt * (RM ? 0.25 : 1);
     bend += (Math.min(0.32, vel * 1.6) - bend) * (1 - Math.exp(-dt * 4));
     const t = tAcc;
     shared.uTime.value = t;
 
     camAt(p, wantP, wantT);
+    // during the flight the camera keeps the airplane framed
+    const fw = sm(0.862, 0.886, p) * (1 - sm(0.94, 0.965, p));
+    if (fw > 0) {
+      flightPt(flightS(p), tmpV);
+      wantT.lerp(tmpV, fw);
+      wantP.lerp(tmpV.add(V(0, 1.6, 7.5)), fw * 0.35 * sm(0.884, 0.93, p));
+    }
     if (RM) {
       camP.copy(wantP);
       camT.copy(wantT);
@@ -415,19 +555,21 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       camT.lerp(wantT, k);
     }
     camera.position.copy(camP);
-    // breathing
-    camera.position.x += Math.sin(t * 0.31) * 0.05;
-    camera.position.y += Math.sin(t * 0.23) * 0.04;
+    // breathing + stamp shake
+    const sh = Math.exp(-(now - shakeT) * 9) * (RM ? 0 : 1);
+    camera.position.x += Math.sin(t * 0.31) * 0.05 + Math.sin(now * 71) * sh * 0.05;
+    camera.position.y += Math.sin(t * 0.23) * 0.04 + Math.cos(now * 63) * sh * 0.06;
     camera.lookAt(camT);
     sky.position.copy(camera.position);
 
     // focus distance follows the subject
-    const subj = p < 0.12 ? 12 : p < 0.36 ? camP.distanceTo(H0) : p < 0.56 ? camP.distanceTo(S0) - SR * 0.4 : p < 0.76 ? camP.distanceTo(G0) : 14;
+    const subj = p < 0.12 ? 12 : p < 0.36 ? camP.distanceTo(H0) : p < 0.56 ? camP.distanceTo(S0) - SR * 0.4 : p < 0.76 ? camP.distanceTo(G0) : p < 0.89 ? camP.distanceTo(Q0) : 14;
     shared.uFocus.value += (subj - shared.uFocus.value) * 0.08;
     shared.uDof.value = p < 0.12 || p > 0.9 ? 0.04 : 0.065;
 
     aim(zHero, H0, sm(0.15, 0.2, p) * (1 - sm(0.33, 0.37, p)));
     aim(zPolas, G0, sm(0.56, 0.6, p) * (1 - sm(0.73, 0.77, p)));
+    aim(zPost, Q0, sm(0.74, 0.79, p) * (1 - sm(0.88, 0.92, p)));
     if (pointerOn && !MOB) {
       ray.setFromCamera(pointer, camera);
       zPointer.a.copy(ray.ray.origin);
@@ -445,6 +587,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     drag.update(form, dt, S0, SR, tanH);
     poseHero(hero, p, t);
     posePolas(p, t);
+    posePost(after, trail, p, now);
     renderer.render(scene, camera);
   }
   gsap.ticker.add(tick);
