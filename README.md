@@ -14,7 +14,7 @@
 ## See it working
 
 <p align="center">
-  <a href="docs/media/christopher-trailer.mp4">
+  <a href="https://christopherai.vercel.app/christopher-trailer.mp4">
     <img src="docs/media/christopher-trailer-poster.webp" width="720" alt="Play the 55-second Christopher trailer: the title card with Christopher's avatar, the wordmark and 'say it out loud.' over a desk of airmail postcards" />
   </a>
   <br />
