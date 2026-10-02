@@ -15,7 +15,8 @@ usageRouter.get(
   })
 );
 
-// Consume one free session - called the first time Christopher hears the learner.
+// Consume one free session - called the first time Christopher hears the learner
+// (skipped if this connection already paid for it; see trial.ts).
 usageRouter.post(
   "/usage/consume",
   ah(async (req: OwnedRequest, res) => {

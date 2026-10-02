@@ -1,5 +1,6 @@
 import { prisma } from "./db.js";
 import { FREE } from "./env.js";
+import { connectRule, afterConnect, afterHeard, type Counts } from "./trial.js";
 
 // Free-trial gate. All allowance logic lives here so a subscription/payment
 // system can replace it without touching the routes.
@@ -38,22 +39,37 @@ export async function getUsage(ownerId: string): Promise<UsageInfo> {
   };
 }
 
-// Is this owner out of free sessions? Checked at mint (does NOT consume, so a
-// failed/aborted connect never burns the allowance).
-export async function isBlocked(ownerId: string): Promise<boolean> {
-  if (isUnlimited(ownerId)) return false;
+const LIMITS = { sessions: FREE.sessionsPerOwner, unheardConnects: FREE.unheardConnects };
+
+async function counts(ownerId: string): Promise<Counts> {
   const u = await prisma.usage.findUnique({ where: { ownerId } });
-  return !!u && u.sessionsUsed >= FREE.sessionsPerOwner;
+  return { sessionsUsed: u?.sessionsUsed ?? 0, unheardConnects: u?.unheardConnects ?? 0 };
 }
 
-// Consume one free session. Called the first time Christopher hears the learner
-// (not on connect), so a silent or wrong microphone never uses up the trial.
+function save(ownerId: string, c: Counts) {
+  return prisma.usage.upsert({ where: { ownerId }, update: c, create: { ownerId, ...c } });
+}
+
+// May this owner connect? Checked before minting; changes nothing, so a
+// connect that fails before a token is handed out never counts.
+export async function checkConnect(ownerId: string): Promise<"refuse" | "free" | "pay"> {
+  if (isUnlimited(ownerId)) return "free";
+  return connectRule(await counts(ownerId), LIMITS);
+}
+
+// A token was handed out: count it as unheard (and charge the trial if it pays).
+// ponytail: read-then-write, so parallel mints can slip a connection or two past
+// the cap; a guest can mint a new owner id anyway. Use one SQL update if it matters.
+export async function recordConnect(ownerId: string, rule: "free" | "pay"): Promise<void> {
+  if (isUnlimited(ownerId)) return;
+  await save(ownerId, afterConnect(await counts(ownerId), rule));
+}
+
+// Christopher heard the learner for the first time in a conversation: that
+// uses the free session (unless this connection already paid for it), so a
+// silent or wrong microphone never uses up the trial by itself.
 export async function consumeSession(ownerId: string): Promise<void> {
-  await prisma.usage.upsert({
-    where: { ownerId },
-    update: { sessionsUsed: { increment: 1 } },
-    create: { ownerId, sessionsUsed: 1 },
-  });
+  await save(ownerId, afterHeard(await counts(ownerId), LIMITS));
 }
 
 export async function addSeconds(ownerId: string, seconds: number): Promise<void> {

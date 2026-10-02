@@ -5,7 +5,7 @@ import { env } from "../env.js";
 import { coach } from "../coach.js";
 import { pcmToWav } from "../wav.js";
 import { owner, type OwnedRequest } from "../owner.js";
-import { isBlocked } from "../gate.js";
+import { checkConnect } from "../gate.js";
 import type { PronounceResult } from "@vta/shared";
 
 export const pronounceRouter = Router();
@@ -41,7 +41,7 @@ function extractJson(text: string): string {
 // parsed) and the free-trial gate applies, so this can't be used to spend the
 // OpenAI key anonymously.
 pronounceRouter.post("/pronounce", owner, upload.single("audio"), async (req: OwnedRequest, res) => {
-  if (await isBlocked(req.ownerId!)) return res.status(402).json({ error: "limit_reached" });
+  if ((await checkConnect(req.ownerId!)) === "refuse") return res.status(402).json({ error: "limit_reached" });
   const reference = String(req.body.reference || "");
   const language = String(req.body.language || "the target language");
   const pcm = req.file?.buffer;

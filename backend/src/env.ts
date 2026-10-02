@@ -41,6 +41,9 @@ export const env = {
 export const FREE = {
   sessionsPerOwner: Number(opt("FREE_SESSIONS", "1")),
   secondsPerSession: Number(opt("FREE_SECONDS", "60")),
+  // Connections where Christopher never hears the learner that are free (each
+  // costs about $0.01 at most). The next one uses the trial up front.
+  unheardConnects: Number(opt("FREE_UNHEARD_CONNECTS", "4")),
   // Owner ids that bypass the gate, e.g. "clerk:user_abc123,guest:<uuid>".
   unlimitedOwners: opt("UNLIMITED_OWNERS", "")
     .split(",")

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { env } from "../env.js";
 import { prisma } from "../db.js";
 import { owner, type OwnedRequest } from "../owner.js";
-import { isBlocked } from "../gate.js";
+import { checkConnect, recordConnect } from "../gate.js";
 import { TUTOR_SYSTEM_PROMPT, courseContext } from "../prompts/tutor.js";
 
 export const sessionRouter = Router();
@@ -18,10 +18,12 @@ const LANG_CODE: Record<string, string> = {
 
 sessionRouter.post("/session", owner, async (req: OwnedRequest, res) => {
   try {
-    // Free-trial gate: block if out of sessions. Consumption happens only once
-    // Christopher first hears the learner (POST /usage/consume on the first
-    // speech_started), so failed connects and dead mics never burn it.
-    if (await isBlocked(req.ownerId!)) return res.status(402).json({ error: "limit_reached" });
+    // Free-trial gate: refuse once the trial is used. Otherwise the trial is used
+    // when Christopher first hears the learner (POST /usage/consume on the first
+    // speech_started), so failed connects and dead mics never burn it - up to
+    // FREE_UNHEARD_CONNECTS unheard connections; past that a connection pays up front.
+    const rule = await checkConnect(req.ownerId!);
+    if (rule === "refuse") return res.status(402).json({ error: "limit_reached" });
 
     const sessionId: string | undefined = req.body?.sessionId;
     const ctx = await loadCourse(sessionId, req.ownerId);
@@ -92,6 +94,7 @@ sessionRouter.post("/session", owner, async (req: OwnedRequest, res) => {
       return res.status(502).json({ error: "openai_session_failed", detail });
     }
     const data = (await r.json()) as { value: string; expires_at: number };
+    await recordConnect(req.ownerId!, rule); // only a token actually handed out counts
     res.json({ token: data.value, model: env.realtimeModel, expiresAt: data.expires_at * 1000 });
   } catch (e) {
     res.status(500).json({ error: "session_error", detail: String(e) });

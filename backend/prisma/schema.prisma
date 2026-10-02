@@ -52,11 +52,12 @@ model Turn {
 
 // Free-trial usage, tracked per owner (clerk:<id> or guest:<uuid>) server-side.
 model Usage {
-  ownerId      String   @id
-  sessionsUsed Int      @default(0)
-  secondsUsed  Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  ownerId         String   @id
+  sessionsUsed    Int      @default(0)
+  secondsUsed     Int      @default(0)
+  unheardConnects Int      @default(0) // connections handed out where Christopher never heard them
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // Waitlist email + feedback collected when a trial ends.
