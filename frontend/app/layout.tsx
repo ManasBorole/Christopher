@@ -34,11 +34,17 @@ const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 // Runs before first paint so a saved light/dark choice never flashes the other theme.
 const themeBoot = `try{var t=localStorage.getItem("chr-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
 
+// The API host sleeps when idle and takes ~45 s to wake. Ping it (and through it
+// the database) the moment the page starts loading, before any JavaScript bundle,
+// so it is awake by the time the learner signs in or presses Start.
+const backend = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8787";
+const warmUp = `try{fetch(${JSON.stringify(backend + "/warm")}).catch(function(){})}catch(e){}`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const shell = (
     <html lang="en" className={fontVars} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
+        <script dangerouslySetInnerHTML={{ __html: themeBoot + warmUp }} />
       </head>
       <body className="min-h-screen">
         <div className="airmail-edge" aria-hidden />
