@@ -4,6 +4,7 @@ import Lenis from "lenis";
 import * as THREE from "three";
 import { QE, QP, measureBeats, readBeats, updateHTML } from "./beats";
 import { ATLAS_COLS, ATLAS_ROWS, JP, LANGS, drawAtlas } from "./cards";
+import { createSphereDrag } from "./drag";
 import { createFlock, paperMat, type Rect, type Uniforms, type Zone } from "./flock";
 import { loadImages } from "./images";
 import { clamp, easeOut, lerp, sm, smr } from "./math";
@@ -135,10 +136,10 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
   const N = MOB ? 183 : 340, F = 183;
   const H0 = V(0, 1.3, -3), S0 = V(0, 1.8, -8);
   const SR = MOB ? 4.4 : 5.2;
-  const dragQ = new THREE.Quaternion();
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 800);
   camera.position.set(0, 0, 14.5);
+  const drag = createSphereDrag($("#grab"), camera, lenis);
   let flock: ReturnType<typeof createFlock> | null = null;
   let sky: THREE.Mesh | null = null;
   let hero: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
@@ -347,7 +348,8 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
     flock.material.uniforms.uBend.value = bend;
     const rects: Rect[] = [];
     for (const b of beats) if (b.on && b.ndc) rects.push(b.ndc);
-    flock.update(p, t, RM ? dt * 0.25 : dt, zones, { camera, rects, sphere: { c: S0, r: SR, q: dragQ } });
+    const form = flock.update(p, t, RM ? dt * 0.25 : dt, zones, { camera, rects, sphere: { c: S0, r: SR, q: drag.q } });
+    drag.update(form, dt, S0, SR, tanH);
     poseHero(hero, p, t);
     renderer.render(scene, camera);
   }
@@ -388,6 +390,7 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
     dispose() {
       disposed = true;
       images.dispose();
+      drag.dispose();
       gsap.ticker.remove(tick);
       gsap.ticker.remove(lenisRaf);
       gsap.ticker.lagSmoothing(500, 33);
