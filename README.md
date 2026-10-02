@@ -196,8 +196,8 @@ npm run dev:frontend    # app on http://localhost:3000
 ### What you should see
 
 - The backend prints `backend on http://localhost:8787`, and http://localhost:8787/health returns `{"ok":true}`.
-- http://localhost:3000 shows the landing page.
-- Press **Start talking in Spanish**, then **Try it as a guest**, then allow the microphone. Christopher greets you and asks your name.
+- http://localhost:3000 shows the landing page: a postcard drops in while the scene loads, then the harbour appears.
+- Press **Start talking in Japanese** (or pick another language first), then **Try it as a guest**, then allow the microphone. Christopher greets you and asks your name.
 
 ### If something goes wrong
 
