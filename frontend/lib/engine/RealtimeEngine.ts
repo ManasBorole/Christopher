@@ -168,16 +168,24 @@ export class RealtimeEngine implements ConversationEngine {
   // Tutor learned the learner's name/languages/level - bubble up + ack so the
   // model can continue its turn (a tool call pauses the response until we reply).
   private updateProfile(callId: string, argsJson: string) {
+    let name = "";
     try {
-      this.ev.onProfile?.(JSON.parse(argsJson ?? "{}"));
+      const p = JSON.parse(argsJson ?? "{}");
+      name = typeof p.userName === "string" ? p.userName.trim() : "";
+      this.ev.onProfile?.(p);
     } catch {
       /* ignore malformed args */
     }
     if (this.dc?.readyState !== "open") return;
+    // Echo a saved name back as the one to use, so a correction sticks over
+    // any older name in the session instructions.
+    const output = name
+      ? { ok: true, note: `Saved. The learner's name is ${name}. Use only ${name} from now on.` }
+      : { ok: true };
     this.dc.send(
       JSON.stringify({
         type: "conversation.item.create",
-        item: { type: "function_call_output", call_id: callId, output: JSON.stringify({ ok: true }) },
+        item: { type: "function_call_output", call_id: callId, output: JSON.stringify(output) },
       })
     );
     this.dc.send(JSON.stringify({ type: "response.create" }));

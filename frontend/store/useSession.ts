@@ -68,7 +68,7 @@ export const useSession = create<State>((set) => ({
   setStatus: (status, error = null) => set({ status, error: status === "error" ? error : null }),
   setSpeaking: (agentSpeaking) => set({ agentSpeaking }),
   applyProfile: (p) =>
-    set((s) => ({ userName: p.userName ?? s.userName })),
+    set((s) => ({ userName: p.userName?.trim() || s.userName })),
   addTurn: (t) => set((s) => ({ turns: [...s.turns, t] })),
   addVocab: (w) => set((s) => (s.vocabulary.includes(w) ? s : { vocabulary: [...s.vocabulary, w] })),
   setFeedback: (feedback) => set({ feedback }),
