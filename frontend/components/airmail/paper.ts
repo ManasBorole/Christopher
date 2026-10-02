@@ -239,10 +239,14 @@ export function drawPostmark(c: Ctx2D, S: number) {
     c.arc(Math.cos(a) * R, Math.sin(a) * R, S * 0.012, 0, 7);
     c.fill();
   }
+  // stamped with the visitor's own date, the day they read it
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, "0");
+  const month = now.toLocaleString("en-GB", { month: "short" }).slice(0, 3).toUpperCase();
   c.font = `700 ${S * 0.085}px ${FONT.sans}`;
-  c.fillText("02 OCT", 0, -S * 0.04);
+  c.fillText(`${day} ${month}`, 0, -S * 0.04);
   c.font = `600 ${S * 0.07}px ${FONT.sans}`;
-  c.fillText("2026", 0, S * 0.07);
+  c.fillText(String(now.getFullYear()), 0, S * 0.07);
   c.restore();
   // ink texture: knock out speckles
   c.globalCompositeOperation = "destination-out";
