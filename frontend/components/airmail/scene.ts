@@ -731,6 +731,8 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       gsap.ticker.remove(lenisRaf);
       gsap.ticker.lagSmoothing(500, 33);
       st.kill();
+      // stop first: it settles Lenis's pending scroll-end timer, which would otherwise re-add its html class after destroy
+      lenis?.stop();
       lenis?.destroy();
       history.scrollRestoration = restoration;
       clearTimeout(rsz);
