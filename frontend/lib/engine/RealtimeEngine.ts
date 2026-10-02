@@ -35,6 +35,8 @@ export class RealtimeEngine implements ConversationEngine {
   private dc?: RTCDataChannel;
   private mic?: MediaStream;
   private audioEl?: HTMLAudioElement;
+  private audioCtx?: AudioContext;
+  private meter?: AnalyserNode; // taps the mic so the UI can tell a silent/wrong mic
   private ev: ConversationEvents = {};
   private greeted = false; // the tutor's opening line is requested exactly once
 
@@ -81,6 +83,7 @@ export class RealtimeEngine implements ConversationEngine {
 
       this.mic = await micPromise;
       this.mic.getTracks().forEach((t) => pc.addTrack(t, this.mic!));
+      this.startMeter(this.mic);
 
       this.dc = pc.createDataChannel("oai-events");
       this.dc.onmessage = (m) => this.onEvent(JSON.parse(m.data));
@@ -119,6 +122,18 @@ export class RealtimeEngine implements ConversationEngine {
         break;
       case "conversation.item.input_audio_transcription.completed":
         this.ev.onTranscript?.("user", e.transcript ?? "", true);
+        break;
+
+      // Server VAD heard the learner. This, not the connection, is the proof
+      // that Christopher can hear them.
+      case "input_audio_buffer.speech_started":
+        this.ev.onHeard?.();
+        break;
+
+      // Never swallow these silently: they are the only trace when a turn dies.
+      case "error":
+      case "conversation.item.input_audio_transcription.failed":
+        console.warn("[realtime]", e.type, e.error ?? e);
         break;
 
       // speaking indicator - output_audio_buffer.* fire on WebRTC; keep the
@@ -171,8 +186,33 @@ export class RealtimeEngine implements ConversationEngine {
   interrupt() {
     if (this.dc?.readyState === "open") {
       this.dc.send(JSON.stringify({ type: "response.cancel" }));
+      // Over WebRTC the reply is often fully generated but still playing;
+      // cancel alone leaves it talking. Clearing the output buffer cuts it off.
+      this.dc.send(JSON.stringify({ type: "output_audio_buffer.clear" }));
     }
     this.ev.onSpeaking?.(false);
+  }
+
+  private startMeter(stream: MediaStream) {
+    try {
+      this.audioCtx = new AudioContext();
+      void this.audioCtx.resume().catch(() => {});
+      this.meter = this.audioCtx.createAnalyser();
+      this.meter.fftSize = 1024;
+      this.audioCtx.createMediaStreamSource(stream).connect(this.meter);
+    } catch {
+      /* no Web Audio: the UI simply gets no level */
+    }
+  }
+
+  // RMS of the latest mic frame. A muted, unplugged or wrong device reads ~0.
+  inputLevel(): number {
+    if (!this.meter) return 0;
+    const buf = new Float32Array(this.meter.fftSize);
+    this.meter.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (const v of buf) sum += v * v;
+    return Math.sqrt(sum / buf.length);
   }
 
   disconnect() {
@@ -180,7 +220,8 @@ export class RealtimeEngine implements ConversationEngine {
     this.mic?.getTracks().forEach((t) => t.stop());
     this.pc?.close();
     if (this.audioEl) this.audioEl.srcObject = null;
-    this.pc = this.dc = this.mic = this.audioEl = undefined;
+    void this.audioCtx?.close().catch(() => {});
+    this.pc = this.dc = this.mic = this.audioEl = this.audioCtx = this.meter = undefined;
     this.greeted = false;
     this.ev.onStatus?.("idle");
   }

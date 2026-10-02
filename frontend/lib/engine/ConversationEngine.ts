@@ -16,6 +16,8 @@ export interface ConversationEvents {
   onPronunciation?: (result: PronounceResult, phrase: string, language: string) => void;
   // The tutor learned/changed the learner's profile (name, languages, level).
   onProfile?: (profile: Profile) => void;
+  // The server detected the learner speaking (Christopher actually heard them).
+  onHeard?: () => void;
 }
 
 export interface ConversationEngine {
@@ -23,4 +25,6 @@ export interface ConversationEngine {
   connect(events: ConversationEvents, sessionId?: string): Promise<void>;
   interrupt(): void; // barge-in: stop the agent talking
   disconnect(): void;
+  // Current microphone loudness (RMS, 0..1), so the UI can tell silence from a dead mic.
+  inputLevel?(): number;
 }
