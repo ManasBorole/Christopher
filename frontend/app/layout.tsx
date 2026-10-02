@@ -6,6 +6,7 @@ import {
   Noto_Naskh_Arabic,
   Noto_Sans_Devanagari,
   Noto_Sans_Hebrew,
+  Noto_Sans_JP,
 } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
@@ -13,12 +14,15 @@ import "./globals.css";
 // Latin faces preload. Script faces don't: their unicode-range means the browser
 // only fetches them when a Devanagari/Arabic/Hebrew character is on screen.
 const sans = Figtree({ subsets: ["latin", "latin-ext"], variable: "--font-sans", display: "swap" });
-const display = Bricolage_Grotesque({ subsets: ["latin", "latin-ext"], variable: "--font-display", display: "swap" });
+// opsz is loaded for the landing's display sizes; the app keeps the default cut (globals.css).
+const display = Bricolage_Grotesque({ subsets: ["latin", "latin-ext"], axes: ["opsz"], variable: "--font-display", display: "swap" });
 const hand = Gochi_Hand({ weight: "400", subsets: ["latin"], variable: "--font-hand", display: "swap" });
 const deva = Noto_Sans_Devanagari({ subsets: ["devanagari"], variable: "--font-deva", display: "swap", preload: false });
 const arab = Noto_Naskh_Arabic({ subsets: ["arabic"], variable: "--font-arab", display: "swap", preload: false });
 const hebr = Noto_Sans_Hebrew({ subsets: ["hebrew"], variable: "--font-hebr", display: "swap", preload: false });
-const fontVars = [sans, display, hand, deva, arab, hebr].map((f) => f.variable).join(" ");
+// Japanese for the landing's postcards; its unicode-range slices load on demand.
+const jp = Noto_Sans_JP({ weight: ["400", "500", "700"], variable: "--font-jp", display: "swap", preload: false });
+const fontVars = [sans, display, hand, deva, arab, hebr, jp].map((f) => f.variable).join(" ");
 
 export const metadata: Metadata = {
   title: "Christopher, a voice tutor for 180+ languages",

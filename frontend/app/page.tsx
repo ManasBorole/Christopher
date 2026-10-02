@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import Splash from "../components/Splash";
-import Landing from "../components/Landing";
+import Landing from "../components/AirmailLanding";
 import AuthOverlay from "../components/AuthOverlay";
 import App, { type AppScreen } from "../components/App";
 
@@ -36,8 +36,9 @@ export default function Page() {
   // (a reload keeps you where you were). Never push an entry here: Chrome and
   // Edge skip entries a page adds without a user gesture, so an entry pushed on
   // load made Back jump straight past the landing and off the site. Entries
-  // are only ever pushed from clicks.
-  useEffect(() => {
+  // are only ever pushed from clicks. Read before the first paint, so a reload
+  // inside the app never flashes the landing's preloader first.
+  useLayoutEffect(() => {
     const entered = sessionStorage.getItem("vta_entered");
     let initial = readHistory(history.state);
     // A reload mid-conversation can't resume that session; reopen its course.
@@ -71,10 +72,9 @@ export default function Page() {
     push({ nav: "app", screen: { v: "home" } });
   }
 
-  // Fresh visitor: show the brand splash alone until it clears, then the landing
-  // page. Returning visitor: the app home is already mounted and fetching, so the
-  // splash sits on top as an overlay instead of blocking that work.
-  if (booting && current.nav === "landing") return <Splash />;
+  // The landing opens with its own postcard preloader. In the app, the home is
+  // already mounted and fetching, so the splash sits on top as an overlay
+  // instead of blocking that work.
 
   return (
     <>
@@ -111,7 +111,7 @@ export default function Page() {
       )}
 
       {authOpen && <AuthOverlay onEnter={enterApp} onClose={() => setAuthOpen(false)} />}
-      {booting && <Splash />}
+      {booting && current.nav === "app" && <Splash />}
     </>
   );
 }
