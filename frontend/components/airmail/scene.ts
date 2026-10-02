@@ -221,6 +221,17 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     hero.material.uniforms.uSize.value.set(3, 2);
     hero.frustumCulled = false;
     scene.add(hero);
+    // a photo that arrives after baking redraws its card
+    const HU = hero.material.uniforms;
+    images.whenImg(["wave"], () => {
+      drawHeroFront(hf.getContext("2d")!, imgs.wave);
+      HU.tFront.value.needsUpdate = true;
+    });
+    images.whenImg(["idle"], () => {
+      drawHeroBack(hb.getContext("2d")!, null, imgs.idle, false);
+      drawHeroBack(hi.getContext("2d")!, hm.getContext("2d")!, imgs.idle, true);
+      HU.tBack.value.needsUpdate = HU.tInk.value.needsUpdate = true;
+    });
 
     // after-conversation postcard
     const af = cv(HW, HH);
@@ -242,12 +253,18 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     after.material.uniforms.uSize.value.set(3, 2);
     after.frustumCulled = false;
     scene.add(after);
+    const AU = after.material.uniforms;
+    images.whenImg(["postcard"], () => {
+      drawAfter(af.getContext("2d")!, imgs.postcard);
+      AU.tFront.value.needsUpdate = true;
+    });
     ending = createEnding({
       scene,
       renderer: gl,
       shared,
       canvasTex,
       imgs,
+      whenImg: images.whenImg,
       postTex: after.material.uniforms.tPost.value,
       ctaB: $("#ctaB"),
       RM,
@@ -305,6 +322,10 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       mesh.material.uniforms.uSize.value.set(1.2, 1.56);
       mesh.frustumCulled = false;
       polas.push({ mesh, ctx, tex, cap, w: 0 });
+      images.whenImg([im], () => {
+        drawPolaroid(ctx, imgs[im], cap);
+        tex.needsUpdate = true;
+      });
       scene.add(mesh);
     }
     gl.compile(scene, camera);

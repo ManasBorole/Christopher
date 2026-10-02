@@ -19,6 +19,7 @@ export type EndingEnv = {
   shared: Uniforms;
   canvasTex: (c: HTMLCanvasElement) => THREE.Texture;
   imgs: Partial<Record<ImgName, HTMLImageElement>>;
+  whenImg: (names: ImgName[], redraw: () => void) => void;
   postTex: THREE.Texture; // the red postmark, shared with the after card
   ctaB: HTMLElement; // the CTA that rides the postcard's address lines
   RM: boolean;
@@ -304,6 +305,10 @@ export function createEnding(env: EndingEnv) {
   function stampTex() {
     const c = cv(480, 576), tex = env.canvasTex(c);
     drawStampTex(c, env.imgs.postcard || env.imgs.idle);
+    env.whenImg(["postcard"], () => {
+      drawStampTex(c, env.imgs.postcard);
+      tex.needsUpdate = true;
+    });
     return tex;
   }
 
