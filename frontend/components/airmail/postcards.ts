@@ -1,9 +1,38 @@
 import { rng } from "./math";
-import { C, FONT, miniPostmark, paperFill, stamp, stripeBorder, type Ctx2D } from "./paper";
+import { C, FONT, grain, miniPostmark, paperFill, stamp, stripeBorder, type Ctx2D } from "./paper";
 
 // The story's postcards, drawn once into canvases and used as textures.
 
 type Img = HTMLImageElement | null | undefined;
+
+// a printed photo of Christopher with a handwritten caption; the grain is baked once per canvas
+const grains = new WeakMap<HTMLCanvasElement, ImageData>();
+export function drawPolaroid(c: Ctx2D, img: Img, caption: string) {
+  const W = c.canvas.width, H = c.canvas.height;
+  const g0 = grains.get(c.canvas);
+  if (g0) c.putImageData(g0, 0, 0);
+  else {
+    c.fillStyle = "#f4ecdc";
+    c.fillRect(0, 0, W, H);
+    grain(c, 0, 0, W, H, 0.85, 1.5, caption.length * 31);
+    grains.set(c.canvas, c.getImageData(0, 0, W, H));
+  }
+  const m = W * 0.06, pw = W - 2 * m, ph = pw * 1.2;
+  if (img) c.drawImage(img, m, m, pw, ph);
+  else {
+    c.fillStyle = "#c6a590";
+    c.fillRect(m, m, pw, ph);
+  }
+  const g = c.createLinearGradient(0, m, 0, m + ph);
+  g.addColorStop(0, "rgba(255,255,255,.06)");
+  g.addColorStop(1, "rgba(0,0,0,.06)");
+  c.fillStyle = g;
+  c.fillRect(m, m, pw, ph);
+  c.fillStyle = C.ink;
+  c.font = `${Math.round(W * 0.085)}px ${FONT.hand}`;
+  c.textAlign = "left";
+  c.fillText(caption, m + 6, m + ph + (H - m - ph) * 0.62);
+}
 
 // the hero card's picture side: greetings from Japanese, with Christopher's photo glued on
 export function drawHeroFront(c: Ctx2D, img: Img) {
