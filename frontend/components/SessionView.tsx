@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { RealtimeEngine } from "../lib/engine/RealtimeEngine";
 import type { ConversationEngine } from "../lib/engine/ConversationEngine";
 import { useSession } from "../store/useSession";
-import { addTurn as persistTurn, patchCourse, endSession, getUsage, reportSpent, consumeUsage, translateLine } from "../lib/api";
+import { addTurn as persistTurn, patchCourse, cachedCourse, getCourse, endSession, getUsage, reportSpent, consumeUsage, translateLine } from "../lib/api";
 import { isMeaningfulTranscript, looksEnglish } from "../lib/transcript";
 import { sessionPhase, cannotHear, trialStep, MIC_FLOOR, type Phase } from "../lib/sessionPhase";
 import Mascot, { type MascotPose } from "./Mascot";
 import { SummaryCard } from "./ui";
 import TrialModal from "./TrialModal";
+import StageControl, { type Stage } from "./StageControl";
 
 export default function SessionView({
   courseId,
@@ -48,6 +49,9 @@ export default function SessionView({
   const [heard, setHeard] = useState(false);
   const [quietMs, setQuietMs] = useState(0);
   const quietFromRef = useRef(0);
+  // How much English Christopher speaks (1-4), null until a level is known.
+  const [stage, setStage] = useState<Stage | null>(() => (cachedCourse(courseId)?.stage ?? null) as Stage | null);
+  const stageMovedRef = useRef(false);
 
   // Know up front whether the mic is already allowed or blocked, so the first
   // screen can say so. Browsers without the Permissions API stay "unknown".
@@ -74,6 +78,24 @@ export default function SessionView({
       if (u.blocked) setBlocked(true);
     });
   }, [courseId, sessionId, language, userName]);
+
+  // The saved level, unless the learner or Christopher has moved it meanwhile.
+  useEffect(() => {
+    stageMovedRef.current = false;
+    getCourse(courseId)
+      .then((c) => {
+        if (c && !stageMovedRef.current) setStage((c.stage ?? null) as Stage | null);
+      })
+      .catch(() => {});
+  }, [courseId]);
+
+  // Learner nudge: show it, tell the live conversation, save it for next time.
+  function nudgeStage(n: Stage) {
+    stageMovedRef.current = true;
+    setStage(n);
+    engineRef.current?.setStage(n, "learner");
+    void patchCourse(courseId, { stage: n }).catch(() => {});
+  }
 
   // timer + hard 60s cutoff
   useEffect(() => {
@@ -158,6 +180,11 @@ export default function SessionView({
         },
         onProfile: (p) => {
           s.applyProfile(p);
+          // Christopher moved the level himself; the patch below saves it.
+          if ([1, 2, 3, 4].includes(p.stage as number)) {
+            stageMovedRef.current = true;
+            setStage(p.stage as Stage);
+          }
           void patchCourse(courseId, p).catch(() => {});
         },
         onPronunciation: (result, phrase) => {
@@ -233,6 +260,7 @@ export default function SessionView({
     unheard: cannotHear({ heard, quietMs }),
   });
   const ui = PHASES[phase];
+  const showStage = STAGE_PHASES.has(phase);
 
   if (s.summary && !ending) {
     return (
@@ -271,8 +299,9 @@ export default function SessionView({
       {/* The card takes whatever height the words and buttons below it leave,
           so the main control is always on screen without scrolling. 11rem is
           the top bar and back link above it; 25rem on phones is that plus the
-          words and buttons below. On wide screens the column stays put while a
-          long transcript scrolls, so End conversation never leaves view. */}
+          words and buttons below (31rem with the language mix slider). On wide
+          screens the column stays put while a long transcript scrolls, so End
+          conversation never leaves view. */}
       <section
         aria-label="Christopher"
         className="flex flex-col items-center text-center lg:sticky lg:top-24 lg:h-[calc(100svh-11rem)] lg:items-start lg:self-start lg:text-left"
@@ -282,7 +311,9 @@ export default function SessionView({
             pose={ui.pose}
             talking={phase === "speaking"}
             priority
-            className="w-[max(10rem,min(64vw,300px,calc((100svh-25rem)*1145/1374)))] lg:w-[min(100cqw,100cqh*1145/1374)]"
+            className={`${
+              showStage ? "w-[max(10rem,min(64vw,300px,calc((100svh-31rem)*1145/1374)))]" : "w-[max(10rem,min(64vw,300px,calc((100svh-25rem)*1145/1374)))]"
+            } lg:w-[min(100cqw,100cqh*1145/1374)]`}
           />
         </div>
         <p aria-live="polite" className="mt-6 min-h-[1.3em] font-display text-2xl font-extrabold tracking-[-0.02em]">
@@ -313,6 +344,7 @@ export default function SessionView({
             </button>
           )}
         </div>
+        {showStage && <StageControl stage={stage} language={language} onChange={nudgeStage} />}
       </section>
 
       <section aria-label="Conversation" className="min-w-0">
@@ -342,6 +374,10 @@ export default function SessionView({
     </div>
   );
 }
+
+// Where the language mix can be changed: before starting and while talking,
+// not while something is wrong or the postcard is being written.
+const STAGE_PHASES = new Set<Phase>(["mic-ask", "ready", "connecting", "invite", "listening", "thinking", "speaking", "handed-back"]);
 
 // Pose, headline and help for each state of the conversation screen.
 const PHASES: Record<Phase, { pose: MascotPose; line: string; help?: React.ReactNode | ((limit: number) => React.ReactNode) }> = {
