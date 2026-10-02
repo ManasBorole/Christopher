@@ -14,7 +14,8 @@ import "./globals.css";
 // Latin faces preload. Script faces don't: their unicode-range means the browser
 // only fetches them when a Devanagari/Arabic/Hebrew character is on screen.
 const sans = Figtree({ subsets: ["latin", "latin-ext"], variable: "--font-sans", display: "swap" });
-const display = Bricolage_Grotesque({ subsets: ["latin", "latin-ext"], variable: "--font-display", display: "swap" });
+// opsz is loaded for the landing's display sizes; the app keeps the default cut (globals.css).
+const display = Bricolage_Grotesque({ subsets: ["latin", "latin-ext"], axes: ["opsz"], variable: "--font-display", display: "swap" });
 const hand = Gochi_Hand({ weight: "400", subsets: ["latin"], variable: "--font-hand", display: "swap" });
 const deva = Noto_Sans_Devanagari({ subsets: ["devanagari"], variable: "--font-deva", display: "swap", preload: false });
 const arab = Noto_Naskh_Arabic({ subsets: ["arabic"], variable: "--font-arab", display: "swap", preload: false });
