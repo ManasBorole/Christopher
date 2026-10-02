@@ -39,7 +39,9 @@ export function readFonts() {
 export const nativeStack = () =>
   `${FONT.display},${FONT.jp},${FONT.deva},${FONT.arab},${FONT.hebr},"Nirmala UI","Segoe UI Historic","Segoe UI",sans-serif`;
 
+// a canvas, or an OffscreenCanvas inside the paint worker (same drawing API)
 export function cv(w: number, h: number) {
+  if (typeof document === "undefined") return new OffscreenCanvas(w, h) as unknown as HTMLCanvasElement;
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
@@ -123,7 +125,11 @@ export function grain(c: Ctx2D, x: number, y: number, w: number, h: number, amt:
   c.restore();
 }
 
+/* What the drawing functions paint. The bake turns parts off to capture layers
+   that compress well; the grain and the vector art are redrawn in a worker. */
+export const PAPER = { on: true, art: true, text: true };
 export function paperFill(c: Ctx2D, x: number, y: number, w: number, h: number, tone: string, amt = 0.5, cell = 1, seed = 1) {
+  if (!PAPER.on) return;
   c.fillStyle = tone;
   c.fillRect(x, y, w, h);
   grain(c, x, y, w, h, amt, cell, seed);

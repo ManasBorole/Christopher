@@ -513,7 +513,7 @@ function drawGiantBack(c: CanvasRenderingContext2D, aspC: number): Layout {
 }
 
 // the big stamp: Christopher with his postcard, denomination 183 languages
-function drawStampTex(c: HTMLCanvasElement, img: HTMLImageElement | null | undefined) {
+export function drawStampTex(c: HTMLCanvasElement, img: HTMLImageElement | null | undefined) {
   const x = c.getContext("2d")!;
   x.globalCompositeOperation = "source-over";
   x.clearRect(0, 0, 480, 576);
@@ -556,7 +556,7 @@ const hillAt = (a: number) => 0.012 + 0.009 * Math.sin(a * 4 + 1.3) + 0.006 * Ma
 
 /* ---------- constellation: the word in Gochi Hand, thinned to stroke centrelines, stars spaced by arc length ---------- */
 type Pt = [number, number];
-type Word = { stars: Pt[]; strokes: Pt[][]; big: boolean[] };
+export type Word = { stars: Pt[]; strokes: Pt[][]; big: boolean[] };
 
 function zhangSuen(B: Uint8Array, w: number, h: number) {
   const del: number[] = [];
@@ -661,7 +661,7 @@ function traceGlyph(ch: string, fp: number) {
   return { polys: polys.map((pl) => pl.map(([a, b]): Pt => [a - pad, b])), marks, adv };
 }
 
-function skeletonWord(text: string, n: number): Word {
+export function skeletonWord(text: string, n: number): Word {
   const fp = 320, gap = fp * 0.12;
   const polys: Pt[][] = [], dot: boolean[] = [];
   let ox = 0, prev = "";

@@ -41,6 +41,9 @@ export default function AirmailLanding({
   langRef.current = lang;
 
   useEffect(() => {
+    // dev only: re-bake the landing's static artwork (see airmail/bake.ts)
+    if (process.env.NODE_ENV !== "production")
+      (window as unknown as { __bake: (dl?: boolean) => Promise<Record<string, string>> }).__bake = (dl) => import("./airmail/bake").then((m) => m.bake(dl));
     let gone = false;
     import("./airmail/scene")
       .then(({ createAirmailScene }) => {

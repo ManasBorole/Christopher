@@ -1,5 +1,5 @@
 import { rng } from "./math";
-import { C, FONT, cv, fitFont, miniPostmark, nativeStack, paperFill, stamp, stripeBorder, type Ctx2D } from "./paper";
+import { C, FONT, PAPER, cv, fitFont, miniPostmark, nativeStack, paperFill, stamp, stripeBorder, type Ctx2D } from "./paper";
 
 // The 183 languages on the flock's cards, each written in its own script.
 // "r" marks right-to-left scripts.
@@ -207,13 +207,16 @@ const STAMPC = [C.teal, C.red, C.blue, "#c58f1c", "#3f7f5a"];
 export function drawFront(c: Ctx2D, x: number, y: number, w: number, h: number, L: Lang, i: number) {
   const tone = TONES[i % 4];
   paperFill(c, x, y, w, h, tone, 0.6, 1, i + 11);
-  stripeBorder(c, x + 2, y + 2, w - 4, h - 4, w * 0.032);
+  if (PAPER.art) {
+    stripeBorder(c, x + 2, y + 2, w - 4, h - 4, w * 0.032);
+    stamp(c, x + w * 0.76, y + h * 0.12, w * 0.14, h * 0.24, STAMPC[i % 5], null, tone);
+  }
+  if (!PAPER.text) return;
   c.fillStyle = C.teal;
   c.font = `${Math.round(h * 0.135)}px ${FONT.hand}`;
   c.textAlign = "left";
   c.direction = "ltr";
   c.fillText("Greetings from", x + w * 0.1, y + h * 0.3);
-  stamp(c, x + w * 0.76, y + h * 0.12, w * 0.14, h * 0.24, STAMPC[i % 5], null, tone);
   c.fillStyle = C.ink;
   fitFont(c, L.n, 700, nativeStack(), w * 0.8, h * 0.31);
   if (L.rtl) {
@@ -232,6 +235,7 @@ export function drawFront(c: Ctx2D, x: number, y: number, w: number, h: number, 
 export function drawBack(c: Ctx2D, x: number, y: number, w: number, h: number, i: number, amt = 0.6, cell = 1) {
   const rnd = rng(i * 104729 + 7), tone = TONES[(i + 1) % 4];
   paperFill(c, x, y, w, h, tone, amt, cell, i + 301);
+  if (!PAPER.art) return;
   stripeBorder(c, x + 2, y + 2, w - 4, h - 4, w * 0.032);
   c.strokeStyle = "rgba(80,60,40,.35)";
   c.lineWidth = Math.max(1, w * 0.004);
