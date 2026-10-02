@@ -13,10 +13,13 @@
 
 ## See it working
 
-<!--
-  Demo video (30-60 seconds, with sound): drag an MP4 into this file in GitHub's
-  editor and paste the URL it gives you on its own line here.
--->
+<p align="center">
+  <a href="docs/media/christopher-trailer.mp4">
+    <img src="docs/media/christopher-trailer-poster.webp" width="720" alt="Play the 55-second Christopher trailer: the title card with Christopher's avatar, the wordmark and 'say it out loud.' over a desk of airmail postcards" />
+  </a>
+  <br />
+  <sub>The 55-second trailer, with sound. Click to play.</sub>
+</p>
 
 <p align="center">
   <img src="docs/screenshots/landing-hero.webp" width="49%" alt="The landing page: the headline 'Say it out loud. Christopher will wait for you.' over a dusk harbour full of airmail postcards drifting in the wind, a 'Start talking in Japanese' button and a language menu" />
