@@ -18,10 +18,11 @@
   editor and paste the URL it gives you on its own line here.
 -->
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/landing-dark.png" />
-  <img src="docs/screenshots/landing-light.png" alt="The landing page: the headline 'Say it out loud. Christopher will wait for you.', a 'Start talking in Spanish' button with a language menu, and a postcard showing Christopher waving" />
-</picture>
+<img src="docs/screenshots/landing-hero.webp" alt="The landing page: the headline 'Say it out loud. Christopher will wait for you.' over a dusk harbour full of airmail postcards drifting in the wind, a 'Start talking in Japanese' button and a language menu" />
+
+<img src="docs/screenshots/landing-sphere.webp" alt="Further down the landing: '183 languages, each in its own script.' beside a sphere made of 183 postcards, each greeting from a different language" />
+
+<img src="docs/screenshots/landing-end.webp" alt="The end of the landing: a giant airmail postcard addressed 'To Christopher', with a stamp of Christopher, a postmark and a 'Start talking in Japanese' button on the address lines" />
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/picker-dark.png" />
@@ -59,7 +60,9 @@ You pick a language, allow the microphone, and have a spoken conversation with C
 - An end-of-conversation summary, and a word list with English meanings on each language's page
 - A searchable picker for 183 languages, shown by their own names, including right-to-left scripts
 - Works as a guest straight away; Clerk sign-in is optional
-- Light and dark themes, and Christopher's pose follows the conversation: listening, thinking, speaking, stepping back when you cut in
+- Light and dark themes in the app, and Christopher's pose follows the conversation: listening, thinking, speaking, stepping back when you cut in
+- A scroll-driven 3D landing page: airmail postcards in 183 scripts drift over a harbour at dusk, gather into a sphere you can drag, and end as a giant postcard addressed to Christopher
+- A "Hear it" demo on the landing that plays a short recorded conversation in 14 languages, with subtitles
 
 ## How it works
 
@@ -123,6 +126,8 @@ Christopher/
 │   └── src/prompts/tutor.ts   the tutor's system prompt
 ├── frontend/    Next.js 15 app
 │   ├── components/            landing, languages, course page, conversation, mascot
+│   │   └── airmail/           the landing's WebGL scene: flock, dust, sphere, ending, preloader
+│   ├── public/hear/           recorded Hear it clips, one folder per language
 │   └── lib/engine/            ConversationEngine interface and the RealtimeEngine
 ├── services/    Python reference scorer for /pronounce (standalone, not wired in)
 └── design/      scripts that export the mascot images
@@ -149,6 +154,10 @@ Christopher/
 **A trial that's only spent when the call goes live.** `/session` checks the allowance but does not consume it; the client consumes one session once the WebRTC connection is actually up ([`gate.ts`](backend/src/gate.ts)). A failed or abandoned connect never burns the learner's free conversation.
 
 **Shared contracts.** Types and Zod schemas for summaries, profiles, tokens and course data live in one workspace package, [`shared/src/index.ts`](shared/src/index.ts), imported by both sides as raw TypeScript. The backend validates the summary model's output against `SummarySchema` before saving it.
+
+**A 3D landing that does not cost the first paint.** The landing is a WebGL scene (three.js, with GSAP ScrollTrigger and Lenis for the scroll), but those libraries are loaded with a dynamic `import()` after the page has hydrated ([`AirmailLanding.tsx`](frontend/components/AirmailLanding.tsx)). The headline, button and language menu are plain HTML that render straight away, and the landing's first-load JavaScript stayed the same size as the old page. The scene's `dispose()` tears down both WebGL contexts, the scroll triggers and every listener, so going into the app and back does not leak or stack scenes. The copy dissolving into dust is computed on the GPU from the scroll position, so scrolling back gathers it again. With reduced motion the scene snaps to still frames; without WebGL the copy shows on a flat background.
+
+**Recorded demo clips instead of live speech.** The landing's "Hear it" plays the same short conversation in 14 languages, in which the learner slips on the past tense and Christopher answers with the right form. The clips were generated once with OpenAI text-to-speech and ship as static files in `frontend/public/hear/`, so playing them costs nothing and does not touch the API key. Generating speech on each click would be slower, billed per play, and open to abuse.
 
 **Self-checks instead of a test framework.** Each piece of logic with real branches has a small runnable file that asserts its behaviour and needs no keys or database. They're listed under [Run it locally](#run-it-locally).
 
@@ -187,8 +196,8 @@ npm run dev:frontend    # app on http://localhost:3000
 ### What you should see
 
 - The backend prints `backend on http://localhost:8787`, and http://localhost:8787/health returns `{"ok":true}`.
-- http://localhost:3000 shows the landing page.
-- Press **Start talking in Spanish**, then **Try it as a guest**, then allow the microphone. Christopher greets you and asks your name.
+- http://localhost:3000 shows the landing page: a postcard drops in while the scene loads, then the harbour appears.
+- Press **Start talking in Japanese** (or pick another language first), then **Try it as a guest**, then allow the microphone. Christopher greets you and asks your name.
 
 ### If something goes wrong
 
@@ -261,6 +270,8 @@ This is an npm-workspaces monorepo, and `@vta/shared` is imported as raw TypeScr
 - Every conversation runs on the OpenAI Realtime API, which is billed by audio usage; the trial gate is the only cost control.
 - Transcription is pinned to the learned language only for the 20 language names in `session.ts`; the rest rely on auto-detection, which can confuse similar languages on short clips.
 - The picker lists 183 languages, but how well Christopher teaches each one depends on the Realtime model, not on this app.
+- The landing needs WebGL and is heavy on older phones; there is no lighter version beyond the reduced-motion still frames.
+- The Hear it scripts were written without a native-speaker review for every language.
 - I have checked the interface in Chromium. I have not verified voice conversations in Safari or Firefox for this README.
 
 ## License and author
