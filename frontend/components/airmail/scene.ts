@@ -6,6 +6,7 @@ import { QE, QP, measureBeats, readBeats, updateHTML } from "./beats";
 import { ATLAS_COLS, ATLAS_ROWS, JP, LANGS, drawAtlas } from "./cards";
 import { createSphereDrag } from "./drag";
 import { createFlock, paperMat, type Rect, type Uniforms, type Zone } from "./flock";
+import { createHear } from "./hear";
 import { loadImages, type ImgName } from "./images";
 import { clamp, easeOut, lerp, sm, smr } from "./math";
 import { FONT, cv, readFonts } from "./paper";
@@ -24,7 +25,7 @@ import { DOME_FRAG, DOME_VERT } from "./shaders";
      0.345-0.40        card rejoins the wind; camera pulls back
      0.40-0.53 scale   183 cards gather into a slow sphere S(0,1.8,-8) R5, each a different language */
 
-export type AirmailScene = { dispose: () => void };
+export type AirmailScene = { setLang: (lang: string) => void; dispose: () => void };
 
 const lin = (hex: string) => {
   const n = parseInt(hex.slice(1), 16);
@@ -34,7 +35,8 @@ const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const tanH = Math.tan(THREE.MathUtils.degToRad(35 / 2));
 type Key = [number, THREE.Vector3, THREE.Vector3];
 
-export function createAirmailScene(root: HTMLElement): AirmailScene {
+export function createAirmailScene(root: HTMLElement, startLang: string): AirmailScene {
+  let lang = startLang;
   const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const MOB = Math.min(innerWidth, innerHeight * 1.2) < 760 || innerWidth < 760;
   const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
@@ -351,6 +353,29 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
     });
   }
 
+  // speaking frames on his polaroid while a clip plays
+  let speakTimer = 0;
+  function speakFrames(on: boolean) {
+    const pl = polas[2];
+    if (!pl) return;
+    clearInterval(speakTimer);
+    const frames: ImgName[] = ["speak-open", "speak-half", "speak-closed", "speak-half"];
+    let k = 0;
+    const draw = (name: ImgName) => {
+      drawPolaroid(pl.ctx, imgs[name] || imgs["speak-open"], pl.cap);
+      pl.tex.needsUpdate = true;
+    };
+    if (on) speakTimer = window.setInterval(() => draw(frames[k++ % 4]), 140);
+    else draw("speak-open");
+  }
+  const hear = createHear($<HTMLButtonElement>("#hear"), $("#sub"), {
+    lang: () => lang,
+    onState: (s) => {
+      forceState = s;
+    },
+    onSpeak: speakFrames,
+  });
+
   /* ---------- main loop ---------- */
   let q = RM ? snap(targetP) : 0, p = 0, pPrev = 0, tAcc = 0, last = performance.now() / 1000, bend = 0, ready = false;
   const camP = V(0, 0, 14.5), camT = V(0, 2.4, 0), wantP = V(), wantT = V();
@@ -455,9 +480,21 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
       });
   updateHTML(beats, 0, 1, RM);
 
+  let langT = 0;
   return {
+    setLang(next) {
+      if (next === lang) return;
+      lang = next;
+      hear.stop();
+      clearTimeout(langT);
+      langT = window.setTimeout(measureAll, 50); // the CTA got wider or narrower
+    },
     dispose() {
       disposed = true;
+      clearTimeout(langT);
+      hear.dispose();
+      clearInterval(speakTimer);
+      statesEls.forEach((el) => el.classList.remove("act"));
       images.dispose();
       drag.dispose();
       gsap.ticker.remove(tick);

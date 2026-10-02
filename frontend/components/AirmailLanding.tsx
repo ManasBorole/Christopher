@@ -36,19 +36,23 @@ export default function AirmailLanding({
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [lang, setLang] = useState("Japanese");
+  const sceneRef = useRef<AirmailScene | null>(null);
+  const langRef = useRef(lang);
+  langRef.current = lang;
 
   useEffect(() => {
     let gone = false;
-    let scene: AirmailScene | null = null;
     import("./airmail/scene").then(({ createAirmailScene }) => {
       if (gone || !rootRef.current) return;
-      scene = createAirmailScene(rootRef.current);
+      sceneRef.current = createAirmailScene(rootRef.current, langRef.current);
     });
     return () => {
       gone = true;
-      scene?.dispose();
+      sceneRef.current?.dispose();
+      sceneRef.current = null;
     };
   }, []);
+  useEffect(() => sceneRef.current?.setLang(lang), [lang]);
 
   const start = () => onStart(lang);
 
