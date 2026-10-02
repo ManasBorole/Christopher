@@ -126,10 +126,16 @@ coursesRouter.post(
     const language = String(req.body?.language ?? "").trim();
     if (!language) return res.status(400).json({ error: "language required" });
     const norm = language[0].toUpperCase() + language.slice(1).toLowerCase();
+    // A new language starts with the name the learner already gave elsewhere.
+    const known = await prisma.course.findFirst({
+      where: { ownerId: req.ownerId, userName: { not: "" } },
+      orderBy: { updatedAt: "desc" },
+      select: { userName: true },
+    });
     const c = await prisma.course.upsert({
       where: { ownerId_language: { ownerId: req.ownerId!, language: norm } },
       update: {},
-      create: { ownerId: req.ownerId!, language: norm },
+      create: { ownerId: req.ownerId!, language: norm, userName: known?.userName ?? "" },
     });
     res.json({ id: c.id, language: c.language });
   })
@@ -199,14 +205,16 @@ coursesRouter.patch(
     const b = req.body ?? {};
     const vocabulary = mergeUnique(c.vocabulary, b.addVocabulary);
     const pronunciationNotes = mergeUnique(c.pronunciationNotes, b.addNotes);
+    const profile = profileFields(b);
     await prisma.course.update({
       where: { id: c.id },
-      data: {
-        ...profileFields(b),
-        vocabulary,
-        pronunciationNotes,
-      },
+      data: { ...profile, vocabulary, pronunciationNotes },
     });
+    // The name belongs to the learner, not the course: copy it to their other
+    // courses. Raw SQL so their "last chat" time (updatedAt) is left alone.
+    if (profile.userName) {
+      await prisma.$executeRaw`UPDATE "Course" SET "userName" = ${profile.userName} WHERE "ownerId" = ${req.ownerId} AND "id" <> ${c.id}`;
+    }
     res.json({ ok: true });
   })
 );

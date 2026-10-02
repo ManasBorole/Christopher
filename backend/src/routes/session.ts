@@ -3,7 +3,7 @@ import { env } from "../env.js";
 import { prisma } from "../db.js";
 import { owner, type OwnedRequest } from "../owner.js";
 import { isBlocked } from "../gate.js";
-import { TUTOR_SYSTEM_PROMPT } from "../prompts/tutor.js";
+import { TUTOR_SYSTEM_PROMPT, courseContext } from "../prompts/tutor.js";
 
 export const sessionRouter = Router();
 
@@ -113,23 +113,10 @@ async function loadCourse(
   if (!s || s.course.ownerId !== ownerId) return { suffix: "", language: "" };
   const c = s.course;
 
-  const returning = !!c.userName || c.vocabulary.length > 0;
-  let suffix = `\n\nThe learner is studying ${c.language}. Teach ${c.language}; do not switch to a different language or ask which language to learn.`;
-  if (returning) {
-    suffix +=
-      `\nThis is a NEW session continuing an ongoing course. In your VERY FIRST message only,` +
-      ` greet warmly, say that you are Christopher,` +
-      (c.userName ? ` greet them by name (${c.userName})` : "") +
-      ` and pick up where you left off. Do not recap the whole history.` +
-      `\nCRITICAL: greet exactly once, in that first message. You have the whole conversation in` +
-      ` context - after the first message never greet, re-introduce yourself, or restart the` +
-      ` lesson. Just continue the dialogue like a human teacher mid-conversation.` +
-      `\n- Native language: ${c.nativeLanguage || "unknown"}` +
-      `\n- Level: ${c.level}` +
-      `\n- Words already practiced: ${c.vocabulary.slice(0, 40).join(", ") || "none yet"}` +
-      `\n- Past pronunciation notes: ${c.pronunciationNotes.slice(0, 10).join("; ") || "none"}`;
-  } else {
-    suffix += `\nThis is the learner's first session in ${c.language}. Greet them, introduce yourself as Christopher, ask their name, and start from the basics.`;
-  }
-  return { suffix, language: c.language };
+  // Returning = they have actually talked in this course before. The name is
+  // shared across courses, so it alone says nothing about this course.
+  const priorTalks = await prisma.session.count({
+    where: { courseId: c.id, id: { not: s.id }, turns: { some: {} } },
+  });
+  return { suffix: courseContext(c, priorTalks > 0 || c.vocabulary.length > 0), language: c.language };
 }

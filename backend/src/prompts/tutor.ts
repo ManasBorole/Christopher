@@ -101,3 +101,37 @@ greetings/names -> family/work/hobbies -> daily routine/travel/food/shopping -> 
 Goal: a fast, forgiving, natural conversation with a real teacher. The learner should never be
 stuck repeating, never be blamed for the microphone, and never wonder whether you heard them.
 `.trim();
+
+type CourseMemory = {
+  language: string;
+  userName: string;
+  nativeLanguage: string;
+  level: string;
+  vocabulary: string[];
+  pronunciationNotes: string[];
+};
+
+// Per-session context appended to the prompt. `returning` comes from real
+// session history; the name may already be known from another course.
+export function courseContext(c: CourseMemory, returning: boolean): string {
+  let suffix = `\n\nThe learner is studying ${c.language}. Teach ${c.language}; do not switch to a different language or ask which language to learn.`;
+  if (returning) {
+    suffix +=
+      `\nThis is a NEW session continuing an ongoing course. In your VERY FIRST message only,` +
+      ` greet warmly, say that you are Christopher,` +
+      (c.userName ? ` greet them by name (${c.userName})` : "") +
+      ` and pick up where you left off. Do not recap the whole history.` +
+      `\nCRITICAL: greet exactly once, in that first message. You have the whole conversation in` +
+      ` context - after the first message never greet, re-introduce yourself, or restart the` +
+      ` lesson. Just continue the dialogue like a human teacher mid-conversation.` +
+      `\n- Native language: ${c.nativeLanguage || "unknown"}` +
+      `\n- Level: ${c.level}` +
+      `\n- Words already practiced: ${c.vocabulary.slice(0, 40).join(", ") || "none yet"}` +
+      `\n- Past pronunciation notes: ${c.pronunciationNotes.slice(0, 10).join("; ") || "none"}`;
+  } else if (c.userName) {
+    suffix += `\nThis is the learner's first session in ${c.language}. You already know them from another course: their name is ${c.userName}. Greet them by name, introduce yourself as Christopher, do not ask their name again, and start ${c.language} from the basics.`;
+  } else {
+    suffix += `\nThis is the learner's first session in ${c.language}. Greet them, introduce yourself as Christopher, ask their name, and start from the basics.`;
+  }
+  return suffix;
+}
