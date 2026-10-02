@@ -232,10 +232,11 @@ export default function SessionView({
       {/* The card takes whatever height the words and buttons below it leave,
           so the main control is always on screen without scrolling. 11rem is
           the top bar and back link above it; 25rem on phones is that plus the
-          words and buttons below. */}
+          words and buttons below. On wide screens the column stays put while a
+          long transcript scrolls, so End conversation never leaves view. */}
       <section
         aria-label="Christopher"
-        className="flex flex-col items-center text-center lg:h-[calc(100svh-11rem)] lg:items-start lg:text-left"
+        className="flex flex-col items-center text-center lg:sticky lg:top-24 lg:h-[calc(100svh-11rem)] lg:items-start lg:self-start lg:text-left"
       >
         <div className="lg:min-h-48 lg:w-full lg:max-h-[480px] lg:flex-1 lg:[container-type:size]">
           <Mascot
