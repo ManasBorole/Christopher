@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { QE, QP, measureBeats, readBeats, updateHTML } from "./beats";
 import { ATLAS_COLS, ATLAS_ROWS, JP, LANGS, drawAtlas, drawBack } from "./cards";
 import { createSphereDrag } from "./drag";
+import { createDust } from "./dust";
 import { createFlock, paperMat, type Rect, type Uniforms, type Zone } from "./flock";
 import { createHear } from "./hear";
 import { loadImages, type ImgName } from "./images";
@@ -51,6 +52,12 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   const beats = readBeats($("#stage"));
   const track = $("#track");
   const mark = $<HTMLAnchorElement>(".mark");
+
+  const dustCanvas = document.createElement("canvas");
+  dustCanvas.id = "dust";
+  dustCanvas.setAttribute("aria-hidden", "true");
+  $("#grab").after(dustCanvas);
+  const dust = createDust(dustCanvas, beats, RM, MOB);
 
   /* ---------- scroll: Lenis + ScrollTrigger ---------- */
   const restoration = history.scrollRestoration;
@@ -532,6 +539,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     const vel = Math.abs(p - pPrev) / Math.max(dt, 1e-3);
     pPrev = p;
     updateHTML(beats, q, 1, RM);
+    dust.draw(q, 1);
     if (!ready || !renderer || !flock || !sky || !hero || !after || !trail) return;
     tAcc += dt * (RM ? 0.25 : 1);
     bend += (Math.min(0.32, vel * 1.6) - bend) * (1 - Math.exp(-dt * 4));
@@ -592,7 +600,10 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   }
   gsap.ticker.add(tick);
 
-  const measureAll = () => measureBeats(beats);
+  const measureAll = () => {
+    measureBeats(beats);
+    dust.measure();
+  };
   let rsz = 0;
   on("resize", () => {
     clearTimeout(rsz);
@@ -658,6 +669,8 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       renderer?.dispose();
       renderer?.forceContextLoss();
       glCanvas.remove();
+      dust.dispose();
+      dustCanvas.remove();
       for (const b of beats) {
         b.el.classList.remove("on");
         b.el.style.maskImage = b.el.style.webkitMaskImage = "";
