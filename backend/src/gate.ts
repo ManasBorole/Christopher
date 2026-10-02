@@ -46,7 +46,8 @@ export async function isBlocked(ownerId: string): Promise<boolean> {
   return !!u && u.sessionsUsed >= FREE.sessionsPerOwner;
 }
 
-// Consume one free session. Called once the conversation actually goes live.
+// Consume one free session. Called the first time Christopher hears the learner
+// (not on connect), so a silent or wrong microphone never uses up the trial.
 export async function consumeSession(ownerId: string): Promise<void> {
   await prisma.usage.upsert({
     where: { ownerId },

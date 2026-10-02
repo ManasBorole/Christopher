@@ -136,7 +136,7 @@ export async function getUsage(): Promise<Usage> {
   return r.json();
 }
 
-// Consume one free session (called once the conversation goes live).
+// Consume one free session (called the first time Christopher hears the learner).
 export async function consumeUsage() {
   await fetch(`${BACKEND}/usage/consume`, { method: "POST", headers: await ownerHeaders() }).catch(() => {});
 }

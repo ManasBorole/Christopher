@@ -15,7 +15,7 @@ usageRouter.get(
   })
 );
 
-// Consume one free session - called once the conversation actually goes live.
+// Consume one free session - called the first time Christopher hears the learner.
 usageRouter.post(
   "/usage/consume",
   ah(async (req: OwnedRequest, res) => {

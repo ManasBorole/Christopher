@@ -18,8 +18,9 @@ const LANG_CODE: Record<string, string> = {
 
 sessionRouter.post("/session", owner, async (req: OwnedRequest, res) => {
   try {
-    // Free-trial gate: block if out of sessions. Consumption happens once the
-    // call goes live (POST /usage/consume) so failed connects don't burn it.
+    // Free-trial gate: block if out of sessions. Consumption happens only once
+    // Christopher first hears the learner (POST /usage/consume on the first
+    // speech_started), so failed connects and dead mics never burn it.
     if (await isBlocked(req.ownerId!)) return res.status(402).json({ error: "limit_reached" });
 
     const sessionId: string | undefined = req.body?.sessionId;
