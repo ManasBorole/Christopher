@@ -89,12 +89,19 @@ async function ensureMeanings(c: CourseForMeanings): Promise<Record<string, stri
   }
 
   const missing = learnedWords(c.vocabulary, c.sessions).filter((t) => !meanings[t]);
-  if (missing.length) Object.assign(meanings, await translateTerms(missing, c.language));
-
-  if (Object.keys(meanings).length !== before) {
-    await prisma.course.update({ where: { id: c.id }, data: { meanings } });
-  }
-  return meanings;
+  const translated = missing.length
+    ? translateTerms(missing, c.language).then((m) => void Object.assign(meanings, m))
+    : Promise.resolve();
+  // Saved in the background: the page never waits on this write.
+  void translated.then(() => {
+    if (Object.keys(meanings).length !== before) {
+      prisma.course.update({ where: { id: c.id }, data: { meanings } }).catch(console.error);
+    }
+  });
+  // The course page waits at most 2 s for the translator; a slower answer still
+  // lands in the cache, so its meanings show on the next open.
+  await Promise.race([translated, new Promise((r) => setTimeout(r, 2000))]);
+  return { ...meanings };
 }
 
 // Home screen: one card per language the owner is studying.
@@ -126,18 +133,25 @@ coursesRouter.post(
     const language = String(req.body?.language ?? "").trim();
     if (!language) return res.status(400).json({ error: "language required" });
     const norm = language[0].toUpperCase() + language.slice(1).toLowerCase();
-    // A new language starts with the name the learner already gave elsewhere.
-    const known = await prisma.course.findFirst({
-      where: { ownerId: req.ownerId, userName: { not: "" } },
-      orderBy: { updatedAt: "desc" },
-      select: { userName: true },
-    });
-    const c = await prisma.course.upsert({
-      where: { ownerId_language: { ownerId: req.ownerId!, language: norm } },
-      update: {},
-      create: { ownerId: req.ownerId!, language: norm, userName: known?.userName ?? "" },
-    });
-    res.json({ id: c.id, language: c.language });
+    const key = { ownerId_language: { ownerId: req.ownerId!, language: norm } };
+    // Two reads in parallel, then at most one insert. (Prisma's upsert on this
+    // compound key took six round trips to the database.)
+    const [existing, known] = await Promise.all([
+      prisma.course.findUnique({ where: key, select: { id: true } }),
+      // A new language starts with the name the learner already gave elsewhere.
+      prisma.course.findFirst({
+        where: { ownerId: req.ownerId, userName: { not: "" } },
+        orderBy: { updatedAt: "desc" },
+        select: { userName: true },
+      }),
+    ]);
+    const c =
+      existing ??
+      (await prisma.course
+        .create({ data: { ownerId: req.ownerId!, language: norm, userName: known?.userName ?? "" }, select: { id: true } })
+        // a double click raced us to the insert: theirs won, use it
+        .catch(() => prisma.course.findUniqueOrThrow({ where: key, select: { id: true } })));
+    res.json({ id: c.id, language: norm });
   })
 );
 
@@ -146,12 +160,8 @@ coursesRouter.post(
 coursesRouter.delete(
   "/courses/:id",
   ah(async (req: OwnedRequest, res) => {
-    const c = await prisma.course.findFirst({
-      where: { id: req.params.id, ownerId: req.ownerId },
-      select: { id: true },
-    });
-    if (!c) return res.status(404).json({ error: "not found" });
-    await prisma.course.delete({ where: { id: c.id } });
+    const { count } = await prisma.course.deleteMany({ where: { id: req.params.id, ownerId: req.ownerId } });
+    if (!count) return res.status(404).json({ error: "not found" });
     res.json({ ok: true });
   })
 );
