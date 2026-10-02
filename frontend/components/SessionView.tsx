@@ -216,7 +216,7 @@ export default function SessionView({
   const help = typeof ui.help === "function" ? ui.help(limit) : ui.help;
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-8 px-4 pb-24 pt-4 sm:px-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:gap-14 lg:pt-6">
+    <div className="mx-auto grid max-w-6xl gap-8 px-4 pb-24 pt-4 sm:px-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:gap-x-14 lg:gap-y-6 lg:pb-6">
       <header className="flex items-center justify-between gap-4 lg:col-span-2">
         <button type="button" onClick={onExit} className="text-[15px] font-semibold text-muted hover:text-ink">
           <span aria-hidden>‹ </span>
@@ -229,14 +229,28 @@ export default function SessionView({
         )}
       </header>
 
-      <section aria-label="Christopher" className="flex flex-col items-center text-center lg:items-start lg:text-left">
-        <Mascot pose={ui.pose} talking={phase === "speaking"} priority className="w-[min(64vw,300px)] lg:w-full" />
+      {/* The card takes whatever height the words and buttons below it leave,
+          so the main control is always on screen without scrolling. 11rem is
+          the top bar and back link above it; 25rem on phones is that plus the
+          words and buttons below. */}
+      <section
+        aria-label="Christopher"
+        className="flex flex-col items-center text-center lg:h-[calc(100svh-11rem)] lg:items-start lg:text-left"
+      >
+        <div className="lg:min-h-48 lg:w-full lg:max-h-[480px] lg:flex-1 lg:[container-type:size]">
+          <Mascot
+            pose={ui.pose}
+            talking={phase === "speaking"}
+            priority
+            className="w-[max(10rem,min(64vw,300px,calc((100svh-25rem)*1145/1374)))] lg:w-[min(100cqw,100cqh*1145/1374)]"
+          />
+        </div>
         <p aria-live="polite" className="mt-6 min-h-[1.3em] font-display text-2xl font-extrabold tracking-[-0.02em]">
           {ui.line}
         </p>
         {help && <div className="mt-2 max-w-[42ch] text-[15px] text-muted">{help}</div>}
 
-        <div className="mt-6 flex flex-wrap justify-center gap-3 lg:justify-start">
+        <div className="mt-6 flex min-h-13 flex-wrap items-center justify-center gap-3 lg:justify-start">
           {(phase === "mic-ask" || phase === "ready") && (
             <button type="button" onClick={connect} className="btn text-[17px]">
               <MicGlyph />
