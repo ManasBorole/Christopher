@@ -6,7 +6,7 @@ import type { ConversationEngine } from "../lib/engine/ConversationEngine";
 import { useSession } from "../store/useSession";
 import { addTurn as persistTurn, patchCourse, endSession, getUsage, reportSpent, consumeUsage } from "../lib/api";
 import { isMeaningfulTranscript } from "../lib/transcript";
-import { sessionPhase, type Phase } from "../lib/sessionPhase";
+import { sessionPhase, cannotHear, trialStep, MIC_FLOOR, type Phase } from "../lib/sessionPhase";
 import Mascot, { type MascotPose } from "./Mascot";
 import { SummaryCard } from "./ui";
 import TrialModal from "./TrialModal";
@@ -27,6 +27,8 @@ export default function SessionView({
   const s = useSession();
   const engineRef = useRef<ConversationEngine | null>(null);
   const endedRef = useRef(false);
+  // Set the first time Christopher hears the learner: that, not connecting,
+  // is what uses the free session and starts its clock.
   const consumedRef = useRef(false);
   // Seconds used on earlier connections of this conversation, so a reconnect
   // continues the free-time clock instead of restarting it.
@@ -42,6 +44,11 @@ export default function SessionView({
   const [lastError, setLastError] = useState<string | null>(null);
   const [mic, setMic] = useState<PermissionState | "unknown">("unknown");
   const [handedBack, setHandedBack] = useState(false);
+  // Has any learner speech reached Christopher on this connection, and how long
+  // has the line been silent (no mic sound, nothing heard, Christopher not talking)?
+  const [heard, setHeard] = useState(false);
+  const [quietMs, setQuietMs] = useState(0);
+  const quietFromRef = useRef(0);
 
   // Know up front whether the mic is already allowed or blocked, so the first
   // screen can say so. Browsers without the Permissions API stay "unknown".
@@ -81,6 +88,19 @@ export default function SessionView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.startedAt, limit]);
 
+  // Watch the mic while live so a muted or wrong microphone shows up as
+  // "cannot hear you" instead of an endless "Listening".
+  useEffect(() => {
+    if (s.status !== "live") return;
+    const t = setInterval(() => {
+      const now = Date.now();
+      const sound = (engineRef.current?.inputLevel?.() ?? 0) > MIC_FLOOR;
+      if (sound || useSession.getState().agentSpeaking) quietFromRef.current = now;
+      setQuietMs(now - quietFromRef.current);
+    }, 250);
+    return () => clearInterval(t);
+  }, [s.status]);
+
   async function connect() {
     if (blocked) return setShowTrial(true);
     setLastError(null);
@@ -99,17 +119,25 @@ export default function SessionView({
           s.setStatus(st, detail);
           if (st === "error") setLastError(detail ?? "unknown");
           if (st === "live") {
-            s.start(Date.now());
-            if (!consumedRef.current) {
-              consumedRef.current = true; // consume the free session exactly once
-              void consumeUsage();
-            }
+            setHeard(false);
+            quietFromRef.current = Date.now();
+            setQuietMs(0);
+            if (trialStep("live", consumedRef.current).startClock) s.start(Date.now());
           }
           if (st === "idle" || st === "error") {
             const started = useSession.getState().startedAt;
             if (started) priorRef.current += Math.floor((Date.now() - started) / 1000);
             s.clearTimer();
           }
+        },
+        onHeard: () => {
+          setHeard(true);
+          const step = trialStep("heard", consumedRef.current);
+          if (step.consume) {
+            consumedRef.current = true; // consume the free session exactly once
+            void consumeUsage();
+          }
+          if (step.startClock) s.start(Date.now());
         },
         onSpeaking: (b) => s.setSpeaking(b),
         onTranscript: (role, text, done) => {
@@ -165,6 +193,8 @@ export default function SessionView({
     engineRef.current?.disconnect();
     engineRef.current = null;
     s.clearTimer();
+    // Christopher never heard them: nothing was used, so just go back.
+    if (!consumedRef.current) return onExit();
     void reportSpent(spent);
     if (s.turns.length > 0) {
       setEnding(true);
@@ -192,6 +222,7 @@ export default function SessionView({
     ending,
     handedBack,
     mic,
+    unheard: cannotHear({ heard, quietMs }),
   });
   const ui = PHASES[phase];
 
@@ -258,7 +289,7 @@ export default function SessionView({
               {phase === "mic-ask" ? "Allow microphone and start" : `Start talking in ${language}`}
             </button>
           )}
-          {(phase === "mic-blocked" || phase === "mic-missing" || phase === "failed" || phase === "dropped") && (
+          {(phase === "mic-blocked" || phase === "mic-missing" || phase === "failed" || phase === "dropped" || phase === "unheard") && (
             <button type="button" onClick={connect} className="btn">
               {phase === "dropped" ? "Reconnect" : "Try again"}
             </button>
@@ -268,7 +299,7 @@ export default function SessionView({
               Let me talk
             </button>
           )}
-          {(phase === "listening" || phase === "thinking" || phase === "speaking" || phase === "handed-back" || phase === "dropped") && (
+          {(phase === "listening" || phase === "thinking" || phase === "speaking" || phase === "handed-back" || phase === "dropped" || phase === "unheard") && (
             <button type="button" onClick={end} className="btn-quiet">
               End conversation
             </button>
@@ -335,6 +366,11 @@ const PHASES: Record<Phase, { pose: MascotPose; line: string; help?: React.React
   },
   connecting: { pose: "reconnecting", line: "Getting Christopher on the line…" },
   listening: { pose: "listen", line: "Listening. Take your time." },
+  unheard: {
+    pose: "mic-blocked",
+    line: "Christopher cannot hear you yet",
+    help: "Say hello. If nothing happens, check that the right microphone is selected and not muted, then press Try again.",
+  },
   thinking: { pose: "think", line: "Thinking about what you said" },
   speaking: { pose: "speak", line: "Christopher is speaking" },
   "handed-back": { pose: "goahead", line: "Go ahead, he's listening" },
