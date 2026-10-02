@@ -8,6 +8,7 @@ import { sessionsRouter } from "./routes/sessions.js";
 import { usageRouter } from "./routes/usage.js";
 import { translateRouter } from "./routes/translate.js";
 import { onError } from "./http.js";
+import { prisma } from "./db.js";
 
 const app = express();
 
@@ -29,6 +30,12 @@ app.use(
 app.use(express.json());
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
+// Opened by the site as soon as it loads, so a sleeping server and database are
+// awake by the time the learner signs in or presses Start. Never fails loudly.
+app.get("/warm", async (_req, res) => {
+  const db = await prisma.$queryRaw`SELECT 1`.then(() => true, () => false);
+  res.json({ ok: true, db });
+});
 app.use(sessionRouter);
 app.use(pronounceRouter);
 app.use(coursesRouter);
@@ -37,6 +44,12 @@ app.use(usageRouter);
 app.use(translateRouter);
 app.use(onError); // must be last: converts thrown errors to 500 JSON
 
-app.listen(env.port, () => {
-  console.log(`backend on http://localhost:${env.port}`);
+const server = app.listen(env.port, () => {
+  console.log(`backend on http://localhost:${env.port} (${Math.round(process.uptime() * 1000)} ms after start)`);
+  // Open the database connection now instead of on the first learner request
+  // (TLS + a sleeping Neon compute cost ~2.5 s there).
+  prisma.$connect().catch((e) => console.error("db connect failed", e));
 });
+// Outlive the host's proxy idle timeout so it never reuses a socket we just closed (a 502).
+server.keepAliveTimeout = 120_000;
+server.headersTimeout = 121_000;

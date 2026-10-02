@@ -10,11 +10,16 @@ export interface OwnedRequest extends Request {
 }
 
 export async function owner(req: OwnedRequest, res: Response, next: NextFunction) {
+  // Every router mounts this, so a request passes it several times; resolve once.
+  if (req.ownerId) return next();
   const auth = req.header("authorization");
   const secret = process.env.CLERK_SECRET_KEY;
   if (auth?.startsWith("Bearer ") && secret) {
     try {
-      const { sub } = await verifyToken(auth.slice(7), { secretKey: secret });
+      // CLERK_JWT_KEY (the PEM public key) verifies offline. Without it Clerk
+      // fetches its signing keys over the network on the first request and again
+      // every 5 minutes, which a learner waits on.
+      const { sub } = await verifyToken(auth.slice(7), { secretKey: secret, jwtKey: process.env.CLERK_JWT_KEY });
       if (sub) {
         req.ownerId = `clerk:${sub}`;
         return next();
