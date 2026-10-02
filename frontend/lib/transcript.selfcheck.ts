@@ -22,6 +22,8 @@ for (const t of [
   "Great!",
   "You said すし, and the right word is すし with a long u.",
   "That's right, it means 'how are you'.",
+  'We say "Me gusta el café" in Spanish. So now try saying: "Me gusta el café."',
+  "Nice! Just one thing: you said 'yo es', but with yo it is 'yo soy'.",
 ]) assert.equal(looksEnglish(t), true, `english: ${t}`);
 for (const t of [
   "¡Muy bien! ¿Y qué te gusta comer?",
@@ -31,6 +33,8 @@ for (const t of [
   "Dat is goed.",
   "आप कैसे हैं?",
   "Comment tu t'appelles ?",
+  '"Me gusta el café."',
+  "Casi, dijiste \"Ayer yo como una pizza grande\", pero en pasado sería \"Ayer comí una pizza grande\".",
 ]) assert.equal(looksEnglish(t), false, `target: ${t}`);
 
 console.log("transcript self-check OK");
