@@ -206,11 +206,8 @@ export function translateLine(text: string, language: string): Promise<string> {
   let p = translations.get(key);
   if (!p) {
     p = (async () => {
-      const r = await fetch(`${BACKEND}/translate`, {
-        method: "POST",
-        headers: await jsonHeaders(),
-        body: JSON.stringify({ text, language }),
-      });
+      // Background work: never raise the "waking up" note for it.
+      const r = await call("/translate", { method: "POST", json: { text, language }, slowIsNormal: true });
       if (!r.ok) throw new Error(`/translate ${r.status}`);
       return ((await r.json()) as { translation: string }).translation ?? "";
     })().catch(() => {
