@@ -9,6 +9,7 @@
 //
 //   npx tsx backend/scripts/convo-test.mts --dry-run           (no network, free)
 //   npx tsx backend/scripts/convo-test.mts --max-usd 0.30      (real run)
+//   npx tsx backend/scripts/convo-test.mts --replay log.json   (re-check a saved run, free)
 // Options: --max-usd N (default 0.30)  --out file.json  --pin <iso code>
 //          (--pin locks transcription to one language, to compare with the
 //          default unpinned + prompted transcription)
@@ -26,6 +27,7 @@ const args = parseArgs({
     "max-usd": { type: "string", default: "0.30" },
     out: { type: "string" },
     pin: { type: "string" },
+    replay: { type: "string" },
   },
 }).values;
 const DRY = args["dry-run"]!;
@@ -33,7 +35,7 @@ const MAX_USD = Number(args["max-usd"]);
 if (!(MAX_USD > 0)) throw new Error("--max-usd must be a positive number");
 
 dotenv.config({ path: new URL("../.env", import.meta.url) });
-if (DRY) process.env.OPENAI_API_KEY ||= "dry-run";
+if (DRY || args.replay) process.env.OPENAI_API_KEY ||= "dry-run";
 // Same modules the backend uses, so model, voice, prompt and session match.
 const { env } = await import("../src/env.ts");
 const { TUTOR_SYSTEM_PROMPT, courseContext } = await import("../src/prompts/tutor.ts");
@@ -41,19 +43,21 @@ const { realtimeSession, transcriptionPrompt } = await import("../src/realtime.t
 
 // ---- The learner's script (Spanish, a brand-new course) ----------------------
 type Kind = "correct" | "name" | "name-fix" | "near-miss" | "grammar" | "english-question";
-type Turn = { say: string; kind: Kind; right?: string; name?: string };
+// wrong/right: the learner's error and its fix. answered: questions that would
+// re-ask what this turn already said or showed.
+type Turn = { say: string; kind: Kind; wrong?: string; right?: string; name?: string; answered?: RegExp[] };
 const LANGUAGE = "Spanish";
 const SCRIPT: Turn[] = [
-  { say: "Hola, me llamo Jerry.", kind: "name", name: "Jerry" },
+  { say: "Hola, me llamo Jerry.", kind: "name", name: "Jerry", answered: [/hello|\bhola\b/i, /c[oó]mo te llamas|your name|tu nombre/i] },
   { say: "No, sorry, my name is Tom, not Jerry.", kind: "name-fix", name: "Tom" },
-  { say: "Estoy muy bien, gracias. ¿Y tú?", kind: "correct" },
+  { say: "Estoy muy bien, gracias. ¿Y tú?", kind: "correct", answered: [/c[oó]mo est[aá]s|how are you|i['’]?m (fine|good|well)|estoy bien/i] },
   { say: "Grasias por la ayooda.", kind: "near-miss" }, // sounds like "gracias por la ayuda": accept it
-  { say: "Yo es estudiante de español.", kind: "grammar", right: "soy" },
+  { say: "Yo es estudiante de español.", kind: "grammar", wrong: "yo es", right: "soy" },
   { say: "How do I say I like coffee in Spanish?", kind: "english-question", right: "me gusta el café" },
-  { say: "Me gusta el café con leche.", kind: "correct" },
-  { say: "Ayer yo como una pizza grande.", kind: "grammar", right: "comí" },
-  { say: "Vivo en Londres con mi familia.", kind: "correct" },
-  { say: "Me gusta mucho leer libros.", kind: "correct" },
+  { say: "Me gusta el café con leche.", kind: "correct", answered: [/te gusta el caf[eé]|like coffee/i] },
+  { say: "Ayer yo como una pizza grande.", kind: "grammar", wrong: "como", right: "comí" },
+  { say: "Vivo en Londres con mi familia.", kind: "correct", answered: [/d[oó]nde vives|where do you live/i] },
+  { say: "Me gusta mucho leer libros.", kind: "correct", answered: [/¿\s*te gusta leer|do you like (to read|reading)/i] },
 ];
 
 // ---- Prices, USD per 1M tokens (developers.openai.com/api/docs/pricing, Oct 2026) ----
@@ -106,6 +110,20 @@ const session: any = realtimeSession({
 });
 if (args.pin) session.audio.input.transcription.language = args.pin;
 delete session.model; // over WebSocket the model goes in the URL
+
+// ---- Replay: re-run today's checks on a saved run's lines, no network --------
+if (args.replay) {
+  const log = JSON.parse(readFileSync(args.replay, "utf8"));
+  const rs: Result[] = log.results.map((r: any) => ({
+    ...r,
+    languages: r.christopher.map(lineLanguage),
+    translated: r.christopher.filter((l: string) => !looksEnglish(l)),
+    checks: check(SCRIPT[r.turn - 1], r.christopher, r.profile ?? [], r.turn - 1),
+  }));
+  for (const r of rs) printTurn(r);
+  report(rs, log.spent ?? 0);
+  process.exit(0);
+}
 
 // ---- TTS (cached on disk, so a re-run does not pay for the same audio) -------
 const RATE = 24000; // pcm16 mono, the Realtime default input format
@@ -181,15 +199,15 @@ function fakeConn(): Conn {
   let audioMs = 0;
   const emit = (e: any) => setTimeout(() => onServerEvent(e), 1);
   const replies = [
-    "¡Hola, Jerry! Encantado. ¿Cómo estás?",
+    "Hi Jerry, I am Christopher! Lovely hola. ¿Qué tal?",
     "Sorry about that, Tom! ¿Cómo estás hoy?",
-    "¡Muy bien! Yo también estoy bien. ¿Te gusta el café?",
-    "¡Perfecto! De nada. ¿Qué haces?",
-    "Almost! You said 'yo es', but it is 'yo soy'. ¿Qué estudias?",
-    "You say 'me gusta el café'. Try it!",
-    "¡Qué rico! A mí también me gusta.",
-    "Close! You said 'como', but for yesterday it is 'comí'. ¿Te gustó la pizza?",
-    "¡Londres es una ciudad bonita! ¿Te gusta vivir allí?",
+    "¡Muy bien! Yo también estoy bien, gracias. ¿Qué te gusta hacer?",
+    "¡De nada, Tom! ¿Qué haces hoy?",
+    "Nice! Just one thing: you said 'yo es', but with yo it is 'yo soy'. ¿Qué estudias?",
+    "You say 'me gusta el café'. Now you: what do you like to drink?",
+    "¡Qué rico! A mí también me gusta. ¿Dónde vives?",
+    "Good! For yesterday, use 'comí', not 'como'. Ayer comí una pizza. ¿Te gustó?",
+    "¡Londres es una ciudad bonita! ¿Qué te gusta hacer allí?",
     "¡Qué bien! ¿Qué libros te gustan?",
   ];
   return {
@@ -322,10 +340,7 @@ for (const [i, t] of SCRIPT.entries()) {
     usd: spent - before,
   });
   biggestTurn = Math.max(biggestTurn, spent - before);
-  const r = results.at(-1)!;
-  console.log(`  heard (WER ${(r.wer * 100).toFixed(0)}%): ${heard}`);
-  for (const [k, l] of christopher.entries()) console.log(`  Christopher [${r.languages[k]}]: ${l}${looksEnglish(l) ? "" : "  -> translated"}`);
-  for (const c of r.checks) console.log(`  ${c}`);
+  printTurn(results.at(-1)!, false);
   if (spent > MAX_USD) {
     console.log(`\nCap passed mid-turn ($${spent.toFixed(4)}); stopping.`);
     break;
@@ -334,16 +349,27 @@ for (const [i, t] of SCRIPT.entries()) {
 conn.close();
 
 // ---- Report ----------------------------------------------------------------------
-const loops = findLoops(results);
-const avgWer = results.reduce((a, r) => a + r.wer, 0) / Math.max(1, results.length);
-console.log(`\n==== Report ====`);
-console.log(`turns run: ${results.length}/${SCRIPT.length}, mean WER ${(avgWer * 100).toFixed(1)}%, spent $${spent.toFixed(4)}`);
-const fails = results.flatMap((r) => r.checks.filter((c) => c.startsWith("FAIL")).map((c) => `turn ${r.turn}: ${c}`));
-console.log(fails.length ? fails.join("\n") : "all checks passed");
-console.log(loops.length ? `loops:\n${loops.join("\n")}` : "no loops or repeated corrections");
+const loops = report(results, spent);
 const out = args.out ?? join(tmpdir(), `convo-test-${Date.now()}.json`);
 writeFileSync(out, JSON.stringify({ model: env.realtimeModel, session, spent, results, loops, events }, null, 2));
 console.log(`full log (every server event): ${out}`);
+
+function printTurn(r: Result, header = true) {
+  if (header) console.log(`\nTurn ${r.turn} [${r.kind}] learner: ${r.said}`);
+  console.log(`  heard (WER ${(r.wer * 100).toFixed(0)}%): ${r.heard}`);
+  for (const [k, l] of r.christopher.entries()) console.log(`  Christopher [${r.languages[k]}]: ${l}${looksEnglish(l) ? "" : "  -> translated"}`);
+  for (const c of r.checks) console.log(`  ${c}`);
+}
+function report(rs: Result[], usd: number): string[] {
+  const loops = findLoops(rs);
+  const avgWer = rs.reduce((a, r) => a + r.wer, 0) / Math.max(1, rs.length);
+  console.log(`\n==== Report ====`);
+  console.log(`turns run: ${rs.length}/${SCRIPT.length}, mean WER ${(avgWer * 100).toFixed(1)}%, spent $${usd.toFixed(4)}`);
+  const fails = rs.flatMap((r) => r.checks.filter((c) => c.startsWith("FAIL")).map((c) => `turn ${r.turn}: ${c}`));
+  console.log(fails.length ? `${fails.length} failed checks:\n${fails.join("\n")}` : "all checks passed");
+  console.log(loops.length ? `loops:\n${loops.join("\n")}` : "no loops or repeated corrections");
+  return loops;
+}
 
 // ---- Analysis helpers -------------------------------------------------------------
 function words(s: string): string[] {
@@ -364,37 +390,58 @@ function wer(said: string, heard: string): number {
   }
   return prev[b.length] / a.length;
 }
+function sentences(line: string): string[] {
+  return line.split(/(?<=[.!?。！？])\s+/u).filter((p) => /\p{L}/u.test(p));
+}
+// English, the target language, or mixed, sentence by sentence. Quoted
+// target-language words inside an English sentence keep it English.
 function lineLanguage(line: string): string {
-  const parts = line.split(/(?<=[.!?。！？])\s*/u).filter((p) => /\p{L}/u.test(p));
+  const parts = sentences(line);
   const en = parts.filter(looksEnglish).length;
   return en === parts.length ? "English" : en === 0 ? LANGUAGE : "mixed";
 }
 function has(line: string, w: string) {
   return line.normalize("NFC").toLowerCase().includes(w.normalize("NFC").toLowerCase());
 }
+// Words a tutor uses when marking something as wrong, in English or Spanish.
+function marksError(s: string): boolean {
+  return /(?<!\p{L})(almost|casi|close|not quite|you said|dijiste|diríamos|dirías mejor|we would say|we'd say|should be|instead|try again|careful|cuidado|mejor di|se dice|it'?s ["'“‘]|is ["'“‘]|not ["'“‘])(?!\p{L})/iu.test(s);
+}
 function check(t: Turn, lines: string[], profile: string[], i: number): string[] {
   const all = lines.join(" ");
+  const said = lines.flatMap(sentences);
   const out: string[] = [];
   const ok = (cond: boolean, what: string) => out.push(`${cond ? "ok  " : "FAIL"} ${what}`);
   if (!lines.length) return ["FAIL no reply"];
+  if (i === 0) {
+    ok(/^\W*(hi|hey|hello|welcome|good (morning|afternoon|evening)|nice)\b/i.test(said[0] ?? ""), "first reply greets in English");
+    ok(has(all, "christopher"), "first reply says his name");
+  }
   if (t.kind === "grammar") {
-    ok(lines.some((l) => looksEnglish(l) || lineLanguage(l) === "mixed"), "correction is in English");
-    ok(has(all, t.right!), `correction quotes the right form "${t.right}"`);
+    const corr = said.filter((s) => marksError(s) || has(s, t.right!) || has(s, t.wrong!));
+    ok(corr.length > 0 && has(all, t.right!), `corrects the real error ('${t.wrong}' -> '${t.right}')`);
+    ok(corr.some(looksEnglish), "the correction is spoken in English");
+    ok(has(all, t.wrong!) && has(all, t.right!), "quotes the learner's words and the right words");
   }
   if (t.kind === "english-question") {
-    ok(lines.some((l) => lineLanguage(l) !== LANGUAGE), "answers the English question in English");
+    ok(said.some(looksEnglish), "answers the English question in English");
     ok(has(all, t.right!), `quotes "${t.right}"`);
   }
   if (t.kind === "correct" || t.kind === "near-miss") {
-    ok(lines.some((l) => lineLanguage(l) !== "English"), `carries on in ${LANGUAGE}`);
-    ok(!/\b(you said|try again|say it again|repeat)\b/i.test(all), "no correction of an understandable line");
+    ok(said.some((s) => !looksEnglish(s)), `carries on in ${LANGUAGE}`);
+    const marked = said.find((s) => marksError(s));
+    ok(!marked, `no correction of a ${t.kind === "correct" ? "correct" : "understandable"} line${marked ? `: "${marked}"` : ""}`);
   }
   if (t.kind === "name" || t.kind === "name-fix") {
     ok(profile.some((p) => has(p, t.name!)), `update_profile saved ${t.name}`);
     ok(has(all, t.name!), `uses the name ${t.name}`);
   }
+  // Questions about something the learner has already said (this turn or before).
+  const answered = SCRIPT.slice(0, i + 1).flatMap((s) => s.answered ?? []);
+  const reask = said.find((s) => /[?？]/.test(s) && answered.some((re) => re.test(s)));
+  ok(!reask, `does not re-ask what the learner already answered${reask ? `: "${reask}"` : ""}`);
   if (i > 1) ok(!SCRIPT.slice(0, i).some((s) => s.kind === "name-fix") || !has(all, "jerry"), "never uses the old name again");
-  if (i > 0) ok(!/\b(i am christopher|christopher here|my name is christopher)\b/i.test(all), "no second greeting");
+  if (i > 0) ok(!/\b(i am christopher|christopher here|my name is christopher|soy christopher)\b/i.test(all), "no second greeting");
   return out;
 }
 function findLoops(rs: Result[]): string[] {
