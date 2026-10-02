@@ -16,6 +16,7 @@ model Course {
   userName           String    @default("")
   nativeLanguage     String    @default("")
   level              String    @default("A1")
+  stage              Int? // how much target language Christopher speaks: 1 mostly English .. 4 all target; null = not known yet
   vocabulary         String[]  @default([])
   meanings           Json      @default("{}") // term -> English meaning, cached so learned words always show a translation
   pronunciationNotes String[]  @default([])

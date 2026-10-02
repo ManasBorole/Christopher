@@ -7,5 +7,12 @@ export function profileFields(b: Record<string, unknown>) {
     userName: pick(b.userName),
     nativeLanguage: pick(b.nativeLanguage),
     level: pick(b.currentLevel) ?? pick(b.level),
+    stage: pickStage(b.stage),
   };
+}
+
+// Conversation stage 1-4 (see the tutor prompt); anything else is ignored.
+export function pickStage(v: unknown): number | undefined {
+  const n = typeof v === "string" ? Number(v) : v;
+  return typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 4 ? n : undefined;
 }

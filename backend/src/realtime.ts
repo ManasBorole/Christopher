@@ -65,13 +65,18 @@ export function realtimeSession(o: { model: string; voice: string; instructions:
         type: "function",
         name: "update_profile",
         description:
-          "Call this as soon as you learn the learner's name, their native language, or their level changes. Send only the fields you learned. If the learner corrects their name, call it again with the corrected userName: it replaces the old name.",
+          "Call this as soon as you learn the learner's name, their native language, or their level changes, and every time you move the learner to a different conversation stage. Send only the fields you learned. If the learner corrects their name, call it again with the corrected userName: it replaces the old name.",
         parameters: {
           type: "object",
           properties: {
             userName: { type: "string" },
             nativeLanguage: { type: "string" },
             currentLevel: { type: "string", enum: ["A1", "A2", "B1", "B2", "C1", "C2"] },
+            stage: {
+              type: "integer",
+              enum: [1, 2, 3, 4],
+              description: "Conversation stage: 1 New, 2 Building, 3 Conversational, 4 Fluent.",
+            },
           },
         },
       },

@@ -20,6 +20,7 @@ export type CourseCard = {
   language: string;
   userName: string;
   level: string;
+  stage: number | null; // 1 mostly English .. 4 all target language; null = not asked yet
   vocabCount: number;
   sessionCount: number;
   updatedAt: string;
@@ -41,6 +42,7 @@ export type CourseDetail = {
   userName: string;
   nativeLanguage: string;
   level: string;
+  stage: number | null;
   vocabulary: string[];
   // term -> English meaning, derived from session summaries. Not every learned
   // word has one (the pronunciation scorer records words without a translation),
@@ -69,6 +71,7 @@ export const ProfileSchema = z.object({
   nativeLanguage: z.string().optional(),
   targetLanguage: z.string().optional(),
   currentLevel: z.enum(CEFR).optional(),
+  stage: z.number().int().min(1).max(4).optional(),
 });
 export type Profile = z.infer<typeof ProfileSchema>;
 

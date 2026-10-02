@@ -3,7 +3,7 @@ import { prisma } from "../db.js";
 import { env } from "../env.js";
 import { ah } from "../http.js";
 import { owner, type OwnedRequest } from "../owner.js";
-import { profileFields } from "../profile.js";
+import { profileFields, pickStage } from "../profile.js";
 import type { CourseCard, CourseDetail, Summary } from "@vta/shared";
 
 export const coursesRouter = Router();
@@ -118,6 +118,7 @@ coursesRouter.get(
       language: c.language,
       userName: c.userName,
       level: c.level,
+      stage: c.stage,
       vocabCount: learnedWords(c.vocabulary, c.sessions).length,
       sessionCount: c._count.sessions,
       updatedAt: c.updatedAt.toISOString(),
@@ -133,11 +134,12 @@ coursesRouter.post(
     const language = String(req.body?.language ?? "").trim();
     if (!language) return res.status(400).json({ error: "language required" });
     const norm = language[0].toUpperCase() + language.slice(1).toLowerCase();
+    const stage = pickStage(req.body?.stage) ?? null; // from "How much do you know?"
     const key = { ownerId_language: { ownerId: req.ownerId!, language: norm } };
     // Two reads in parallel, then at most one insert. (Prisma's upsert on this
     // compound key took six round trips to the database.)
     const [existing, known] = await Promise.all([
-      prisma.course.findUnique({ where: key, select: { id: true } }),
+      prisma.course.findUnique({ where: key, select: { id: true, stage: true } }),
       // A new language starts with the name the learner already gave elsewhere.
       prisma.course.findFirst({
         where: { ownerId: req.ownerId, userName: { not: "" } },
@@ -148,10 +150,18 @@ coursesRouter.post(
     const c =
       existing ??
       (await prisma.course
-        .create({ data: { ownerId: req.ownerId!, language: norm, userName: known?.userName ?? "" }, select: { id: true } })
+        .create({
+          data: { ownerId: req.ownerId!, language: norm, userName: known?.userName ?? "", stage },
+          select: { id: true, stage: true },
+        })
         // a double click raced us to the insert: theirs won, use it
-        .catch(() => prisma.course.findUniqueOrThrow({ where: key, select: { id: true } })));
-    res.json({ id: c.id, language: norm });
+        .catch(() => prisma.course.findUniqueOrThrow({ where: key, select: { id: true, stage: true } })));
+    // An existing course that was never asked takes the answer too.
+    if (existing && existing.stage == null && stage != null) {
+      await prisma.course.update({ where: { id: c.id }, data: { stage } });
+      c.stage = stage;
+    }
+    res.json({ id: c.id, language: norm, stage: c.stage });
   })
 );
 
@@ -186,6 +196,7 @@ coursesRouter.get(
       userName: c.userName,
       nativeLanguage: c.nativeLanguage,
       level: c.level,
+      stage: c.stage,
       vocabulary: learnedWords(c.vocabulary, c.sessions),
       meanings: await ensureMeanings(c),
       pronunciationNotes: c.pronunciationNotes,
