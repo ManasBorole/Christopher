@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { AirmailScene } from "./airmail/scene";
+import { ART_V } from "./airmail/art";
 import "./airmail/airmail.css";
 
 // English names as the app stores them, with each language's own name first.
@@ -45,15 +46,23 @@ export default function AirmailLanding({
     if (process.env.NODE_ENV !== "production")
       (window as unknown as { __bake: (dl?: boolean) => Promise<Record<string, string>> }).__bake = (dl) => import("./airmail/bake").then((m) => m.bake(dl));
     let gone = false;
+    // no scene: keep the copy readable on the plain harbour colour
+    const flat = () => rootRef.current?.classList.add("nogl", "flat");
     import("./airmail/scene")
-      .then(({ createAirmailScene }) => {
-        if (gone || !rootRef.current) return;
-        sceneRef.current = createAirmailScene(rootRef.current, langRef.current);
-      })
-      .catch(() => {
-        // no scene: keep the copy readable on the plain harbour colour
-        rootRef.current?.classList.add("nogl", "flat");
-      });
+      .then(({ createAirmailScene }) =>
+        // start WebGL only after a frame has painted, so the server HTML and the cold open are never held up
+        requestAnimationFrame(() =>
+          setTimeout(() => {
+            if (gone || !rootRef.current) return;
+            try {
+              sceneRef.current = createAirmailScene(rootRef.current, langRef.current);
+            } catch {
+              flat();
+            }
+          })
+        )
+      )
+      .catch(flat);
     return () => {
       gone = true;
       sceneRef.current?.dispose();
@@ -66,9 +75,21 @@ export default function AirmailLanding({
 
   return (
     <div className="am" ref={rootRef}>
+      {/* the flock's card writing, fetched alongside the scene's scripts (MOB in scene.ts; the painter fetch()es it) */}
+      <link rel="preload" as="fetch" crossOrigin="anonymous" href={`/airmail/atlas.webp?v=${ART_V}`} media="(min-width: 760px) and (min-height: 634px)" />
+      <link rel="preload" as="fetch" crossOrigin="anonymous" href={`/airmail/atlas-m.webp?v=${ART_V}`} media="(max-width: 759.98px), (max-height: 633.98px)" />
       <div id="pre" aria-hidden="true">
         <div className="pc">
-          <canvas id="pcv" width={720} height={480} />
+          {/* painted from the server HTML, before any script runs */}
+          <img
+            src={`/airmail/pre.webp?v=${ART_V}`}
+            srcSet={`/airmail/pre-360.webp?v=${ART_V} 360w, /airmail/pre.webp?v=${ART_V} 720w`}
+            sizes="min(340px, 72vw)"
+            width={720}
+            height={480}
+            alt=""
+            fetchPriority="high"
+          />
           <svg viewBox="0 0 720 480" preserveAspectRatio="none">
             <defs>
               <pattern id="pcst" width="36" height="36" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">

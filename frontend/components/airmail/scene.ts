@@ -1,24 +1,26 @@
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
 import * as THREE from "three";
+import { artUrl, loadImage } from "./art";
 import { QE, QP, measureBeats, readBeats, updateHTML } from "./beats";
-import { ATLAS_COLS, ATLAS_ROWS, JP, LANGS, drawAtlas, drawBack } from "./cards";
+import { ATLAS_COLS, ATLAS_ROWS } from "./cards";
 import { createSphereDrag } from "./drag";
 import { createDust } from "./dust";
 import { createEnding } from "./ending";
 import { createFlock, lin, paperMat, type Rect, type Uniforms, type Zone } from "./flock";
 import { createHear } from "./hear";
-import { createPreloader } from "./preloader";
-import { loadImages, type ImgName } from "./images";
 import { clamp, easeOut, lerp, sm, smr } from "./math";
+import { createPainter } from "./painter";
 import { FONT, cv, drawPostmark, readFonts } from "./paper";
-import { drawAfter, drawHeroBack, drawHeroFront, drawPolaroid } from "./postcards";
+import { drawPolaroidPhoto } from "./postcards";
+import { createPreloader } from "./preloader";
 import { DOME_FRAG, DOME_VERT, TRAIL_FRAG, TRAIL_VERT } from "./shaders";
 
 /* "Airmail in flight": the landing's WebGL harbour. Every language's postcard
    rides the evening wind over the water, and the camera narrates the scroll.
-   Client only; loaded with import() after hydration.
+   Client only; loaded with import() after hydration. The copy is server HTML
+   and readable before this runs; the scene fades in behind it once the
+   flock's atlas is painted, and each later beat's artwork arrives in the
+   background, long before the story gets there.
 
    Beats (story progress p, camera damped toward key targets):
      0.000 hero        cam (0,0,14.5) looking up at the flock; horizon low
@@ -33,10 +35,13 @@ export type AirmailScene = { setLang: (lang: string) => void; dispose: () => voi
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const tanH = Math.tan(THREE.MathUtils.degToRad(35 / 2));
 type Key = [number, THREE.Vector3, THREE.Vector3];
+type Card = THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+type Paper = [tone: string, amt: number, cell: number, seed: number];
 
 export function createAirmailScene(root: HTMLElement, startLang: string): AirmailScene {
   let lang = startLang;
   const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // phones and short windows: the smaller atlas (preloaded by the same test in AirmailLanding), fewer cards and pixels
   const MOB = Math.min(innerWidth, innerHeight * 1.2) < 760 || innerWidth < 760;
   const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
   let disposed = false;
@@ -47,10 +52,10 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   };
 
   readFonts();
-  const pre = createPreloader($("#pre"), RM);
 
   /* ---------- HTML choreography (works with or without WebGL) ---------- */
   const beats = readBeats($("#stage"));
+  const pre = createPreloader($("#pre"), () => beats[0].dl !== undefined); // the hero's dust is in
   const track = $("#track");
   const mark = $<HTMLAnchorElement>(".mark");
 
@@ -60,28 +65,17 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   $("#grab").after(dustCanvas);
   const dust = createDust(dustCanvas, beats, RM, MOB);
 
-  /* ---------- scroll: Lenis + ScrollTrigger ---------- */
+  /* ---------- scroll: Lenis smooths it; progress is read straight off the page ---------- */
   const restoration = history.scrollRestoration;
   history.scrollRestoration = "manual";
   scrollTo(0, 0);
-  let targetP = 0; // page scroll progress q
-  gsap.registerPlugin(ScrollTrigger);
-  let lenis: Lenis | null = null;
-  const lenisRaf = (t: number) => lenis?.raf(t * 1000);
-  if (!RM) {
-    lenis = new Lenis({ lerp: 0.085, smoothWheel: true, wheelMultiplier: 0.9 });
-    lenis.on("scroll", ScrollTrigger.update);
-    gsap.ticker.add(lenisRaf);
-    gsap.ticker.lagSmoothing(0);
-  }
-  const st = ScrollTrigger.create({
-    trigger: track,
-    start: "top top",
-    end: "bottom bottom",
-    onUpdate: (s) => {
-      targetP = s.progress;
-    },
-  });
+  let trackTop = 0, trackSpan = 1;
+  const measureTrack = () => {
+    trackTop = track.offsetTop;
+    trackSpan = Math.max(1, track.offsetHeight - innerHeight);
+  };
+  measureTrack();
+  const lenis = RM ? null : new Lenis({ lerp: 0.085, smoothWheel: true, wheelMultiplier: 0.9 });
   // reduced motion: composed resting frames only
   const RESTS = [0, 0.31, 0.47, 0.62, 0.655, 0.69, 0.72, 0.832].map((v) => v * QP).concat([0.2, 0.6, 0.86, 1].map((e) => QE + e * (1 - QE)));
   const snap = (p: number) => RESTS.reduce((a, b) => (Math.abs(b - p) < Math.abs(a - p) ? b : a));
@@ -109,17 +103,23 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   }
 
   const textures: THREE.Texture[] = [];
-  const canvasTex = (c: HTMLCanvasElement, srgb = true, mips = true) => {
-    const t = new THREE.CanvasTexture(c);
+  // the painter hands pictures over upside down (bitmaps ignore UNPACK_FLIP_Y), so those skip the flip
+  const tex = (src: TexImageSource, srgb = true, mips = true, flipY = true) => {
+    const t = new THREE.Texture(src as HTMLImageElement);
+    t.flipY = flipY;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = Math.min(8, renderer?.capabilities.getMaxAnisotropy() ?? 1);
     if (!mips) {
       t.generateMipmaps = false;
       t.minFilter = THREE.LinearFilter;
     }
+    t.needsUpdate = true;
     textures.push(t);
     return t;
   };
+  const painter = createPainter();
+  const painted = (name: string, w: number, h: number, paper: Paper) =>
+    painter.paint({ w, h, paper, layer: artUrl(name) }).then((s) => tex(s, true, true, false));
 
   const shared: Uniforms = {
     uZen: { value: lin("#081a1f") },
@@ -139,16 +139,6 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     uFogF: { value: 58 },
   };
 
-  const T0 = performance.now();
-  const images = loadImages((done, total) => pre.set(0.08 + (0.42 * done) / total));
-  const imgs = images.imgs;
-  const drawPre = () => {
-    if (!disposed) pre.draw(imgs.wave);
-  };
-  drawPre();
-  document.fonts.ready.then(drawPre);
-  images.whenImg(["wave"], drawPre);
-
   const N = MOB ? 183 : 340, F = 183;
   const H0 = V(0, 1.3, -3), S0 = V(0, 1.8, -8), G0 = V(0, 0.8, 2), Q0 = V(0, -1.5, 2.5);
   const SR = MOB ? 4.4 : 5.2;
@@ -159,35 +149,34 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   let flock: ReturnType<typeof createFlock> | null = null;
   let sky: THREE.Mesh | null = null;
   let ending: ReturnType<typeof createEnding> | null = null;
-  let hero: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
-  let after: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
+  let hero: Card | null = null;
+  let after: Card | null = null;
   let trail: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null = null;
   const TS = 48; // trail segments
-  type Polaroid = { mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>; ctx: CanvasRenderingContext2D; tex: THREE.Texture; cap: string; w: number };
+  type Polaroid = { mesh: Card; tex: THREE.Texture; w: number };
   const polas: Polaroid[] = [];
+  // Christopher's four conversation states; caption lengths seed their grain, as when they were baked
+  const POL = ["listening", "thinking", "speaking", "go ahead, you first"];
+
+  // compile a newcomer's shaders without stalling a frame, where the GPU allows
+  const warm = (o: THREE.Object3D) => renderer?.compileAsync(o, camera, scene).catch(() => {});
+  const late = (what: string) => (err: unknown) => console.warn(`landing: the ${what} did not load`, err);
 
   async function build(gl: THREE.WebGLRenderer) {
-    const fontJobs = [`700 64px ${FONT.display}`, `600 64px ${FONT.display}`, `500 30px ${FONT.sans}`, `600 30px ${FONT.sans}`, `700 30px ${FONT.sans}`, `40px ${FONT.hand}`].map((f) =>
-      document.fonts.load(f, "Greetings from Christopher 0123")
-    );
-    const names = LANGS.map((l) => l.n).join("");
-    for (const w of ["400", "500", "700"]) fontJobs.push(document.fonts.load(`${w} 40px ${FONT.jp}`, JP + names));
-    for (const f of [FONT.deva, FONT.arab, FONT.hebr]) fontJobs.push(document.fonts.load(`700 40px ${f}`, names));
-    Promise.all(fontJobs).then(() => pre.set(pre.v + 0.2));
-    await Promise.race([
-      Promise.all([...fontJobs, ...images.jobs]),
-      new Promise((r) => setTimeout(r, Math.max(800, 6000 - (performance.now() - T0)))),
-    ]);
-    try {
-      await document.fonts.ready;
-    } catch {
-      /* draw with whatever is loaded */
-    }
-    if (disposed) return;
-    pre.set(0.62);
-
-    gl.setPixelRatio(Math.min(devicePixelRatio, MOB ? 1.5 : 1.75));
+    gl.setPixelRatio(Math.min(devicePixelRatio, MOB ? 1.3 : 1.75));
     gl.setSize(innerWidth, innerHeight, false);
+
+    // ask for everything now, in story order: the worker paints the atlas first
+    const atlasP = painter.paint({ w: 0, h: 0, atlas: MOB, layer: artUrl(MOB ? "atlas-m" : "atlas") }).then((s) => tex(s, true, true, false));
+    const heroP = Promise.all([
+      painted("hero-front", 1536, 1024, ["#f0e4cc", 1, 2, 5]),
+      painted("hero-back", 1536, 1024, ["#f0e4cc", 1, 2, 77]),
+      painted("hero-ink", 1536, 1024, ["#f0e4cc", 1, 2, 77]),
+      loadImage(artUrl("hero-mask")).then((im) => tex(im, false, false)),
+    ]);
+    const afterP = Promise.all([painted("after-front", 1536, 1024, ["#f0e4cc", 1, 2, 901]), painted("after-back", 1024, 683, ["#f3e8d2", 0.9, 1.5, 304])]);
+    const polaP = Promise.all(POL.map((cap, k) => painted(`pola-${k}`, 600, 780, ["#f4ecdc", 0.85, 1.5, cap.length * 31])));
+    const stampP = loadImage(artUrl("stamp")).then((im) => tex(im));
 
     // sky dome
     sky = new THREE.Mesh(
@@ -196,84 +185,6 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     );
     sky.renderOrder = -1;
     scene.add(sky);
-
-    flock = createFlock(N, F, canvasTex(drawAtlas(MOB)), ATLAS_COLS, ATLAS_ROWS, shared);
-    scene.add(flock.mesh);
-    pre.set(0.8);
-
-    // hero postcard
-    const HW = 1536, HH = 1024;
-    const hf = cv(HW, HH);
-    drawHeroFront(hf.getContext("2d")!, imgs.wave);
-    const hb = cv(HW, HH), hi = cv(HW, HH), hm = cv(HW, HH);
-    drawHeroBack(hb.getContext("2d")!, null, imgs.idle, false);
-    drawHeroBack(hi.getContext("2d")!, hm.getContext("2d")!, imgs.idle, true);
-    hero = new THREE.Mesh(
-      new THREE.PlaneGeometry(3, 2, 48, 32),
-      paperMat(shared, { HERO: "" }, {
-        tFront: { value: canvasTex(hf) },
-        tBack: { value: canvasTex(hb) },
-        tInk: { value: canvasTex(hi) },
-        tMask: { value: canvasTex(hm, false, false) },
-        uDraw: { value: 0 },
-      })
-    );
-    hero.material.uniforms.uSize.value.set(3, 2);
-    hero.frustumCulled = false;
-    scene.add(hero);
-    // a photo that arrives after baking redraws its card
-    const HU = hero.material.uniforms;
-    images.whenImg(["wave"], () => {
-      drawHeroFront(hf.getContext("2d")!, imgs.wave);
-      HU.tFront.value.needsUpdate = true;
-    });
-    images.whenImg(["idle"], () => {
-      drawHeroBack(hb.getContext("2d")!, null, imgs.idle, false);
-      drawHeroBack(hi.getContext("2d")!, hm.getContext("2d")!, imgs.idle, true);
-      HU.tBack.value.needsUpdate = HU.tInk.value.needsUpdate = true;
-    });
-
-    // after-conversation postcard
-    const af = cv(HW, HH);
-    drawAfter(af.getContext("2d")!, imgs.postcard);
-    const ab = cv(1024, 683);
-    drawBack(ab.getContext("2d")!, 0, 0, 1024, 683, 3, 0.9, 1.5);
-    const pm = cv(512, 512);
-    drawPostmark(pm.getContext("2d")!, 512);
-    after = new THREE.Mesh(
-      new THREE.PlaneGeometry(3, 2, 56, 36),
-      paperMat(shared, { POSTMARK: "" }, {
-        tFront: { value: canvasTex(af) },
-        tBack: { value: canvasTex(ab) },
-        tPost: { value: canvasTex(pm) },
-        uPM: { value: new THREE.Vector4(0.795, 0.7, 0.2, 0.3) },
-        uStamp: { value: new THREE.Vector2(1, 0) },
-      })
-    );
-    after.material.uniforms.uSize.value.set(3, 2);
-    after.frustumCulled = false;
-    scene.add(after);
-    const AU = after.material.uniforms;
-    images.whenImg(["postcard"], () => {
-      drawAfter(af.getContext("2d")!, imgs.postcard);
-      AU.tFront.value.needsUpdate = true;
-    });
-    ending = createEnding({
-      scene,
-      renderer: gl,
-      shared,
-      canvasTex,
-      imgs,
-      whenImg: images.whenImg,
-      postTex: after.material.uniforms.tPost.value,
-      ctaB: $("#ctaB"),
-      RM,
-      camera,
-      camR: flock.camR,
-      camU: flock.camU,
-      keys: () => KEYS,
-      MOB,
-    });
 
     // the paper plane's trail ribbon
     const tg = new THREE.BufferGeometry();
@@ -303,33 +214,79 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     trail.frustumCulled = false;
     scene.add(trail);
 
-    // polaroids: Christopher's four conversation states
-    const back = cv(8, 8), bx = back.getContext("2d")!;
-    bx.fillStyle = "#efe6d3";
-    bx.fillRect(0, 0, 8, 8);
-    const backTex = canvasTex(back);
-    const POL: [ImgName, string][] = [
-      ["listen", "listening"],
-      ["think", "thinking"],
-      ["speak-open", "speaking"],
-      ["goahead", "go ahead, you first"],
-    ];
-    for (const [im, cap] of POL) {
-      const c = cv(600, 780), ctx = c.getContext("2d")!;
-      drawPolaroid(ctx, imgs[im], cap);
-      const tex = canvasTex(c);
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.56, 10, 13), paperMat(shared, {}, { tFront: { value: tex }, tBack: { value: backTex } }));
-      mesh.material.uniforms.uSize.value.set(1.2, 1.56);
-      mesh.frustumCulled = false;
-      polas.push({ mesh, ctx, tex, cap, w: 0 });
-      images.whenImg([im], () => {
-        drawPolaroid(ctx, imgs[im], cap);
-        tex.needsUpdate = true;
-      });
-      scene.add(mesh);
-    }
-    gl.compile(scene, camera);
-    pre.set(0.95);
+    flock = createFlock(N, F, await atlasP, ATLAS_COLS, ATLAS_ROWS, shared);
+    if (disposed) return;
+    scene.add(flock.mesh);
+
+    // the red postmark carries the visitor's own date, so it is drawn here
+    const pm = cv(512, 512), postTex = tex(pm);
+    document.fonts.load(`700 30px ${FONT.sans}`, "SAID OUT LOUD 0123").then(() => {
+      if (disposed) return;
+      drawPostmark(pm.getContext("2d")!, 512);
+      postTex.needsUpdate = true;
+    });
+    ending = createEnding({
+      scene,
+      renderer: gl,
+      shared,
+      canvasTex: (c) => tex(c),
+      paint: painter.paint,
+      stamp: stampP,
+      postTex,
+      ctaB: $("#ctaB"),
+      RM,
+      camera,
+      camR: flock.camR,
+      camU: flock.camU,
+      keys: () => KEYS,
+      MOB,
+    });
+    await gl.compileAsync(scene, camera);
+
+    // later beats, as their artwork comes in
+    heroP.then(([f, b, i, m]) => {
+      if (disposed) return;
+      hero = new THREE.Mesh(
+        new THREE.PlaneGeometry(3, 2, 48, 32),
+        paperMat(shared, { HERO: "" }, { tFront: { value: f }, tBack: { value: b }, tInk: { value: i }, tMask: { value: m }, uDraw: { value: 0 } })
+      );
+      hero.material.uniforms.uSize.value.set(3, 2);
+      hero.frustumCulled = false;
+      scene.add(hero);
+      warm(hero);
+    }, late("hero card"));
+    afterP.then(([f, b]) => {
+      if (disposed) return;
+      after = new THREE.Mesh(
+        new THREE.PlaneGeometry(3, 2, 56, 36),
+        paperMat(shared, { POSTMARK: "" }, {
+          tFront: { value: f },
+          tBack: { value: b },
+          tPost: { value: postTex },
+          uPM: { value: new THREE.Vector4(0.795, 0.7, 0.2, 0.3) },
+          uStamp: { value: new THREE.Vector2(1, 0) },
+        })
+      );
+      after.material.uniforms.uSize.value.set(3, 2);
+      after.frustumCulled = false;
+      scene.add(after);
+      warm(after);
+    }, late("postcard"));
+    polaP.then((ts) => {
+      if (disposed) return;
+      const back = cv(8, 8), bx = back.getContext("2d")!;
+      bx.fillStyle = "#efe6d3";
+      bx.fillRect(0, 0, 8, 8);
+      const backTex = tex(back);
+      for (const t of ts) {
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.56, 10, 13), paperMat(shared, {}, { tFront: { value: t }, tBack: { value: backTex } }));
+        mesh.material.uniforms.uSize.value.set(1.2, 1.56);
+        mesh.frustumCulled = false;
+        polas.push({ mesh, tex: t, w: 0 });
+        scene.add(mesh);
+      }
+      warm(polas[0].mesh);
+    }, late("polaroids"));
   }
 
   /* ---------- camera choreography ---------- */
@@ -540,20 +497,34 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     rib.material.uniforms.uO.value = sm(0.885, 0.9, p) * (1 - sm(0.95, 0.97, p));
   }
 
-  // speaking frames on his polaroid while a clip plays
-  let speakTimer = 0;
+  // speaking frames on his polaroid while a clip plays, fetched the first time one does
+  let speakTimer = 0, spk: { c: HTMLCanvasElement; tex: THREE.Texture } | null = null;
+  const FRAMES = ["speak-open", "speak-half", "speak-closed", "speak-half"];
+  const frames: Record<string, HTMLImageElement> = {};
   function speakFrames(on: boolean) {
     const pl = polas[2];
     if (!pl) return;
     clearInterval(speakTimer);
-    const frames: ImgName[] = ["speak-open", "speak-half", "speak-closed", "speak-half"];
+    const U = pl.mesh.material.uniforms;
+    U.tFront.value = pl.tex; // the baked card is the resting frame
+    if (!on) return;
+    for (const n of FRAMES) if (!frames[n]) (frames[n] = new Image()).src = `/mascot/${n}.webp`;
+    if (!spk) {
+      const c = cv(600, 780), x = c.getContext("2d")!;
+      x.setTransform(1, 0, 0, -1, 0, 780); // the baked card is stored upside down for WebGL
+      x.drawImage(pl.tex.image as CanvasImageSource, 0, 0);
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      spk = { c, tex: tex(c) };
+    }
+    const sp = spk;
     let k = 0;
-    const draw = (name: ImgName) => {
-      drawPolaroid(pl.ctx, imgs[name] || imgs["speak-open"], pl.cap);
-      pl.tex.needsUpdate = true;
-    };
-    if (on) speakTimer = window.setInterval(() => draw(frames[k++ % 4]), 140);
-    else draw("speak-open");
+    speakTimer = window.setInterval(() => {
+      const im = frames[FRAMES[k++ % 4]];
+      if (!im.complete || !im.naturalWidth) return;
+      drawPolaroidPhoto(sp.c.getContext("2d")!, im);
+      sp.tex.needsUpdate = true;
+      U.tFront.value = sp.tex;
+    }, 140);
   }
   const hear = createHear($<HTMLButtonElement>("#hear"), $("#sub"), {
     lang: () => lang,
@@ -564,7 +535,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   });
 
   /* ---------- main loop ---------- */
-  let q = RM ? snap(targetP) : 0, p = 0, pPrev = 0, tAcc = 0, last = performance.now() / 1000, bend = 0, ready = false;
+  let q = RM ? snap(clamp((scrollY - trackTop) / trackSpan)) : 0, p = 0, pPrev = 0, tAcc = 0, last = performance.now() / 1000, bend = 0, ready = false;
   const camP = V(0, 0, 14.5), camT = V(0, 2.4, 0), wantP = V(), wantT = V();
   // clearing zones: the flock parts around each subject's line of sight, the pointer and the lens
   const zone = (r0: number, rk = 0): Zone => ({ a: V(), b: V(), r0, rk, w: 0 });
@@ -580,15 +551,17 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     const now = performance.now() / 1000, dt = Math.min(0.05, now - last);
     last = now;
     if (document.hidden) return;
+    const targetP = clamp((scrollY - trackTop) / trackSpan);
     if (RM) q = snap(targetP);
     else q += (targetP - q) * (1 - Math.exp(-dt * 6));
     p = Math.min(1, q / QP);
     const vel = Math.abs(p - pPrev) / Math.max(dt, 1e-3);
     pPrev = p;
-    updateHTML(beats, q, pre.reveal(), RM);
-    dust.draw(q, pre.reveal());
+    const reveal = pre.reveal();
+    updateHTML(beats, q, reveal, RM);
+    dust.draw(q, reveal);
     const e = clamp((q - QE) / (1 - QE));
-    if (!ready || !renderer || !flock || !sky || !hero || !after || !trail || !ending) return;
+    if (!ready || !renderer || !flock || !sky || !trail || !ending) return;
     tAcc += dt * (RM ? 0.25 : 1);
     bend += (Math.min(0.32, vel * 1.6) - bend) * (1 - Math.exp(-dt * 4));
     const t = tAcc;
@@ -662,15 +635,24 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       endCard: ending.endCard,
     });
     drag.update(form, dt, S0, SR, tanH);
-    poseHero(hero, p, t);
+    if (hero) poseHero(hero, p, t);
     posePolas(p, t);
-    posePost(after, trail, p, now);
+    if (after) posePost(after, trail, p, now);
+    else trail.visible = false;
     ending.poseC(e, t, renderer.getPixelRatio());
     ending.render(scene, camera, e, t, now);
+    if (!glCanvas.classList.contains("on")) glCanvas.classList.add("on");
   }
-  gsap.ticker.add(tick);
+  let raf = 0;
+  const frame = (ms: number) => {
+    raf = requestAnimationFrame(frame);
+    lenis?.raf(ms);
+    tick();
+  };
+  raf = requestAnimationFrame(frame);
 
   const measureAll = () => {
+    measureTrack();
     measureBeats(beats);
     dust.measure();
   };
@@ -697,17 +679,15 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
         if (disposed) return;
         buildKeys();
         ending?.build();
-        measureAll();
+        measureBeats(beats);
         ready = true;
-        pre.finish();
       })
       .catch((err) => {
         console.warn("scene failed", err);
         root.classList.add("nogl");
-        pre.finish();
       });
-  else pre.finish();
   updateHTML(beats, 0, pre.reveal(), RM);
+  root.classList.add("live"); // the choreography owns the copy from here
 
   let langT = 0;
   return {
@@ -724,13 +704,10 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       hear.dispose();
       clearInterval(speakTimer);
       statesEls.forEach((el) => el.classList.remove("act"));
-      images.dispose();
+      painter.dispose();
       pre.dispose();
       drag.dispose();
-      gsap.ticker.remove(tick);
-      gsap.ticker.remove(lenisRaf);
-      gsap.ticker.lagSmoothing(500, 33);
-      st.kill();
+      cancelAnimationFrame(raf);
       // stop first: it settles Lenis's pending scroll-end timer, which would otherwise re-add its html class after destroy
       lenis?.stop();
       lenis?.destroy();
@@ -754,7 +731,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
         b.el.classList.remove("on");
         b.el.style.maskImage = b.el.style.webkitMaskImage = "";
       }
-      root.classList.remove("nogl");
+      root.classList.remove("nogl", "live");
     },
   };
 }
