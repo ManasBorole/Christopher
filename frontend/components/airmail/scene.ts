@@ -9,6 +9,7 @@ import { createDust } from "./dust";
 import { createEnding } from "./ending";
 import { createFlock, lin, paperMat, type Rect, type Uniforms, type Zone } from "./flock";
 import { createHear } from "./hear";
+import { createPreloader } from "./preloader";
 import { loadImages, type ImgName } from "./images";
 import { clamp, easeOut, lerp, sm, smr } from "./math";
 import { FONT, cv, drawPostmark, readFonts } from "./paper";
@@ -44,6 +45,9 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     addEventListener(type, fn, o);
     offs.push(() => removeEventListener(type, fn, o));
   };
+
+  readFonts();
+  const pre = createPreloader($("#pre"), RM);
 
   /* ---------- HTML choreography (works with or without WebGL) ---------- */
   const beats = readBeats($("#stage"));
@@ -136,8 +140,14 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   };
 
   const T0 = performance.now();
-  const images = loadImages(() => {});
+  const images = loadImages((done, total) => pre.set(0.08 + (0.42 * done) / total));
   const imgs = images.imgs;
+  const drawPre = () => {
+    if (!disposed) pre.draw(imgs.wave);
+  };
+  drawPre();
+  document.fonts.ready.then(drawPre);
+  images.whenImg(["wave"], drawPre);
 
   const N = MOB ? 183 : 340, F = 183;
   const H0 = V(0, 1.3, -3), S0 = V(0, 1.8, -8), G0 = V(0, 0.8, 2), Q0 = V(0, -1.5, 2.5);
@@ -153,17 +163,17 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   let after: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
   let trail: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null = null;
   const TS = 48; // trail segments
-  type Polaroid ={ mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>; ctx: CanvasRenderingContext2D; tex: THREE.Texture; cap: string; w: number };
+  type Polaroid = { mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>; ctx: CanvasRenderingContext2D; tex: THREE.Texture; cap: string; w: number };
   const polas: Polaroid[] = [];
 
   async function build(gl: THREE.WebGLRenderer) {
-    readFonts();
     const fontJobs = [`700 64px ${FONT.display}`, `600 64px ${FONT.display}`, `500 30px ${FONT.sans}`, `600 30px ${FONT.sans}`, `700 30px ${FONT.sans}`, `40px ${FONT.hand}`].map((f) =>
       document.fonts.load(f, "Greetings from Christopher 0123")
     );
     const names = LANGS.map((l) => l.n).join("");
     for (const w of ["400", "500", "700"]) fontJobs.push(document.fonts.load(`${w} 40px ${FONT.jp}`, JP + names));
     for (const f of [FONT.deva, FONT.arab, FONT.hebr]) fontJobs.push(document.fonts.load(`700 40px ${f}`, names));
+    Promise.all(fontJobs).then(() => pre.set(pre.v + 0.2));
     await Promise.race([
       Promise.all([...fontJobs, ...images.jobs]),
       new Promise((r) => setTimeout(r, Math.max(800, 6000 - (performance.now() - T0)))),
@@ -174,6 +184,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       /* draw with whatever is loaded */
     }
     if (disposed) return;
+    pre.set(0.62);
 
     gl.setPixelRatio(Math.min(devicePixelRatio, MOB ? 1.5 : 1.75));
     gl.setSize(innerWidth, innerHeight, false);
@@ -188,6 +199,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
 
     flock = createFlock(N, F, canvasTex(drawAtlas(MOB)), ATLAS_COLS, ATLAS_ROWS, shared);
     scene.add(flock.mesh);
+    pre.set(0.8);
 
     // hero postcard
     const HW = 1536, HH = 1024;
@@ -296,6 +308,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       scene.add(mesh);
     }
     gl.compile(scene, camera);
+    pre.set(0.95);
   }
 
   /* ---------- camera choreography ---------- */
@@ -551,8 +564,8 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     p = Math.min(1, q / QP);
     const vel = Math.abs(p - pPrev) / Math.max(dt, 1e-3);
     pPrev = p;
-    updateHTML(beats, q, 1, RM);
-    dust.draw(q, 1);
+    updateHTML(beats, q, pre.reveal(), RM);
+    dust.draw(q, pre.reveal());
     const e = clamp((q - QE) / (1 - QE));
     if (!ready || !renderer || !flock || !sky || !hero || !after || !trail || !ending) return;
     tAcc += dt * (RM ? 0.25 : 1);
@@ -665,12 +678,15 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
         ending?.build();
         measureAll();
         ready = true;
+        pre.finish();
       })
       .catch((err) => {
         console.warn("scene failed", err);
         root.classList.add("nogl");
+        pre.finish();
       });
-  updateHTML(beats, 0, 1, RM);
+  else pre.finish();
+  updateHTML(beats, 0, pre.reveal(), RM);
 
   let langT = 0;
   return {
@@ -688,6 +704,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       clearInterval(speakTimer);
       statesEls.forEach((el) => el.classList.remove("act"));
       images.dispose();
+      pre.dispose();
       drag.dispose();
       gsap.ticker.remove(tick);
       gsap.ticker.remove(lenisRaf);

@@ -382,6 +382,55 @@ html.lenis body {
 .am #ctaB.on {
   visibility: visible;
 }
+.am #pre {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: #123a40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 900px;
+  transition: background-color 0.6s ease, opacity 0.6s ease;
+}
+.am #pre.done {
+  background-color: rgba(18, 58, 64, 0);
+  pointer-events: none;
+}
+.am #pre.gone {
+  opacity: 0;
+}
+.am .pc {
+  position: relative;
+  width: min(340px, 72vw);
+  aspect-ratio: 3 / 2;
+  background: #f0e4cc;
+  box-shadow: 0 18px 40px rgba(4, 20, 24, 0.45);
+  transform-origin: 50% 0;
+  animation: am-pcdrop 0.42s cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+.am .pc canvas,
+.am .pc svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.am #pcs {
+  transition: stroke-dashoffset 0.35s ease-out;
+}
+@keyframes am-pcdrop {
+  0% {
+    transform: translateY(-62vh) rotate(-8deg) rotateX(38deg);
+  }
+  72% {
+    transform: translateY(5px) rotate(1deg) rotateX(-7deg);
+  }
+  100% {
+    transform: none;
+  }
+}
 .am .sr {
   position: absolute;
   width: 1px;
@@ -391,6 +440,16 @@ html.lenis body {
 }
 .am.nogl #gl {
   display: none;
+}
+/* the scene module failed to load: drop the cold open, show the hero as plain markup */
+.am.flat #pre {
+  display: none;
+}
+.am.flat .hero {
+  visibility: visible;
+}
+.am.flat .hero .hit {
+  pointer-events: auto;
 }
 @media (max-height: 760px) and (min-width: 761px) {
   .am .row {
@@ -482,7 +541,12 @@ html.lenis body {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .am .states li {
+  .am .states li,
+  .am #pre,
+  .am #pcs {
     transition: none;
+  }
+  .am .pc {
+    animation: none;
   }
 }

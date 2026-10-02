@@ -42,10 +42,15 @@ export default function AirmailLanding({
 
   useEffect(() => {
     let gone = false;
-    import("./airmail/scene").then(({ createAirmailScene }) => {
-      if (gone || !rootRef.current) return;
-      sceneRef.current = createAirmailScene(rootRef.current, langRef.current);
-    });
+    import("./airmail/scene")
+      .then(({ createAirmailScene }) => {
+        if (gone || !rootRef.current) return;
+        sceneRef.current = createAirmailScene(rootRef.current, langRef.current);
+      })
+      .catch(() => {
+        // no scene: keep the copy readable on the plain harbour colour
+        rootRef.current?.classList.add("nogl", "flat");
+      });
     return () => {
       gone = true;
       sceneRef.current?.dispose();
@@ -58,6 +63,33 @@ export default function AirmailLanding({
 
   return (
     <div className="am" ref={rootRef}>
+      <div id="pre" aria-hidden="true">
+        <div className="pc">
+          <canvas id="pcv" width={720} height={480} />
+          <svg viewBox="0 0 720 480" preserveAspectRatio="none">
+            <defs>
+              <pattern id="pcst" width="36" height="36" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="36" height="36" fill="#f3e8d2" />
+                <rect width="12" height="36" fill="#d64545" />
+                <rect x="18" width="12" height="36" fill="#2f5da8" />
+              </pattern>
+            </defs>
+            <rect
+              id="pcs"
+              x="9"
+              y="9"
+              width="702"
+              height="462"
+              fill="none"
+              stroke="url(#pcst)"
+              strokeWidth="18"
+              pathLength={1}
+              strokeDasharray="1 1"
+              strokeDashoffset="1"
+            />
+          </svg>
+        </div>
+      </div>
       <div id="grab" aria-hidden="true" />
 
       <header className="top">
