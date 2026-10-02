@@ -3,6 +3,7 @@ import { prisma } from "../db.js";
 import { env } from "../env.js";
 import { ah } from "../http.js";
 import { owner, type OwnedRequest } from "../owner.js";
+import { profileFields } from "../profile.js";
 import type { CourseCard, CourseDetail, Summary } from "@vta/shared";
 
 export const coursesRouter = Router();
@@ -201,9 +202,7 @@ coursesRouter.patch(
     await prisma.course.update({
       where: { id: c.id },
       data: {
-        userName: b.userName ?? undefined,
-        nativeLanguage: b.nativeLanguage ?? undefined,
-        level: b.currentLevel ?? b.level ?? undefined,
+        ...profileFields(b),
         vocabulary,
         pronunciationNotes,
       },
