@@ -155,6 +155,10 @@ Christopher/
 
 **Shared contracts.** Types and Zod schemas for summaries, profiles, tokens and course data live in one workspace package, [`shared/src/index.ts`](shared/src/index.ts), imported by both sides as raw TypeScript. The backend validates the summary model's output against `SummarySchema` before saving it.
 
+**A 3D landing that does not cost the first paint.** The landing is a WebGL scene (three.js, with GSAP ScrollTrigger and Lenis for the scroll), but those libraries are loaded with a dynamic `import()` after the page has hydrated ([`AirmailLanding.tsx`](frontend/components/AirmailLanding.tsx)). The headline, button and language menu are plain HTML that render straight away, and the landing's first-load JavaScript stayed the same size as the old page. The scene's `dispose()` tears down both WebGL contexts, the scroll triggers and every listener, so going into the app and back does not leak or stack scenes. The copy dissolving into dust is computed on the GPU from the scroll position, so scrolling back gathers it again. With reduced motion the scene snaps to still frames; without WebGL the copy shows on a flat background.
+
+**Recorded demo clips instead of live speech.** The landing's "Hear it" plays the same short conversation in 14 languages, in which the learner slips on the past tense and Christopher answers with the right form. The clips were generated once with OpenAI text-to-speech and ship as static files in `frontend/public/hear/`, so playing them costs nothing and does not touch the API key. Generating speech on each click would be slower, billed per play, and open to abuse.
+
 **Self-checks instead of a test framework.** Each piece of logic with real branches has a small runnable file that asserts its behaviour and needs no keys or database. They're listed under [Run it locally](#run-it-locally).
 
 ## Run it locally
@@ -266,6 +270,8 @@ This is an npm-workspaces monorepo, and `@vta/shared` is imported as raw TypeScr
 - Every conversation runs on the OpenAI Realtime API, which is billed by audio usage; the trial gate is the only cost control.
 - Transcription is pinned to the learned language only for the 20 language names in `session.ts`; the rest rely on auto-detection, which can confuse similar languages on short clips.
 - The picker lists 183 languages, but how well Christopher teaches each one depends on the Realtime model, not on this app.
+- The landing needs WebGL and is heavy on older phones; there is no lighter version beyond the reduced-motion still frames.
+- The Hear it scripts were written without a native-speaker review for every language.
 - I have checked the interface in Chromium. I have not verified voice conversations in Safari or Firefox for this README.
 
 ## License and author
