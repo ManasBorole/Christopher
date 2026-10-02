@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import Splash from "../components/Splash";
 import Landing from "../components/AirmailLanding";
 import AuthOverlay from "../components/AuthOverlay";
@@ -36,8 +36,9 @@ export default function Page() {
   // (a reload keeps you where you were). Never push an entry here: Chrome and
   // Edge skip entries a page adds without a user gesture, so an entry pushed on
   // load made Back jump straight past the landing and off the site. Entries
-  // are only ever pushed from clicks.
-  useEffect(() => {
+  // are only ever pushed from clicks. Read before the first paint, so a reload
+  // inside the app never flashes the landing's preloader first.
+  useLayoutEffect(() => {
     const entered = sessionStorage.getItem("vta_entered");
     let initial = readHistory(history.state);
     // A reload mid-conversation can't resume that session; reopen its course.
