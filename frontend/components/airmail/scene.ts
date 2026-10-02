@@ -7,7 +7,7 @@ import { ATLAS_COLS, ATLAS_ROWS, JP, LANGS, drawAtlas, drawBack } from "./cards"
 import { createSphereDrag } from "./drag";
 import { createDust } from "./dust";
 import { createEnding } from "./ending";
-import { createFlock, paperMat, type Rect, type Uniforms, type Zone } from "./flock";
+import { createFlock, lin, paperMat, type Rect, type Uniforms, type Zone } from "./flock";
 import { createHear } from "./hear";
 import { loadImages, type ImgName } from "./images";
 import { clamp, easeOut, lerp, sm, smr } from "./math";
@@ -29,10 +29,6 @@ import { DOME_FRAG, DOME_VERT, TRAIL_FRAG, TRAIL_VERT } from "./shaders";
 
 export type AirmailScene = { setLang: (lang: string) => void; dispose: () => void };
 
-const lin = (hex: string) => {
-  const n = parseInt(hex.slice(1), 16);
-  return new THREE.Color().setRGB(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, THREE.LinearSRGBColorSpace);
-};
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const tanH = Math.tan(THREE.MathUtils.degToRad(35 / 2));
 type Key = [number, THREE.Vector3, THREE.Vector3];
@@ -192,7 +188,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
 
     flock = createFlock(N, F, canvasTex(drawAtlas(MOB)), ATLAS_COLS, ATLAS_ROWS, shared);
     scene.add(flock.mesh);
-    ending = createEnding({ camera, camR: flock.camR, camU: flock.camU, keys: () => KEYS, MOB });
+    ending = createEnding({ scene, shared, camera, camR: flock.camR, camU: flock.camU, keys: () => KEYS, MOB });
 
     // hero postcard
     const HW = 1536, HH = 1024;
@@ -559,6 +555,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       wantP.lerp(tmpV.add(V(0, 1.6, 7.5)), fw * 0.35 * sm(0.884, 0.93, p));
     }
     if (e > 0) ending.endCam(e, wantT);
+    ending.light(e);
     if (RM) {
       camP.copy(wantP);
       camT.copy(wantT);
@@ -620,6 +617,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     poseHero(hero, p, t);
     posePolas(p, t);
     posePost(after, trail, p, now);
+    ending.poseC(e, t, renderer.getPixelRatio());
     renderer.render(scene, camera);
   }
   gsap.ticker.add(tick);
@@ -638,6 +636,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       camera.updateProjectionMatrix();
       renderer.setSize(innerWidth, innerHeight, false);
       buildKeys();
+      ending?.buildC();
     }, 150);
   });
   document.fonts.ready.then(() => {
@@ -649,6 +648,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       .then(() => {
         if (disposed) return;
         buildKeys();
+        ending?.buildC();
         measureAll();
         ready = true;
       })

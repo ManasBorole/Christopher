@@ -7,6 +7,12 @@ import { PAPER_FRAG, PAPER_VERT } from "./shaders";
 
 export type Uniforms = Record<string, THREE.IUniform>;
 
+// an sRGB hex as a linear colour, for shader uniforms
+export const lin = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16);
+  return new THREE.Color().setRGB(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, THREE.LinearSRGBColorSpace);
+};
+
 export function paperMat(shared: Uniforms, defs: Record<string, string>, extra: Uniforms) {
   return new THREE.ShaderMaterial({
     defines: defs,
