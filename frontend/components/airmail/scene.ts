@@ -6,6 +6,7 @@ import { QE, QP, measureBeats, readBeats, updateHTML } from "./beats";
 import { ATLAS_COLS, ATLAS_ROWS, JP, LANGS, drawAtlas, drawBack } from "./cards";
 import { createSphereDrag } from "./drag";
 import { createDust } from "./dust";
+import { createEnding } from "./ending";
 import { createFlock, paperMat, type Rect, type Uniforms, type Zone } from "./flock";
 import { createHear } from "./hear";
 import { loadImages, type ImgName } from "./images";
@@ -151,6 +152,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
   const drag = createSphereDrag($("#grab"), camera, lenis);
   let flock: ReturnType<typeof createFlock> | null = null;
   let sky: THREE.Mesh | null = null;
+  let ending: ReturnType<typeof createEnding> | null = null;
   let hero: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
   let after: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
   let trail: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null = null;
@@ -190,6 +192,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
 
     flock = createFlock(N, F, canvasTex(drawAtlas(MOB)), ATLAS_COLS, ATLAS_ROWS, shared);
     scene.add(flock.mesh);
+    ending = createEnding({ camera, camR: flock.camR, camU: flock.camU, keys: () => KEYS, MOB });
 
     // hero postcard
     const HW = 1536, HH = 1024;
@@ -540,7 +543,8 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     pPrev = p;
     updateHTML(beats, q, 1, RM);
     dust.draw(q, 1);
-    if (!ready || !renderer || !flock || !sky || !hero || !after || !trail) return;
+    const e = clamp((q - QE) / (1 - QE));
+    if (!ready || !renderer || !flock || !sky || !hero || !after || !trail || !ending) return;
     tAcc += dt * (RM ? 0.25 : 1);
     bend += (Math.min(0.32, vel * 1.6) - bend) * (1 - Math.exp(-dt * 4));
     const t = tAcc;
@@ -554,6 +558,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       wantT.lerp(tmpV, fw);
       wantP.lerp(tmpV.add(V(0, 1.6, 7.5)), fw * 0.35 * sm(0.884, 0.93, p));
     }
+    if (e > 0) ending.endCam(e, wantT);
     if (RM) {
       camP.copy(wantP);
       camT.copy(wantT);
@@ -571,7 +576,18 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     sky.position.copy(camera.position);
 
     // focus distance follows the subject
-    const subj = p < 0.12 ? 12 : p < 0.36 ? camP.distanceTo(H0) : p < 0.56 ? camP.distanceTo(S0) - SR * 0.4 : p < 0.76 ? camP.distanceTo(G0) : p < 0.89 ? camP.distanceTo(Q0) : 14;
+    const subj =
+      p < 0.12
+        ? 12
+        : p < 0.36
+          ? camP.distanceTo(H0)
+          : p < 0.56
+            ? camP.distanceTo(S0) - SR * 0.4
+            : p < 0.76
+              ? camP.distanceTo(G0)
+              : p < 0.89
+                ? camP.distanceTo(Q0)
+                : 14;
     shared.uFocus.value += (subj - shared.uFocus.value) * 0.08;
     shared.uDof.value = p < 0.12 || p > 0.9 ? 0.04 : 0.065;
 
@@ -589,9 +605,17 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     zLens.w = p > 0.12 && p < 0.2 ? 0.25 : 1; // let cards whip past the lens during the dive
 
     flock.material.uniforms.uBend.value = bend;
+    const ff = smr(0.03, 0.1, e); // cards fold into planes for the murmuration
+    flock.material.uniforms.uFold.value.set(ff, ff);
     const rects: Rect[] = [];
     for (const b of beats) if (b.on && b.ndc) rects.push(b.ndc);
-    const form = flock.update(p, t, RM ? dt * 0.25 : dt, zones, { camera, rects, sphere: { c: S0, r: SR, q: drag.q } });
+    const form = flock.update(p, t, RM ? dt * 0.25 : dt, zones, {
+      camera,
+      rects,
+      sphere: { c: S0, r: SR, q: drag.q },
+      e,
+      endCard: ending.endCard,
+    });
     drag.update(form, dt, S0, SR, tanH);
     poseHero(hero, p, t);
     posePolas(p, t);

@@ -26,7 +26,7 @@ export function paperMat(shared: Uniforms, defs: Record<string, string>, extra: 
   });
 }
 
-type Card = { ph: number; sp: number; spin: number; sc: number };
+export type Card ={ ph: number; sp: number; spin: number; sc: number };
 // a clearing zone: cards inside the capsule a..b (radius r0 growing by rk) are pushed out
 export type Zone = { a: THREE.Vector3; b: THREE.Vector3; r0: number; rk: number; w: number };
 
@@ -60,7 +60,7 @@ export function createFlock(n: number, featured: number, atlas: THREE.Texture, c
 
   // returns how far the featured cards have gathered into the sphere (0..1)
   function update(p: number, t: number, dt: number, zones: Zone[], view: FlockView) {
-    const { camera, rects, sphere } = view;
+    const { camera, rects, sphere, e, endCard } = view;
     const form = sm(0.37, 0.45, p) * (1 - sm(0.535, 0.6, p));
     const rot = t * 0.07 + p * 3.2;
     camera.updateMatrixWorld();
@@ -80,7 +80,7 @@ export function createFlock(n: number, featured: number, atlas: THREE.Texture, c
       z += vz * dt;
       if (y > 9.5) y -= 0.02;
       if (y < -5) y += 0.02;
-      if (x > 27 && (i >= featured || form < 0.01)) {
+      if (x > 27 && (i >= featured || form < 0.01) && e < 0.02) {
         x -= 54;
         y = -4 + ((i * 37) % 13);
       }
@@ -111,9 +111,12 @@ export function createFlock(n: number, featured: number, atlas: THREE.Texture, c
           s = lerp(s, 0.95, mi);
         }
       } else s *= 1 - smr(0, 0.6, form);
+      // the ending takes over; its planes ignore the copy panels
+      const lock = e > 0;
+      if (lock) s = endCard(i, c, s, t, e, tmpV, tmpQ);
       // keep the copy clean: slide cards out of the text panels, fade any that still overlap
       let ex = 0, ey = 0, hit = false, near = false;
-      if (rects.length) {
+      if (rects.length && !lock) {
         prj.copy(tmpV).project(camera);
         const dist = Math.max(0.5, tmpV.distanceTo(camera.position)), half = (s * 0.62) / (dist * tanH);
         if (prj.z < 1)
@@ -131,7 +134,7 @@ export function createFlock(n: number, featured: number, atlas: THREE.Texture, c
       tmpV.x += exO[k3];
       tmpV.y += exO[k3 + 1];
       tmpV.z += exO[k3 + 2];
-      if (rects.length) {
+      if (rects.length && !lock) {
         prj.copy(tmpV).project(camera);
         const dist = Math.max(0.5, tmpV.distanceTo(camera.position)), half = (s * 0.62) / (dist * tanH);
         if (prj.z < 1)
@@ -150,7 +153,7 @@ export function createFlock(n: number, featured: number, atlas: THREE.Texture, c
     return form;
   }
 
-  return { mesh, material, update };
+  return { mesh, material, update, camR, camU };
 }
 
 export type Rect = [number, number, number, number];
@@ -158,6 +161,8 @@ export type FlockView = {
   camera: THREE.PerspectiveCamera;
   rects: Rect[]; // the visible copy panels in NDC; cards slide out of them and fade if they still overlap
   sphere: { c: THREE.Vector3; r: number; q: THREE.Quaternion };
+  e: number; // ending progress
+  endCard: (i: number, c: Card, s: number, t: number, e: number, pos: THREE.Vector3, rot: THREE.Quaternion) => number;
 };
 
 // how far (NDC) a card at (x,y) with half-size (rx,ry) must move to clear the rect; prefers vertical exits (the wind is horizontal)
