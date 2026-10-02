@@ -15,11 +15,9 @@ sessionRouter.post("/session", owner, async (req: OwnedRequest, res) => {
     // when Christopher first hears the learner (POST /usage/consume on the first
     // speech_started), so failed connects and dead mics never burn it - up to
     // FREE_UNHEARD_CONNECTS unheard connections; past that a connection pays up front.
-    const rule = await checkConnect(req.ownerId!);
+    // Both are independent reads; run them together so the learner waits on one round trip, not two.
+    const [rule, ctx] = await Promise.all([checkConnect(req.ownerId!), loadCourse(req.body?.sessionId, req.ownerId)]);
     if (rule === "refuse") return res.status(402).json({ error: "limit_reached" });
-
-    const sessionId: string | undefined = req.body?.sessionId;
-    const ctx = await loadCourse(sessionId, req.ownerId);
     const instructions = TUTOR_SYSTEM_PROMPT + ctx.suffix;
     const session = realtimeSession({
       model: env.realtimeModel,
