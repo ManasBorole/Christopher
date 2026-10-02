@@ -554,8 +554,18 @@ function wer(said: string, heard: string): number {
   }
   return prev[b.length] / a.length;
 }
+// Split after . ! ? also when a closing quote follows ('... "Me llamo Sam." ¿Cómo...').
 function sentences(line: string): string[] {
-  return line.split(/(?<=[.!?。！？])\s+/u).filter((p) => /\p{L}/u.test(p));
+  return line.split(/(?<=[.!?。！？]["'”’»]?)\s+/u).filter((p) => /\p{L}/u.test(p));
+}
+// The quoted spans of a line: "...", “...”, «...», '...' (not the apostrophe in it's).
+function quoted(line: string): string[] {
+  return line.match(/"[^"]*"|“[^”]*”|«[^»]*»|(?<![\p{L}\p{N}])['‘][^'’]*['’](?![\p{L}\p{N}])/gu) ?? [];
+}
+// `w` as whole words inside one of the line's quotes.
+function quotes(line: string, w: string): boolean {
+  const re = new RegExp(`(?<!\\p{L})${w.normalize("NFC").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\p{L})`, "iu");
+  return quoted(line.normalize("NFC")).some((q) => re.test(q));
 }
 // English, the target language, or mixed, sentence by sentence. Quoted
 // target-language words inside an English sentence keep it English.
@@ -613,7 +623,7 @@ function check(sc: Script, i: number, lines: string[][], profiles: string[][]): 
     ok(corr.length > 0 && has(all, right), `corrects the real error ('${wrong}' -> '${right}')`);
     if (t.error.in === "english") ok(corr.some(looksEnglish), "the correction is in English");
     if (t.error.in === "target") ok(corr.length > 0 && !corr.some(looksEnglish), `the correction is in ${sc.language}`);
-    ok(has(all, wrong) && has(all, right), "quotes the learner's words and the right words");
+    ok(quotes(all, wrong) && quotes(all, right), `quotes both forms ('${wrong}' and '${right}')`);
   }
   if (t.englishQ) {
     ok(en.length > 0, "answers the English question in English");
