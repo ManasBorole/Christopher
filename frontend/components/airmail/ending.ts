@@ -1,19 +1,27 @@
 import * as THREE from "three";
 import { lin, type Card, type Uniforms } from "./flock";
 import { clamp, lerp, rng, sm, smr } from "./math";
-import { FONT, cv } from "./paper";
-import { LINE_FRAG, LINE_VERT, REFLECT_FRAG, STAR_FRAG, STAR_VERT } from "./shaders";
+import type { ImgName } from "./images";
+import { C, FONT, cv, fitFont, grain, paperFill, stripeBorder } from "./paper";
+import { GIANT_FRAG, GIANT_VERT, LINE_FRAG, LINE_VERT, REFLECT_FRAG, STAR_FRAG, STAR_VERT } from "./shaders";
 
 /* The ending, one path: murmuration, harbour lights, the world was a postcard.
    Ending progress e (0..1):
      .00-.66 the flock folds into paper planes, chases the plane, then departs over a long window
              (some cross the view; a few stay aloft through the night)
-     .38-.86 harbour lights: night falls, 183 lights come on, rise into a Gochi Hand constellation, strokes draw in */
+     .38-.86 harbour lights: night falls, 183 lights come on, rise into a Gochi Hand constellation, strokes draw in
+     .86-1.0 the night harbour is the picture side of a giant postcard; it flips to "To Christopher", stamp, postmark, CTA */
 
 type Key = [number, THREE.Vector3, THREE.Vector3];
 export type EndingEnv = {
   scene: THREE.Scene;
+  renderer: THREE.WebGLRenderer;
   shared: Uniforms;
+  canvasTex: (c: HTMLCanvasElement) => THREE.Texture;
+  imgs: Partial<Record<ImgName, HTMLImageElement>>;
+  postTex: THREE.Texture; // the red postmark, shared with the after card
+  ctaB: HTMLElement; // the CTA that rides the postcard's address lines
+  RM: boolean;
   camera: THREE.PerspectiveCamera;
   camR: THREE.Vector3; // camera right/up, refreshed by the flock each frame
   camU: THREE.Vector3;
@@ -266,7 +274,277 @@ export function createEnding(env: EndingEnv) {
     wantT.lerp(EC.camT, smr(0.55, 0.8, e));
   }
 
-  return { endCard, endCam, light, buildC, poseC };
+  /* ---------- the night harbour was the picture side of a giant postcard; it flips to "To Christopher" ---------- */
+  const EB = {
+    rt: null as THREE.WebGLRenderTarget | null,
+    space: new THREE.Scene(),
+    cam: new THREE.PerspectiveCamera(35, 1, 0.1, 3000),
+    card: null as THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null,
+    stamp: null as THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null,
+    stampTex: null as THREE.Texture | null,
+    stampHome: V(),
+    d0: 10,
+    Wc: 1,
+    Hc: 1,
+    stamped: false,
+    shakeT: -9,
+    anchor: V(),
+  };
+  EB.space.background = new THREE.Color("#06171c");
+  {
+    const sg = new THREE.BufferGeometry(), sp = new Float32Array(900 * 3), R = rng(77);
+    for (let k = 0; k < 900; k++) {
+      const u = R() * 2 - 1, a = R() * 6.283, r = Math.sqrt(1 - u * u);
+      sp.set([Math.cos(a) * r * 700, u * 700, Math.sin(a) * r * 700], k * 3);
+    }
+    sg.setAttribute("position", new THREE.BufferAttribute(sp, 3));
+    EB.space.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: new THREE.Color("#d9e8e4"), size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0.55 })));
+  }
+
+  function stampTex() {
+    const c = cv(480, 576), tex = env.canvasTex(c);
+    drawStampTex(c, env.imgs.postcard || env.imgs.idle);
+    return tex;
+  }
+
+  function buildB() {
+    const asp = innerWidth / innerHeight, sz = env.renderer.getDrawingBufferSize(new THREE.Vector2());
+    if (!EB.rt) {
+      EB.rt = new THREE.WebGLRenderTarget(sz.x, sz.y, { samples: 4 });
+      EB.rt.texture.colorSpace = THREE.SRGBColorSpace;
+    } else EB.rt.setSize(sz.x, sz.y);
+    EB.cam.aspect = asp;
+    EB.cam.updateProjectionMatrix();
+    if (EB.card) {
+      EB.space.remove(EB.card);
+      EB.card.geometry.dispose();
+      EB.card.material.uniforms.tBack.value.dispose();
+      EB.card.material.dispose();
+      EB.stamp?.geometry.dispose();
+      EB.stamp?.material.dispose();
+    }
+    const d0 = EB.d0, Hp = 2 * d0 * tanH, Wp = Hp * asp, m = 0.075 * Math.min(Hp, Wp);
+    EB.Wc = Wp + 2 * m;
+    EB.Hc = Hp + 2 * m;
+    const aspC = EB.Wc / EB.Hc, bw = aspC >= 1 ? 2048 : 1200, bc = cv(bw, Math.round(bw / aspC));
+    const L = drawGiantBack(bc.getContext("2d")!, aspC);
+    EB.card = new THREE.Mesh(
+      new THREE.PlaneGeometry(EB.Wc, EB.Hc, 64, 40),
+      new THREE.ShaderMaterial({
+        side: THREE.DoubleSide,
+        uniforms: {
+          tPic: { value: EB.rt.texture },
+          tBack: { value: env.canvasTex(bc) },
+          tPost: { value: env.postTex },
+          uSize: { value: new THREE.Vector2(EB.Wc, EB.Hc) },
+          uM: { value: new THREE.Vector2(m, m) },
+          uPM: { value: new THREE.Vector4(L.pm[0], 1 - L.pm[1], L.pm[2], L.pm[2] * aspC) },
+          uStamp: { value: new THREE.Vector2(1, 0) },
+          uCurl: { value: 0 },
+          uPaper: { value: new THREE.Color("#f0e4cc") },
+          uRed: { value: new THREE.Color(C.red) },
+          uBlue: { value: new THREE.Color(C.blue) },
+        },
+        vertexShader: GIANT_VERT,
+        fragmentShader: GIANT_FRAG,
+      })
+    );
+    EB.card.position.set(0, 0, -d0);
+    EB.card.frustumCulled = false;
+    EB.space.add(EB.card);
+    const swd = L.stamp[2] * EB.Wc, sht = swd * 1.2;
+    EB.stampTex ??= stampTex();
+    EB.stamp = new THREE.Mesh(new THREE.PlaneGeometry(swd, sht), new THREE.MeshBasicMaterial({ map: EB.stampTex, transparent: true, side: THREE.DoubleSide }));
+    EB.stamp.rotation.y = Math.PI;
+    EB.stampHome.set((0.5 - (L.stamp[0] + L.stamp[2] / 2)) * EB.Wc, (0.5 - L.stamp[1]) * EB.Hc - sht / 2, -0.02);
+    EB.card.add(EB.stamp);
+    EB.anchor.set((0.5 - L.cta[0]) * EB.Wc, (0.5 - L.cta[1]) * EB.Hc, -0.02);
+  }
+
+  // eb: .1 start of the pull-back .. .9 the CTA. Returns whether the postcard is on screen.
+  const ctaB = env.ctaB, tmp = V();
+  function poseB(eb: number, t: number, now: number) {
+    if (!(eb > 0.1 && EB.card && EB.stamp)) {
+      if (ctaB.classList.contains("on")) {
+        ctaB.classList.remove("on");
+        ctaB.style.opacity = "0";
+      }
+      return false;
+    }
+    const asp = innerWidth / innerHeight;
+    const k1 = smr(0.1, 0.42, eb), f = smr(0.44, 0.62, eb), k2 = smr(0.56, 0.74, eb), k3 = smr(0.6, 0.84, eb);
+    const dMid = Math.max(EB.Hc / (0.62 * 2 * tanH), EB.Wc / (0.62 * 2 * tanH * asp));
+    const dFin = Math.max(EB.Hc / (0.78 * 2 * tanH), EB.Wc / (0.84 * 2 * tanH * asp));
+    const d = lerp(lerp(EB.d0, dMid, k1), dFin, k3);
+    const sh = Math.exp(-(now - EB.shakeT) * 9) * (env.RM ? 0 : 1);
+    EB.cam.position.set(
+      Math.sin(t * 0.2) * 0.04 * k1 + Math.sin(now * 71) * sh * 0.04,
+      Math.sin(t * 0.17) * 0.03 * k1 + Math.cos(now * 63) * sh * 0.05,
+      d - EB.d0
+    );
+    EB.cam.lookAt(0, 0, -EB.d0);
+    EB.card.rotation.set(-0.3 * k1 * (1 - k2), 0.42 * k1 * (1 - k2) + f * Math.PI, 0.05 * k1 * (1 - k2));
+    const U = EB.card.material.uniforms;
+    U.uCurl.value = Math.sin(f * Math.PI) * 0.5 + 0.08 * k1 * (1 - k2);
+    const sd = smr(0.645, 0.71, eb);
+    EB.stamp.visible = sd > 0;
+    EB.stamp.position.copy(EB.stampHome);
+    EB.stamp.position.z -= (1 - sd) * 3.5;
+    EB.stamp.position.y += (1 - sd) * 0.8;
+    EB.stamp.rotation.z = (1 - sd) * 0.7 - 0.05;
+    EB.stamp.scale.setScalar(1 + (1 - sd) * 0.25);
+    const ps = smr(0.725, 0.737, eb);
+    U.uStamp.value.set(lerp(0.6, 1, ps), ps);
+    if (eb > 0.736 && !EB.stamped) {
+      EB.stamped = true;
+      EB.shakeT = now;
+    }
+    if (eb < 0.72) EB.stamped = false;
+    // the CTA sits on the address lines
+    const o = sm(0.82, 0.9, eb);
+    ctaB.classList.toggle("on", o > 0.01);
+    ctaB.style.opacity = o.toFixed(3);
+    if (o > 0.01) {
+      EB.card.updateMatrixWorld();
+      EB.cam.updateMatrixWorld();
+      tmp.copy(EB.anchor);
+      EB.card.localToWorld(tmp);
+      tmp.project(EB.cam);
+      const x = (tmp.x * 0.5 + 0.5) * innerWidth, y = (-tmp.y * 0.5 + 0.5) * innerHeight;
+      ctaB.style.transform = `translate(${x.toFixed(0)}px,${(y - ctaB.offsetHeight / 2).toFixed(0)}px)`;
+    }
+    return true;
+  }
+
+  // the postcard part runs on its own clock over the last stretch of the ending
+  const ebOf = (e: number) => (e < 0.86 ? 0 : 0.1 + ((e - 0.86) / 0.14) * 0.9);
+  function render(scene: THREE.Scene, camera: THREE.Camera, e: number, t: number, now: number) {
+    const gl = env.renderer;
+    if (poseB(ebOf(e), t, now) && EB.rt) {
+      gl.setRenderTarget(EB.rt);
+      gl.render(scene, camera);
+      gl.setRenderTarget(null);
+      gl.render(EB.space, EB.cam);
+    } else gl.render(scene, camera);
+  }
+
+  function build() {
+    buildC();
+    buildB();
+  }
+
+  function dispose() {
+    EB.rt?.dispose();
+    EB.space.traverse((o) => {
+      const m = o as THREE.Mesh;
+      m.geometry?.dispose();
+      (m.material as THREE.Material | undefined)?.dispose();
+    });
+    ctaB.classList.remove("on");
+    ctaB.style.opacity = ctaB.style.transform = "";
+  }
+
+  return { endCard, endCam, light, poseC, build, render, dispose };
+}
+
+/* ---------- giant postcard drawing ---------- */
+type Layout = { stamp: [number, number, number]; pm: [number, number, number]; cta: [number, number] };
+function drawGiantBack(c: CanvasRenderingContext2D, aspC: number): Layout {
+  const W = c.canvas.width, H = c.canvas.height, land = aspC >= 1;
+  paperFill(c, 0, 0, W, H, "#f0e4cc", 1, 2, 909);
+  stripeBorder(c, 0, 0, W, H, Math.min(W, H) * 0.034);
+  c.strokeStyle = "rgba(80,60,40,.32)";
+  c.lineWidth = 3;
+  c.textAlign = "left";
+  const rule = (ys: number[], x0: number, x1: number) => {
+    c.strokeStyle = "rgba(80,60,40,.3)";
+    c.lineWidth = 2;
+    for (const y of ys) {
+      c.beginPath();
+      c.moveTo(W * x0, H * y);
+      c.lineTo(W * x1, H * y);
+      c.stroke();
+    }
+  };
+  if (land) {
+    c.beginPath();
+    c.moveTo(W * 0.56, H * 0.14);
+    c.lineTo(W * 0.56, H * 0.86);
+    c.stroke();
+    c.fillStyle = C.pen;
+    fitFont(c, "say it out loud.", "", FONT.hand, W * 0.44, H * 0.14);
+    c.fillText("say it out loud.", W * 0.07, H * 0.38);
+    c.font = `${H * 0.06}px ${FONT.hand}`;
+    c.fillText("Take your time. I will wait", W * 0.075, H * 0.52);
+    c.fillText("for the whole sentence.", W * 0.075, H * 0.6);
+    c.fillText("C.", W * 0.075, H * 0.72);
+    c.fillStyle = C.ochre;
+    c.font = `700 ${H * 0.036}px ${FONT.sans}`;
+    c.fillText("To", W * 0.61, H * 0.44);
+    c.fillStyle = C.pen;
+    fitFont(c, "Christopher", "", FONT.hand, W * 0.32, H * 0.13);
+    c.fillText("Christopher", W * 0.61, H * 0.57);
+    rule([0.68, 0.79, 0.9], 0.61, 0.93);
+    return { stamp: [0.78, 0.09, 0.15], pm: [0.76, 0.33, 0.17], cta: [0.61, 0.785] };
+  }
+  c.fillStyle = C.pen;
+  fitFont(c, "say it out loud.", "", FONT.hand, W * 0.84, W * 0.13);
+  c.fillText("say it out loud.", W * 0.08, H * 0.3);
+  c.font = `${W * 0.062}px ${FONT.hand}`;
+  c.fillText("Take your time. I will wait", W * 0.085, H * 0.37);
+  c.fillText("for the whole sentence.  C.", W * 0.085, H * 0.415);
+  c.beginPath();
+  c.moveTo(W * 0.08, H * 0.48);
+  c.lineTo(W * 0.92, H * 0.48);
+  c.stroke();
+  c.fillStyle = C.ochre;
+  c.font = `700 ${W * 0.04}px ${FONT.sans}`;
+  c.fillText("To", W * 0.08, H * 0.56);
+  c.fillStyle = C.pen;
+  fitFont(c, "Christopher", "", FONT.hand, W * 0.8, W * 0.15);
+  c.fillText("Christopher", W * 0.08, H * 0.65);
+  rule([0.73, 0.82, 0.91], 0.08, 0.92);
+  return { stamp: [0.64, 0.05, 0.26], pm: [0.6, 0.15, 0.3], cta: [0.08, 0.775] };
+}
+
+// the big stamp: Christopher with his postcard, denomination 183 languages
+function drawStampTex(c: HTMLCanvasElement, img: HTMLImageElement | null | undefined) {
+  const x = c.getContext("2d")!;
+  x.globalCompositeOperation = "source-over";
+  x.clearRect(0, 0, 480, 576);
+  x.fillStyle = "#fbf6ea";
+  x.fillRect(0, 0, 480, 576);
+  grain(x, 0, 0, 480, 576, 0.6, 1.5, 4242);
+  const m = 38, band = 112, iw = 480 - 2 * m, ih = 576 - 2 * m - band;
+  if (img) x.drawImage(img, 0, 30, img.width, (img.width * ih) / iw, m, m, iw, ih);
+  // the denomination: ink on a paper band, like a real stamp value
+  x.fillStyle = "#f3e8d2";
+  x.fillRect(m, m + ih, iw, band);
+  x.fillStyle = C.red;
+  x.fillRect(m, m + ih, iw, 6);
+  x.font = `700 82px ${FONT.display}`;
+  x.textAlign = "right";
+  x.textBaseline = "alphabetic";
+  x.fillText("183", 480 - m - 16, m + ih + band - 22);
+  x.fillStyle = C.ink;
+  x.font = `600 26px ${FONT.sans}`;
+  x.textAlign = "left";
+  x.fillText("languages", m + 16, m + ih + band - 30);
+  x.globalCompositeOperation = "destination-out";
+  const r = 13, st = 34;
+  for (let i = st / 2; i < 480; i += st) {
+    x.beginPath();
+    x.arc(i, 0, r, 0, 7);
+    x.arc(i, 576, r, 0, 7);
+    x.fill();
+  }
+  for (let j = st / 2; j < 576; j += st) {
+    x.beginPath();
+    x.arc(0, j, r, 0, 7);
+    x.arc(480, j, r, 0, 7);
+    x.fill();
+  }
+  x.globalCompositeOperation = "source-over";
 }
 
 const hillAt = (a: number) => 0.012 + 0.009 * Math.sin(a * 4 + 1.3) + 0.006 * Math.sin(a * 11 + 2) + 0.003 * Math.sin(a * 29);

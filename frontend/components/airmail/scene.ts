@@ -188,7 +188,6 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
 
     flock = createFlock(N, F, canvasTex(drawAtlas(MOB)), ATLAS_COLS, ATLAS_ROWS, shared);
     scene.add(flock.mesh);
-    ending = createEnding({ scene, shared, camera, camR: flock.camR, camU: flock.camU, keys: () => KEYS, MOB });
 
     // hero postcard
     const HW = 1536, HH = 1024;
@@ -231,6 +230,21 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     after.material.uniforms.uSize.value.set(3, 2);
     after.frustumCulled = false;
     scene.add(after);
+    ending = createEnding({
+      scene,
+      renderer: gl,
+      shared,
+      canvasTex,
+      imgs,
+      postTex: after.material.uniforms.tPost.value,
+      ctaB: $("#ctaB"),
+      RM,
+      camera,
+      camR: flock.camR,
+      camU: flock.camU,
+      keys: () => KEYS,
+      MOB,
+    });
 
     // the paper plane's trail ribbon
     const tg = new THREE.BufferGeometry();
@@ -618,7 +632,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
     posePolas(p, t);
     posePost(after, trail, p, now);
     ending.poseC(e, t, renderer.getPixelRatio());
-    renderer.render(scene, camera);
+    ending.render(scene, camera, e, t, now);
   }
   gsap.ticker.add(tick);
 
@@ -636,7 +650,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       camera.updateProjectionMatrix();
       renderer.setSize(innerWidth, innerHeight, false);
       buildKeys();
-      ending?.buildC();
+      ending?.build();
     }, 150);
   });
   document.fonts.ready.then(() => {
@@ -648,7 +662,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
       .then(() => {
         if (disposed) return;
         buildKeys();
-        ending?.buildC();
+        ending?.build();
         measureAll();
         ready = true;
       })
@@ -690,6 +704,7 @@ export function createAirmailScene(root: HTMLElement, startLang: string): Airmai
         mats.forEach((mt) => mt.dispose());
       });
       textures.forEach((t) => t.dispose());
+      ending?.dispose();
       renderer?.dispose();
       renderer?.forceContextLoss();
       glCanvas.remove();
