@@ -4,9 +4,11 @@ import Lenis from "lenis";
 import * as THREE from "three";
 import { QE, QP, measureBeats, readBeats, updateHTML } from "./beats";
 import { ATLAS_COLS, ATLAS_ROWS, JP, LANGS, drawAtlas } from "./cards";
-import { createFlock, type Rect, type Uniforms, type Zone } from "./flock";
-import { smr } from "./math";
-import { FONT, readFonts } from "./paper";
+import { createFlock, paperMat, type Rect, type Uniforms, type Zone } from "./flock";
+import { loadImages } from "./images";
+import { clamp, easeOut, lerp, sm, smr } from "./math";
+import { FONT, cv, readFonts } from "./paper";
+import { drawHeroBack, drawHeroFront } from "./postcards";
 import { DOME_FRAG, DOME_VERT } from "./shaders";
 
 /* "Airmail in flight": the landing's WebGL harbour. Every language's postcard
@@ -15,7 +17,10 @@ import { DOME_FRAG, DOME_VERT } from "./shaders";
 
    Beats (story progress p, camera damped toward key targets):
      0.000 hero        cam (0,0,14.5) looking up at the flock; horizon low
-     0.08-0.165 dive   into the current; card bend rises with scroll speed */
+     0.08-0.165 dive   into the current; card bend rises with scroll speed
+     0.165-0.215       hero postcard H(0,1.3,-3) slows, turns to camera
+     0.235-0.29 flip   scroll-scrubbed flip with paper curl; 0.275-0.335 ink draws in (shader mask)
+     0.345-0.40        card rejoins the wind; camera pulls back */
 
 export type AirmailScene = { dispose: () => void };
 
@@ -122,12 +127,18 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
     uFogF: { value: 58 },
   };
 
+  const T0 = performance.now();
+  const images = loadImages(() => {});
+  const imgs = images.imgs;
+
   const N = MOB ? 183 : 340, F = 183;
+  const H0 = V(0, 1.3, -3);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 800);
   camera.position.set(0, 0, 14.5);
   let flock: ReturnType<typeof createFlock> | null = null;
   let sky: THREE.Mesh | null = null;
+  let hero: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
 
   async function build(gl: THREE.WebGLRenderer) {
     readFonts();
@@ -137,7 +148,10 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
     const names = LANGS.map((l) => l.n).join("");
     for (const w of ["400", "500", "700"]) fontJobs.push(document.fonts.load(`${w} 40px ${FONT.jp}`, JP + names));
     for (const f of [FONT.deva, FONT.arab, FONT.hebr]) fontJobs.push(document.fonts.load(`700 40px ${f}`, names));
-    await Promise.race([Promise.all(fontJobs), new Promise((r) => setTimeout(r, 6000))]);
+    await Promise.race([
+      Promise.all([...fontJobs, ...images.jobs]),
+      new Promise((r) => setTimeout(r, Math.max(800, 6000 - (performance.now() - T0)))),
+    ]);
     try {
       await document.fonts.ready;
     } catch {
@@ -158,18 +172,55 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
 
     flock = createFlock(N, F, canvasTex(drawAtlas(MOB)), ATLAS_COLS, ATLAS_ROWS, shared);
     scene.add(flock.mesh);
+
+    // hero postcard
+    const HW = 1536, HH = 1024;
+    const hf = cv(HW, HH);
+    drawHeroFront(hf.getContext("2d")!, imgs.wave);
+    const hb = cv(HW, HH), hi = cv(HW, HH), hm = cv(HW, HH);
+    drawHeroBack(hb.getContext("2d")!, null, imgs.idle, false);
+    drawHeroBack(hi.getContext("2d")!, hm.getContext("2d")!, imgs.idle, true);
+    hero = new THREE.Mesh(
+      new THREE.PlaneGeometry(3, 2, 48, 32),
+      paperMat(shared, { HERO: "" }, {
+        tFront: { value: canvasTex(hf) },
+        tBack: { value: canvasTex(hb) },
+        tInk: { value: canvasTex(hi) },
+        tMask: { value: canvasTex(hm, false, false) },
+        uDraw: { value: 0 },
+      })
+    );
+    hero.material.uniforms.uSize.value.set(3, 2);
+    hero.frustumCulled = false;
+    scene.add(hero);
     gl.compile(scene, camera);
   }
 
   /* ---------- camera choreography ---------- */
+  // a camera position + target that frames a subject beside (or, on phones, above) the copy
+  function frameOn(center: THREE.Vector3, w: number, h: number, viewDir: THREE.Vector3, near = 1): [THREE.Vector3, THREE.Vector3] {
+    const asp = innerWidth / innerHeight, side = asp > 0.95;
+    const d =
+      (side
+        ? Math.max(w / (0.5 * 2 * tanH * asp), h / (0.74 * 2 * tanH))
+        : Math.max(w / (0.92 * 2 * tanH * asp), h / (0.5 * 2 * tanH))) * near;
+    const vd = viewDir.clone().normalize(), fwd = vd.clone().negate();
+    const right = V().crossVectors(fwd, V(0, 1, 0)).normalize(), up = V().crossVectors(right, fwd);
+    const visH = 2 * d * tanH, visW = visH * asp;
+    const tgt = center.clone().add(side ? right.multiplyScalar(-0.2 * visW) : up.multiplyScalar(-0.19 * visH));
+    return [tgt.clone().add(vd.multiplyScalar(d)), tgt];
+  }
   let KEYS: Key[] = [];
   function buildKeys() {
     const asp = innerWidth / innerHeight, mob = asp < 0.95;
+    const hf = frameOn(H0, 3, 2, V(0, 0, 1)), hf2 = frameOn(H0, 3, 2, V(0.04, 0.02, 1), 0.95);
     const z0 = mob ? 20 : 14.5;
     KEYS = [
       [0.0, V(0, 0, z0), V(0, 2.4, 0)],
       [0.08, V(0.3, 0.35, z0 - 2.5), V(0, 2.2, 0)],
       [0.165, V(0.7, 1.0, 3.8), V(-0.2, 1.3, -8)],
+      [0.218, ...hf],
+      [0.335, ...hf2],
       [0.955, V(0, 0.1, z0 - 3), V(0, 2.3, -30)],
       [1.0, V(0, 0, z0 - 2), V(0, 2.3, -30)],
     ];
@@ -199,10 +250,41 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
   document.addEventListener("pointerleave", offPointer);
   offs.push(() => document.removeEventListener("pointerleave", offPointer));
 
+  /* ---------- the hero card ---------- */
+  const tmpV = V(), tmpE = new THREE.Euler();
+  function poseHero(card: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>, p: number, t: number) {
+    const vis = p > 0.125 && p < 0.43;
+    card.visible = vis;
+    if (!vis) return;
+    const a = easeOut(clamp((p - 0.13) / (0.218 - 0.13)));
+    const st = V(-7.5, -1.2, -11), c1 = V(-4, 3.2, -6);
+    const u = 1 - a;
+    card.position.set(
+      u * u * st.x + 2 * u * a * c1.x + a * a * H0.x,
+      u * u * st.y + 2 * u * a * c1.y + a * a * H0.y,
+      u * u * st.z + 2 * u * a * c1.z + a * a * H0.z
+    );
+    const flip = smr(0.236, 0.292, p);
+    const ex = sm(0.345, 0.41, p);
+    card.position.add(tmpV.set(ex * ex * 10, ex * 3.5, -ex * 5));
+    tmpE.set(
+      u * u * 4.2 + ex * 2.5 + Math.sin(t * 0.7) * 0.03,
+      flip * Math.PI + u * 1.3 - ex * 1.4 + Math.sin(t * 0.5) * 0.04,
+      u * 0.6 - 0.04 + ex * 0.6
+    );
+    card.quaternion.setFromEuler(tmpE);
+    card.scale.setScalar(lerp(0.55, 1, a));
+    const U = card.material.uniforms;
+    U.uCurl.value = Math.sin(flip * Math.PI) * 0.75 + u * 0.4 + ex * 0.6;
+    U.uFlut.value = 0.03 + u * 0.14 + ex * 0.12;
+    U.uDraw.value = smr(0.272, 0.338, p);
+  }
+
   /* ---------- main loop ---------- */
   let q = RM ? snap(targetP) : 0, p = 0, pPrev = 0, tAcc = 0, last = performance.now() / 1000, bend = 0, ready = false;
-  const camP = V(0, 0, 14.5), camT = V(0, 2.4, 0), wantP = V(), wantT = V(), tmpV = V();
+  const camP = V(0, 0, 14.5), camT = V(0, 2.4, 0), wantP = V(), wantT = V();
   const zones: Zone[] = [
+    { a: V(), b: V(), r0: 2.0, rk: 0, w: 0 }, // hero card line of sight
     { a: V(), b: V(), r0: 0.5, rk: 0.05, w: 0 }, // pointer
     { a: V(), b: V(), r0: 1.6, rk: 0, w: 1 }, // keep the lens clear
   ];
@@ -216,7 +298,7 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
     const vel = Math.abs(p - pPrev) / Math.max(dt, 1e-3);
     pPrev = p;
     updateHTML(beats, q, 1, RM);
-    if (!ready || !renderer || !flock || !sky) return;
+    if (!ready || !renderer || !flock || !sky || !hero) return;
     tAcc += dt * (RM ? 0.25 : 1);
     bend += (Math.min(0.32, vel * 1.6) - bend) * (1 - Math.exp(-dt * 4));
     const t = tAcc;
@@ -238,23 +320,29 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
     camera.lookAt(camT);
     sky.position.copy(camera.position);
 
-    shared.uFocus.value += ((p < 0.12 ? 12 : 14) - shared.uFocus.value) * 0.08;
+    // focus distance follows the subject
+    const subj = p < 0.12 ? 12 : p < 0.36 ? camP.distanceTo(H0) : 14;
+    shared.uFocus.value += (subj - shared.uFocus.value) * 0.08;
     shared.uDof.value = p < 0.12 || p > 0.9 ? 0.04 : 0.065;
 
+    zones[0].a.copy(camP);
+    zones[0].b.copy(H0);
+    zones[0].w = sm(0.15, 0.2, p) * (1 - sm(0.33, 0.37, p));
     if (pointerOn && !MOB) {
       ray.setFromCamera(pointer, camera);
-      zones[0].a.copy(ray.ray.origin);
-      zones[0].b.copy(ray.ray.origin).addScaledVector(ray.ray.direction, 60);
-      zones[0].w = 0.85;
-    } else zones[0].w = 0;
-    zones[1].a.copy(camera.position);
-    zones[1].b.copy(camera.position).addScaledVector(camera.getWorldDirection(tmpV), 2.2);
-    zones[1].w = p > 0.12 && p < 0.2 ? 0.25 : 1; // let cards whip past the lens during the dive
+      zones[1].a.copy(ray.ray.origin);
+      zones[1].b.copy(ray.ray.origin).addScaledVector(ray.ray.direction, 60);
+      zones[1].w = 0.85;
+    } else zones[1].w = 0;
+    zones[2].a.copy(camera.position);
+    zones[2].b.copy(camera.position).addScaledVector(camera.getWorldDirection(tmpV), 2.2);
+    zones[2].w = p > 0.12 && p < 0.2 ? 0.25 : 1; // let cards whip past the lens during the dive
 
     flock.material.uniforms.uBend.value = bend;
     const rects: Rect[] = [];
     for (const b of beats) if (b.on && b.ndc) rects.push(b.ndc);
     flock.update(t, RM ? dt * 0.25 : dt, zones, camera, rects);
+    poseHero(hero, p, t);
     renderer.render(scene, camera);
   }
   gsap.ticker.add(tick);
@@ -293,6 +381,7 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
   return {
     dispose() {
       disposed = true;
+      images.dispose();
       gsap.ticker.remove(tick);
       gsap.ticker.remove(lenisRaf);
       gsap.ticker.lagSmoothing(500, 33);
