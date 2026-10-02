@@ -1,8 +1,11 @@
 import { create } from "zustand";
 import type { EngineStatus } from "../lib/engine/ConversationEngine";
+import type { ChatLine } from "../lib/engine/lines";
 import type { Profile, Summary } from "@vta/shared";
 
-export type Turn = { role: "user" | "agent"; text: string; at: number };
+// One chat line. `id` is the Realtime item id; `pending` while it is still
+// being transcribed or spoken; `translation` = English under a target-language line.
+export type Turn = { id: string; role: "user" | "agent"; text: string; at: number; pending?: boolean; translation?: string };
 export type Feedback = { coaching: string; accuracy: number; phrase: string };
 
 // State for a single live conversation. A fresh session resets this.
@@ -26,7 +29,9 @@ type State = {
   setStatus: (s: EngineStatus, error?: string | null) => void;
   setSpeaking: (b: boolean) => void;
   applyProfile: (p: Profile) => void;
-  addTurn: (t: Turn) => void;
+  putLine: (l: ChatLine) => void;
+  patchTurn: (id: string, patch: Partial<Turn>) => void;
+  removeTurn: (id: string) => void;
   addVocab: (w: string) => void;
   setFeedback: (f: Feedback) => void;
   setSummary: (s: Summary) => void;
@@ -69,7 +74,23 @@ export const useSession = create<State>((set) => ({
   setSpeaking: (agentSpeaking) => set({ agentSpeaking }),
   applyProfile: (p) =>
     set((s) => ({ userName: p.userName?.trim() || s.userName })),
-  addTurn: (t) => set((s) => ({ turns: [...s.turns, t] })),
+  // Insert a new line in conversation order (after its previous item when that
+  // is on screen, else at the end), or update the one already there.
+  putLine: (l) =>
+    set((s) => {
+      const i = s.turns.findIndex((t) => t.id === l.id);
+      if (i >= 0) {
+        const turns = s.turns.slice();
+        turns[i] = { ...turns[i], text: l.text, pending: !l.done };
+        return { turns };
+      }
+      const t: Turn = { id: l.id, role: l.role, text: l.text, at: Date.now(), pending: !l.done };
+      const after = l.after ? s.turns.findIndex((x) => x.id === l.after) : -1;
+      if (after < 0) return { turns: [...s.turns, t] };
+      return { turns: [...s.turns.slice(0, after + 1), t, ...s.turns.slice(after + 1)] };
+    }),
+  patchTurn: (id, patch) => set((s) => ({ turns: s.turns.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
+  removeTurn: (id) => set((s) => ({ turns: s.turns.filter((t) => t.id !== id) })),
   addVocab: (w) => set((s) => (s.vocabulary.includes(w) ? s : { vocabulary: [...s.vocabulary, w] })),
   setFeedback: (feedback) => set({ feedback }),
   setSummary: (summary) => set({ summary }),

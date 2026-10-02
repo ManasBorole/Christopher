@@ -33,7 +33,6 @@ export default function SessionView({
   // Seconds used on earlier connections of this conversation, so a reconnect
   // continues the free-time clock instead of restarting it.
   const priorRef = useRef(0);
-  const [partial, setPartial] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [ending, setEnding] = useState(false);
   const [showTrial, setShowTrial] = useState(false);
@@ -140,15 +139,16 @@ export default function SessionView({
           if (step.startClock) s.start(Date.now());
         },
         onSpeaking: (b) => s.setSpeaking(b),
-        onTranscript: (role, text, done) => {
-          if (role === "agent" && !done) return setPartial((p) => p + text);
-          const finalText = (role === "agent" ? text || partial : text).trim();
-          if (role === "agent") setPartial("");
-          // Drop empty / punctuation-only artefacts (noise mis-transcribed as speech)
-          // so they never become a chat message or get persisted.
-          if (!isMeaningfulTranscript(finalText)) return;
-          s.addTurn({ role, text: finalText, at: Date.now() });
-          void persistTurn(sessionId, role, finalText, Date.now()).catch(() => {});
+        onLine: (l) => {
+          const before = useSession.getState().turns.find((t) => t.id === l.id);
+          // Drop empty / punctuation-only artefacts (noise mis-transcribed as
+          // speech, or a reply cut off before a word was heard).
+          if (l.done && !isMeaningfulTranscript(l.text)) return s.removeTurn(l.id);
+          s.putLine(l);
+          if (!l.done || (before && !before.pending)) return;
+          // Saved once, stamped with when the line took its place, so the
+          // stored transcript keeps conversation order.
+          void persistTurn(sessionId, l.role, l.text, before?.at ?? Date.now()).catch(() => {});
         },
         onProfile: (p) => {
           s.applyProfile(p);
@@ -196,7 +196,7 @@ export default function SessionView({
     // Christopher never heard them: nothing was used, so just go back.
     if (!consumedRef.current) return onExit();
     void reportSpent(spent);
-    if (s.turns.length > 0) {
+    if (s.turns.some((t) => !t.pending)) {
       setEnding(true);
       try {
         s.setSummary(await endSession(sessionId));
@@ -213,7 +213,8 @@ export default function SessionView({
 
   const live = s.status === "live" || s.status === "connecting";
   const remaining = Math.max(0, limit - elapsed);
-  const lastTurn = s.turns.length ? s.turns[s.turns.length - 1].role : null;
+  // A reply still being spoken does not end the learner's turn yet.
+  const lastTurn = s.turns.filter((t) => !(t.role === "agent" && t.pending)).at(-1)?.role ?? null;
   const phase = sessionPhase({
     status: s.status,
     agentSpeaking: s.agentSpeaking,
@@ -317,16 +318,15 @@ export default function SessionView({
           </div>
         )}
         <div role="log" aria-live="polite" aria-label="Transcript" className="grid gap-2.5">
-          {s.turns.length === 0 && !partial ? (
+          {s.turns.length === 0 ? (
             <p className="rounded-2xl bg-card-2 px-5 py-4 text-[15px] text-muted">
               Your conversation appears here as you talk, so you can read back anything you missed.
             </p>
           ) : (
             <>
-              {s.turns.map((t, i) => (
-                <Line key={i} role={t.role} text={t.text} />
+              {s.turns.map((t) => (
+                <Line key={t.id} role={t.role} text={t.text} pending={t.pending} />
               ))}
-              {partial && <Line role="agent" text={partial} pending />}
             </>
           )}
         </div>
@@ -395,14 +395,17 @@ const PHASES: Record<Phase, { pose: MascotPose; line: string; help?: React.React
 
 function Line({ role, text, pending }: { role: "user" | "agent"; text: string; pending?: boolean }) {
   const mine = role === "user";
+  // A slot with no words yet: the learner was heard and is being written down.
+  if (!text && !(pending && mine)) return null;
   return (
     <p
+      dir="auto"
       className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-[16px] leading-snug ${
         mine ? "justify-self-end bg-[color-mix(in_srgb,var(--learner)_36%,var(--card))]" : "bg-card"
       } ${pending ? "text-muted" : ""}`}
     >
       <span className="sr-only">{mine ? "You: " : "Christopher: "}</span>
-      {text}
+      {text || "…"}
     </p>
   );
 }

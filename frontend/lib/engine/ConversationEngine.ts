@@ -3,13 +3,15 @@
 // Everything above this interface (UI, store) is engine-agnostic.
 
 import type { PronounceResult, Profile } from "@vta/shared";
+import type { ChatLine } from "./lines";
 
 export type EngineStatus = "idle" | "connecting" | "live" | "error";
 
 export interface ConversationEvents {
   onStatus?: (status: EngineStatus, detail?: string) => void;
-  // Streaming transcript. role = who's speaking; done = final for this turn.
-  onTranscript?: (role: "user" | "agent", text: string, done: boolean) => void;
+  // One chat line per conversation item, re-sent as its text streams in.
+  // Lines arrive in conversation order; done = settled, safe to save.
+  onLine?: (line: ChatLine) => void;
   // Agent started/stopped speaking (drives the live indicator).
   onSpeaking?: (speaking: boolean) => void;
   // A "repeat after me" turn was scored (Azure). Bubbles up for UI + vocab.

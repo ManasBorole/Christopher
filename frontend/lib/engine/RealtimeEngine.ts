@@ -1,5 +1,6 @@
 import type { ConversationEngine, ConversationEvents } from "./ConversationEngine";
 import { ownerHeaders } from "../auth";
+import { LineTracker } from "./lines";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8787";
 const OPENAI_RT = "https://api.openai.com/v1/realtime/calls";
@@ -40,6 +41,7 @@ export class RealtimeEngine implements ConversationEngine {
   private audioCtx?: AudioContext;
   private meter?: AnalyserNode; // taps the mic so the UI can tell a silent/wrong mic
   private ev: ConversationEvents = {};
+  private lines = new LineTracker((l) => this.ev.onLine?.(l));
 
   async connect(events: ConversationEvents, sessionId?: string): Promise<void> {
     this.ev = events;
@@ -108,20 +110,8 @@ export class RealtimeEngine implements ConversationEngine {
   // Map the Realtime event stream to our engine callbacks.
   // ponytail: only the events the app needs are handled; add cases as needed.
   private onEvent(e: any) {
+    this.lines.handle(e); // the chat transcript, per conversation item
     switch (e.type) {
-      // agent transcript - GA renamed audio_transcript -> output_audio_transcript
-      case "response.output_audio_transcript.delta":
-      case "response.audio_transcript.delta":
-        this.ev.onTranscript?.("agent", e.delta ?? "", false);
-        break;
-      case "response.output_audio_transcript.done":
-      case "response.audio_transcript.done":
-        this.ev.onTranscript?.("agent", e.transcript ?? "", true);
-        break;
-      case "conversation.item.input_audio_transcription.completed":
-        this.ev.onTranscript?.("user", e.transcript ?? "", true);
-        break;
-
       // Server VAD heard the learner. This, not the connection, is the proof
       // that Christopher can hear them.
       case "input_audio_buffer.speech_started":
@@ -212,6 +202,8 @@ export class RealtimeEngine implements ConversationEngine {
   }
 
   disconnect() {
+    this.lines.flush();
+    this.lines = new LineTracker((l) => this.ev.onLine?.(l));
     this.dc?.close();
     this.mic?.getTracks().forEach((t) => t.stop());
     this.pc?.close();
