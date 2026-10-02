@@ -9,12 +9,10 @@ import { allLanguages, searchLanguages, type Language } from "../lib/languages";
 // picked twice. No flags: languages aren't countries.
 export default function LanguagePicker({
   existing,
-  busy,
   onPick,
   onCancel,
 }: {
   existing: Set<string>;
-  busy?: boolean;
   onPick: (name: string) => void;
   onCancel: () => void;
 }) {
@@ -75,7 +73,6 @@ export default function LanguagePicker({
         aria-autocomplete="list"
         aria-activedescendant={results[active] ? `lang-opt-${results[active].code}` : undefined}
         value={query}
-        disabled={busy}
         onChange={(e) => {
           setQuery(e.target.value);
           setDupe(null);

@@ -8,11 +8,12 @@ import { findLanguage } from "../lib/languages";
 import { greeting } from "../lib/greetings";
 import { lastChat } from "../lib/lastChat";
 import LanguagePicker from "./LanguagePicker";
+import LevelQuestion from "./LevelQuestion";
 import DeleteLanguageModal from "./DeleteLanguageModal";
 import Mascot from "./Mascot";
 
 // Every language the learner studies, as a luggage tag. Adding one opens the
-// picker in a sheet.
+// picker in a sheet, then asks how much of it the learner already knows.
 export default function Home({
   onOpenCourse,
   onContinue,
@@ -27,6 +28,7 @@ export default function Home({
   const [courses, setCourses] = useState<CourseCard[] | null>(() => cachedCourses());
   const [failed, setFailed] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [addError, setAddError] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<CourseCard | null>(null);
@@ -52,12 +54,19 @@ export default function Home({
 
   const existing = useMemo(() => new Set((courses ?? []).map((c) => c.language.toLowerCase())), [courses]);
 
-  async function pick(name: string) {
+  function closeAdd() {
+    if (busy) return;
+    setAdding(false);
+    setPicked(null);
+    setAddError(false);
+  }
+
+  async function add(name: string, stage: number | null) {
     if (busy) return;
     setBusy(true);
     setAddError(false);
     try {
-      const c = await createCourse(name);
+      const c = await createCourse(name, stage ?? undefined);
       onOpenCourse(c.id);
     } catch {
       setAddError(true);
@@ -153,13 +162,29 @@ export default function Home({
           aria-modal="true"
           aria-labelledby="add-title"
           className="sheet-backdrop"
-          onMouseDown={(e) => e.target === e.currentTarget && !busy && setAdding(false)}
+          onMouseDown={(e) => e.target === e.currentTarget && closeAdd()}
         >
           <div className="sheet">
-            <h2 id="add-title" className="mb-4 font-display text-2xl font-extrabold tracking-[-0.02em]">
-              Add a language
-            </h2>
-            <LanguagePicker existing={existing} busy={busy} onPick={pick} onCancel={() => !busy && setAdding(false)} />
+            {picked ? (
+              <LevelQuestion
+                key={picked}
+                language={picked}
+                titleId="add-title"
+                busy={busy}
+                onAnswer={(stage) => add(picked, stage)}
+                onBack={() => {
+                  setPicked(null);
+                  setAddError(false);
+                }}
+              />
+            ) : (
+              <>
+                <h2 id="add-title" className="mb-4 font-display text-2xl font-extrabold tracking-[-0.02em]">
+                  Add a language
+                </h2>
+                <LanguagePicker existing={existing} onPick={setPicked} onCancel={closeAdd} />
+              </>
+            )}
             {busy && (
               <p role="status" className="mt-3 text-sm text-muted">
                 Setting it up…
