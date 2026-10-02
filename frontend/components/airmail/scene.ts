@@ -20,7 +20,8 @@ import { DOME_FRAG, DOME_VERT } from "./shaders";
      0.08-0.165 dive   into the current; card bend rises with scroll speed
      0.165-0.215       hero postcard H(0,1.3,-3) slows, turns to camera
      0.235-0.29 flip   scroll-scrubbed flip with paper curl; 0.275-0.335 ink draws in (shader mask)
-     0.345-0.40        card rejoins the wind; camera pulls back */
+     0.345-0.40        card rejoins the wind; camera pulls back
+     0.40-0.53 scale   183 cards gather into a slow sphere S(0,1.8,-8) R5, each a different language */
 
 export type AirmailScene = { dispose: () => void };
 
@@ -132,7 +133,9 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
   const imgs = images.imgs;
 
   const N = MOB ? 183 : 340, F = 183;
-  const H0 = V(0, 1.3, -3);
+  const H0 = V(0, 1.3, -3), S0 = V(0, 1.8, -8);
+  const SR = MOB ? 4.4 : 5.2;
+  const dragQ = new THREE.Quaternion();
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 800);
   camera.position.set(0, 0, 14.5);
@@ -214,6 +217,7 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
   function buildKeys() {
     const asp = innerWidth / innerHeight, mob = asp < 0.95;
     const hf = frameOn(H0, 3, 2, V(0, 0, 1)), hf2 = frameOn(H0, 3, 2, V(0.04, 0.02, 1), 0.95);
+    const sf = frameOn(S0, SR * 2.1, SR * 2.1, V(0, 0.08, 1)), sf2 = frameOn(S0, SR * 2.1, SR * 2.1, V(-0.08, 0.04, 1), 0.92);
     const z0 = mob ? 20 : 14.5;
     KEYS = [
       [0.0, V(0, 0, z0), V(0, 2.4, 0)],
@@ -221,6 +225,8 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
       [0.165, V(0.7, 1.0, 3.8), V(-0.2, 1.3, -8)],
       [0.218, ...hf],
       [0.335, ...hf2],
+      [0.41, ...sf],
+      [0.53, ...sf2],
       [0.955, V(0, 0.1, z0 - 3), V(0, 2.3, -30)],
       [1.0, V(0, 0, z0 - 2), V(0, 2.3, -30)],
     ];
@@ -321,7 +327,7 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
     sky.position.copy(camera.position);
 
     // focus distance follows the subject
-    const subj = p < 0.12 ? 12 : p < 0.36 ? camP.distanceTo(H0) : 14;
+    const subj = p < 0.12 ? 12 : p < 0.36 ? camP.distanceTo(H0) : p < 0.56 ? camP.distanceTo(S0) - SR * 0.4 : 14;
     shared.uFocus.value += (subj - shared.uFocus.value) * 0.08;
     shared.uDof.value = p < 0.12 || p > 0.9 ? 0.04 : 0.065;
 
@@ -341,7 +347,7 @@ export function createAirmailScene(root: HTMLElement): AirmailScene {
     flock.material.uniforms.uBend.value = bend;
     const rects: Rect[] = [];
     for (const b of beats) if (b.on && b.ndc) rects.push(b.ndc);
-    flock.update(t, RM ? dt * 0.25 : dt, zones, camera, rects);
+    flock.update(p, t, RM ? dt * 0.25 : dt, zones, { camera, rects, sphere: { c: S0, r: SR, q: dragQ } });
     poseHero(hero, p, t);
     renderer.render(scene, camera);
   }

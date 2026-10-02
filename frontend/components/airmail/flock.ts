@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { rng } from "./math";
+import { clamp, lerp, rng, sm, smr } from "./math";
 import { PAPER_FRAG, PAPER_VERT } from "./shaders";
 
 // The flock: every language's postcard riding the harbour wind, drawn as one
@@ -55,8 +55,14 @@ export function createFlock(n: number, featured: number, atlas: THREE.Texture, c
   const exO = new Float32Array(n * 3), fadeK = new Float32Array(n).fill(1), prj = new THREE.Vector3();
   const camR = new THREE.Vector3(), camU = new THREE.Vector3();
 
-  // rects: the visible copy panels in NDC; cards slide out of them and fade if they still overlap
-  function update(t: number, dt: number, zones: Zone[], camera: THREE.PerspectiveCamera, rects: Rect[]) {
+  const lookM = new THREE.Matrix4(), tmpQ2 = new THREE.Quaternion(), UP = new THREE.Vector3(0, 1, 0);
+  const gold = Math.PI * (3 - Math.sqrt(5));
+
+  // returns how far the featured cards have gathered into the sphere (0..1)
+  function update(p: number, t: number, dt: number, zones: Zone[], view: FlockView) {
+    const { camera, rects, sphere } = view;
+    const form = sm(0.37, 0.45, p) * (1 - sm(0.535, 0.6, p));
+    const rot = t * 0.07 + p * 3.2;
     camera.updateMatrixWorld();
     camR.setFromMatrixColumn(camera.matrixWorld, 0);
     camU.setFromMatrixColumn(camera.matrixWorld, 1);
@@ -74,7 +80,7 @@ export function createFlock(n: number, featured: number, atlas: THREE.Texture, c
       z += vz * dt;
       if (y > 9.5) y -= 0.02;
       if (y < -5) y += 0.02;
-      if (x > 27) {
+      if (x > 27 && (i >= featured || form < 0.01)) {
         x -= 54;
         y = -4 + ((i * 37) % 13);
       }
@@ -92,6 +98,19 @@ export function createFlock(n: number, featured: number, atlas: THREE.Texture, c
       tmpE.set(ph * 3 + t * c.spin, 0.55 * Math.sin(t * 0.21 + ph) + vy * 0.4, 0.3 * Math.sin(t * 0.27 + ph * 2) - 0.15);
       tmpQ.setFromEuler(tmpE);
       let s = c.sc;
+      if (i < featured) {
+        // the featured 183 gather into a slow sphere, one language per card, facing out
+        const mi = smr(0, 1, clamp(form * 1.45 - (i / featured) * 0.45));
+        if (mi > 0) {
+          const yy = 1 - ((i + 0.5) / featured) * 2, rr = Math.sqrt(1 - yy * yy), th = gold * i + rot;
+          tmpS.set(Math.cos(th) * rr * sphere.r, yy * sphere.r * 0.92, Math.sin(th) * rr * sphere.r).applyQuaternion(sphere.q).add(sphere.c);
+          tmpV.lerp(tmpS, mi);
+          lookM.lookAt(tmpS, sphere.c, UP);
+          tmpQ2.setFromRotationMatrix(lookM);
+          tmpQ.slerp(tmpQ2, mi);
+          s = lerp(s, 0.95, mi);
+        }
+      } else s *= 1 - smr(0, 0.6, form);
       // keep the copy clean: slide cards out of the text panels, fade any that still overlap
       let ex = 0, ey = 0, hit = false, near = false;
       if (rects.length) {
@@ -128,12 +147,18 @@ export function createFlock(n: number, featured: number, atlas: THREE.Texture, c
       mesh.setMatrixAt(i, tmpM);
     }
     mesh.instanceMatrix.needsUpdate = true;
+    return form;
   }
 
   return { mesh, material, update };
 }
 
 export type Rect = [number, number, number, number];
+export type FlockView = {
+  camera: THREE.PerspectiveCamera;
+  rects: Rect[]; // the visible copy panels in NDC; cards slide out of them and fade if they still overlap
+  sphere: { c: THREE.Vector3; r: number; q: THREE.Quaternion };
+};
 
 // how far (NDC) a card at (x,y) with half-size (rx,ry) must move to clear the rect; prefers vertical exits (the wind is horizontal)
 function clearShift(x: number, y: number, rx: number, ry: number, R: Rect, out: number[]) {
