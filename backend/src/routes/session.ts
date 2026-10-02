@@ -72,7 +72,7 @@ sessionRouter.post("/session", owner, async (req: OwnedRequest, res) => {
               type: "function",
               name: "update_profile",
               description:
-                "Call this as soon as you learn the learner's name, their native language, or their level changes. Send only the fields you learned.",
+                "Call this as soon as you learn the learner's name, their native language, or their level changes. Send only the fields you learned. If the learner corrects their name, call it again with the corrected userName: it replaces the old name.",
               parameters: {
                 type: "object",
                 properties: {
@@ -118,8 +118,8 @@ async function loadCourse(
   if (returning) {
     suffix +=
       `\nThis is a NEW session continuing an ongoing course. In your VERY FIRST message only,` +
-      ` greet warmly` +
-      (c.userName ? ` by name (${c.userName})` : "") +
+      ` greet warmly, say that you are Christopher,` +
+      (c.userName ? ` greet them by name (${c.userName})` : "") +
       ` and pick up where you left off. Do not recap the whole history.` +
       `\nCRITICAL: greet exactly once, in that first message. You have the whole conversation in` +
       ` context - after the first message never greet, re-introduce yourself, or restart the` +
@@ -129,7 +129,7 @@ async function loadCourse(
       `\n- Words already practiced: ${c.vocabulary.slice(0, 40).join(", ") || "none yet"}` +
       `\n- Past pronunciation notes: ${c.pronunciationNotes.slice(0, 10).join("; ") || "none"}`;
   } else {
-    suffix += `\nThis is the learner's first session in ${c.language}. Greet them, ask their name, and start from the basics.`;
+    suffix += `\nThis is the learner's first session in ${c.language}. Greet them, introduce yourself as Christopher, ask their name, and start from the basics.`;
   }
   return { suffix, language: c.language };
 }
