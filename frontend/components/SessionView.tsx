@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { RealtimeEngine } from "../lib/engine/RealtimeEngine";
 import type { ConversationEngine } from "../lib/engine/ConversationEngine";
 import { useSession } from "../store/useSession";
-import { addTurn as persistTurn, patchCourse, endSession, getUsage, reportSpent, consumeUsage } from "../lib/api";
-import { isMeaningfulTranscript } from "../lib/transcript";
+import { addTurn as persistTurn, patchCourse, endSession, getUsage, reportSpent, consumeUsage, translateLine } from "../lib/api";
+import { isMeaningfulTranscript, looksEnglish } from "../lib/transcript";
 import { sessionPhase, cannotHear, trialStep, MIC_FLOOR, type Phase } from "../lib/sessionPhase";
 import Mascot, { type MascotPose } from "./Mascot";
 import { SummaryCard } from "./ui";
@@ -149,6 +149,12 @@ export default function SessionView({
           // Saved once, stamped with when the line took its place, so the
           // stored transcript keeps conversation order.
           void persistTurn(sessionId, l.role, l.text, before?.at ?? Date.now()).catch(() => {});
+          // English under what he said in the target language (shown, not spoken).
+          if (l.role === "agent" && !looksEnglish(l.text)) {
+            void translateLine(l.text, language).then((en) => {
+              if (en && plain(en) !== plain(l.text)) s.patchTurn(l.id, { translation: en });
+            });
+          }
         },
         onProfile: (p) => {
           s.applyProfile(p);
@@ -325,7 +331,7 @@ export default function SessionView({
           ) : (
             <>
               {s.turns.map((t) => (
-                <Line key={t.id} role={t.role} text={t.text} pending={t.pending} />
+                <Line key={t.id} role={t.role} text={t.text} pending={t.pending} translation={t.translation} />
               ))}
             </>
           )}
@@ -393,7 +399,17 @@ const PHASES: Record<Phase, { pose: MascotPose; line: string; help?: React.React
   saving: { pose: "postcard", line: "Writing your postcard…" },
 };
 
-function Line({ role, text, pending }: { role: "user" | "agent"; text: string; pending?: boolean }) {
+function Line({
+  role,
+  text,
+  pending,
+  translation,
+}: {
+  role: "user" | "agent";
+  text: string;
+  pending?: boolean;
+  translation?: string;
+}) {
   const mine = role === "user";
   // A slot with no words yet: the learner was heard and is being written down.
   if (!text && !(pending && mine)) return null;
@@ -406,6 +422,11 @@ function Line({ role, text, pending }: { role: "user" | "agent"; text: string; p
     >
       <span className="sr-only">{mine ? "You: " : "Christopher: "}</span>
       {text || "…"}
+      {translation && (
+        <span dir="ltr" lang="en" className="mt-1 block text-[14px] text-muted">
+          <span className="sr-only">In English: </span>({translation})
+        </span>
+      )}
     </p>
   );
 }
@@ -418,6 +439,11 @@ function MicGlyph() {
       <path d="M12 19v3" />
     </svg>
   );
+}
+
+// Compare lines loosely, so an "English" translation of an English line is hidden.
+function plain(t: string) {
+  return t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 function fmt(sec: number) {

@@ -6,6 +6,7 @@ import { pronounceRouter } from "./routes/pronounce.js";
 import { coursesRouter } from "./routes/courses.js";
 import { sessionsRouter } from "./routes/sessions.js";
 import { usageRouter } from "./routes/usage.js";
+import { translateRouter } from "./routes/translate.js";
 import { onError } from "./http.js";
 
 const app = express();
@@ -33,6 +34,7 @@ app.use(pronounceRouter);
 app.use(coursesRouter);
 app.use(sessionsRouter);
 app.use(usageRouter);
+app.use(translateRouter);
 app.use(onError); // must be last: converts thrown errors to 500 JSON
 
 app.listen(env.port, () => {

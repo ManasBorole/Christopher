@@ -115,6 +115,30 @@ export async function addTurn(id: string, role: "user" | "agent", text: string, 
   });
 }
 
+// English for one finished line Christopher said in the target language.
+// Cached per text, so a repeated line costs nothing; "" when unavailable.
+const translations = new Map<string, Promise<string>>();
+export function translateLine(text: string, language: string): Promise<string> {
+  const key = `${language}\u0000${text}`;
+  let p = translations.get(key);
+  if (!p) {
+    p = (async () => {
+      const r = await fetch(`${BACKEND}/translate`, {
+        method: "POST",
+        headers: await jsonHeaders(),
+        body: JSON.stringify({ text, language }),
+      });
+      if (!r.ok) throw new Error(`/translate ${r.status}`);
+      return ((await r.json()) as { translation: string }).translation ?? "";
+    })().catch(() => {
+      translations.delete(key); // a failure may be retried later
+      return "";
+    });
+    translations.set(key, p);
+  }
+  return p;
+}
+
 export async function endSession(id: string): Promise<Summary> {
   const r = await fetch(`${BACKEND}/sessions/${id}/end`, { method: "POST", headers: await ownerHeaders() });
   if (!r.ok) throw new Error(`/end ${r.status}`);
