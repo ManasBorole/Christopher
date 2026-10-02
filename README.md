@@ -18,10 +18,11 @@
   editor and paste the URL it gives you on its own line here.
 -->
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/landing-dark.png" />
-  <img src="docs/screenshots/landing-light.png" alt="The landing page: the headline 'Say it out loud. Christopher will wait for you.', a 'Start talking in Spanish' button with a language menu, and a postcard showing Christopher waving" />
-</picture>
+<img src="docs/screenshots/landing-hero.webp" alt="The landing page: the headline 'Say it out loud. Christopher will wait for you.' over a dusk harbour full of airmail postcards drifting in the wind, a 'Start talking in Japanese' button and a language menu" />
+
+<img src="docs/screenshots/landing-sphere.webp" alt="Further down the landing: '183 languages, each in its own script.' beside a sphere made of 183 postcards, each greeting from a different language" />
+
+<img src="docs/screenshots/landing-end.webp" alt="The end of the landing: a giant airmail postcard addressed 'To Christopher', with a stamp of Christopher, a postmark and a 'Start talking in Japanese' button on the address lines" />
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/picker-dark.png" />
