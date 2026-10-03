@@ -243,7 +243,8 @@ body {
   transition: opacity 70ms linear;
   pointer-events: none;
 }
-.mascot-mouth.is-on {
+.mascot[data-mouth="half"] .mascot-mouth-half,
+.mascot[data-mouth="closed"] .mascot-mouth-closed {
   opacity: 1;
 }
 /* Both poses move during the change: the old one softens and settles back

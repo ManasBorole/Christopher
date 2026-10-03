@@ -324,6 +324,7 @@ export default function SessionView({
           <Mascot
             pose={ui.pose}
             talking={phase === "speaking"}
+            level={() => engineRef.current?.outputLevel?.() ?? 0}
             priority
             className={`${
               showStage ? "w-[max(10rem,min(64vw,300px,calc((100svh-31rem)*1145/1374)))]" : "w-[max(10rem,min(64vw,300px,calc((100svh-25rem)*1145/1374)))]"
