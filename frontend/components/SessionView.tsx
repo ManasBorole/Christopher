@@ -11,6 +11,7 @@ import Mascot, { type MascotPose } from "./Mascot";
 import { SummaryCard } from "./ui";
 import TrialModal from "./TrialModal";
 import StageControl, { type Stage } from "./StageControl";
+import { useSessionSounds } from "../lib/sfx";
 
 export default function SessionView({
   courseId,
@@ -273,6 +274,7 @@ export default function SessionView({
   });
   const ui = PHASES[phase];
   const showStage = STAGE_PHASES.has(phase);
+  useSessionSounds(phase, !!s.summary && !ending);
 
   if (s.summary && !ending) {
     return (
