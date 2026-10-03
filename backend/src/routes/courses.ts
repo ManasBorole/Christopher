@@ -3,7 +3,8 @@ import { prisma } from "../db.js";
 import { env } from "../env.js";
 import { ah } from "../http.js";
 import { owner, type OwnedRequest } from "../owner.js";
-import type { CourseCard, CourseDetail, Summary } from "@vta/shared";
+import { profileFields, pickStage } from "../profile.js";
+import { goalAt, startGoal, type CourseCard, type CourseDetail, type SkyCourse, type Summary } from "@vta/shared";
 
 export const coursesRouter = Router();
 coursesRouter.use(owner);
@@ -88,12 +89,19 @@ async function ensureMeanings(c: CourseForMeanings): Promise<Record<string, stri
   }
 
   const missing = learnedWords(c.vocabulary, c.sessions).filter((t) => !meanings[t]);
-  if (missing.length) Object.assign(meanings, await translateTerms(missing, c.language));
-
-  if (Object.keys(meanings).length !== before) {
-    await prisma.course.update({ where: { id: c.id }, data: { meanings } });
-  }
-  return meanings;
+  const translated = missing.length
+    ? translateTerms(missing, c.language).then((m) => void Object.assign(meanings, m))
+    : Promise.resolve();
+  // Saved in the background: the page never waits on this write.
+  void translated.then(() => {
+    if (Object.keys(meanings).length !== before) {
+      prisma.course.update({ where: { id: c.id }, data: { meanings } }).catch(console.error);
+    }
+  });
+  // The course page waits at most 2 s for the translator; a slower answer still
+  // lands in the cache, so its meanings show on the next open.
+  await Promise.race([translated, new Promise((r) => setTimeout(r, 2000))]);
+  return { ...meanings };
 }
 
 // Home screen: one card per language the owner is studying.
@@ -110,11 +118,53 @@ coursesRouter.get(
       language: c.language,
       userName: c.userName,
       level: c.level,
+      stage: c.stage,
+      goal: goalAt(c.goal).title,
       vocabCount: learnedWords(c.vocabulary, c.sessions).length,
       sessionCount: c._count.sessions,
       updatedAt: c.updatedAt.toISOString(),
     }));
     res.json(cards);
+  })
+);
+
+// The progress sky: every conversation the learner spoke in, per language.
+// Length comes from the first and last saved line, in one grouped query.
+coursesRouter.get(
+  "/sky",
+  ah(async (req: OwnedRequest, res) => {
+    const [courses, spans] = await Promise.all([
+      prisma.course.findMany({
+        where: { ownerId: req.ownerId },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          language: true,
+          createdAt: true,
+          sessions: { orderBy: { startedAt: "asc" }, select: { id: true, startedAt: true, summary: true } },
+        },
+      }),
+      prisma.turn.groupBy({
+        by: ["sessionId"],
+        where: { session: { course: { ownerId: req.ownerId } } },
+        _min: { at: true },
+        _max: { at: true },
+      }),
+    ]);
+    const span = new Map(spans.map((t) => [t.sessionId, Number((t._max.at ?? 0n) - (t._min.at ?? 0n))]));
+    const sky: SkyCourse[] = courses.map((c) => ({
+      id: c.id,
+      language: c.language,
+      createdAt: c.createdAt.toISOString(),
+      sessions: c.sessions
+        .filter((s) => span.has(s.id)) // never spoke: no star
+        .map((s) => ({
+          at: s.startedAt.toISOString(),
+          minutes: Math.max(1, Math.round(span.get(s.id)! / 60000)),
+          words: ((s.summary as Summary | null)?.vocabulary ?? []).map((v) => v.term).slice(0, 3),
+        })),
+    }));
+    res.json(sky);
   })
 );
 
@@ -125,12 +175,34 @@ coursesRouter.post(
     const language = String(req.body?.language ?? "").trim();
     if (!language) return res.status(400).json({ error: "language required" });
     const norm = language[0].toUpperCase() + language.slice(1).toLowerCase();
-    const c = await prisma.course.upsert({
-      where: { ownerId_language: { ownerId: req.ownerId!, language: norm } },
-      update: {},
-      create: { ownerId: req.ownerId!, language: norm },
-    });
-    res.json({ id: c.id, language: c.language });
+    const stage = pickStage(req.body?.stage) ?? null; // from "How much do you know?"
+    const key = { ownerId_language: { ownerId: req.ownerId!, language: norm } };
+    // Two reads in parallel, then at most one insert. (Prisma's upsert on this
+    // compound key took six round trips to the database.)
+    const [existing, known] = await Promise.all([
+      prisma.course.findUnique({ where: key, select: { id: true, stage: true } }),
+      // A new language starts with the name the learner already gave elsewhere.
+      prisma.course.findFirst({
+        where: { ownerId: req.ownerId, userName: { not: "" } },
+        orderBy: { updatedAt: "desc" },
+        select: { userName: true },
+      }),
+    ]);
+    const c =
+      existing ??
+      (await prisma.course
+        .create({
+          data: { ownerId: req.ownerId!, language: norm, userName: known?.userName ?? "", stage, goal: startGoal(stage) },
+          select: { id: true, stage: true },
+        })
+        // a double click raced us to the insert: theirs won, use it
+        .catch(() => prisma.course.findUniqueOrThrow({ where: key, select: { id: true, stage: true } })));
+    // An existing course that was never asked takes the answer too.
+    if (existing && existing.stage == null && stage != null) {
+      await prisma.course.update({ where: { id: c.id }, data: { stage, goal: startGoal(stage) } });
+      c.stage = stage;
+    }
+    res.json({ id: c.id, language: norm, stage: c.stage });
   })
 );
 
@@ -139,12 +211,8 @@ coursesRouter.post(
 coursesRouter.delete(
   "/courses/:id",
   ah(async (req: OwnedRequest, res) => {
-    const c = await prisma.course.findFirst({
-      where: { id: req.params.id, ownerId: req.ownerId },
-      select: { id: true },
-    });
-    if (!c) return res.status(404).json({ error: "not found" });
-    await prisma.course.delete({ where: { id: c.id } });
+    const { count } = await prisma.course.deleteMany({ where: { id: req.params.id, ownerId: req.ownerId } });
+    if (!count) return res.status(404).json({ error: "not found" });
     res.json({ ok: true });
   })
 );
@@ -169,6 +237,8 @@ coursesRouter.get(
       userName: c.userName,
       nativeLanguage: c.nativeLanguage,
       level: c.level,
+      stage: c.stage,
+      goal: goalAt(c.goal).title,
       vocabulary: learnedWords(c.vocabulary, c.sessions),
       meanings: await ensureMeanings(c),
       pronunciationNotes: c.pronunciationNotes,
@@ -198,16 +268,19 @@ coursesRouter.patch(
     const b = req.body ?? {};
     const vocabulary = mergeUnique(c.vocabulary, b.addVocabulary);
     const pronunciationNotes = mergeUnique(c.pronunciationNotes, b.addNotes);
+    const profile = profileFields(b);
+    // The first stage he judges places a new course on the path; after that
+    // only met goals move it.
+    const goal = profile.stage && c.stage == null && c.goal === 0 ? startGoal(profile.stage) : undefined;
     await prisma.course.update({
       where: { id: c.id },
-      data: {
-        userName: b.userName ?? undefined,
-        nativeLanguage: b.nativeLanguage ?? undefined,
-        level: b.currentLevel ?? b.level ?? undefined,
-        vocabulary,
-        pronunciationNotes,
-      },
+      data: { ...profile, goal, vocabulary, pronunciationNotes },
     });
+    // The name belongs to the learner, not the course: copy it to their other
+    // courses. Raw SQL so their "last chat" time (updatedAt) is left alone.
+    if (profile.userName) {
+      await prisma.$executeRaw`UPDATE "Course" SET "userName" = ${profile.userName} WHERE "ownerId" = ${req.ownerId} AND "id" <> ${c.id}`;
+    }
     res.json({ ok: true });
   })
 );

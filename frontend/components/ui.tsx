@@ -1,7 +1,25 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import type { Summary } from "@vta/shared";
 import { findLanguage } from "../lib/languages";
+import { isWaking, subscribeWaking } from "../lib/api";
+
+// Shown only while a request has taken over 3 s (the API host naps when idle).
+// The request keeps retrying by itself; this just says why the wait.
+export function WakingNotice() {
+  const waking = useSyncExternalStore(subscribeWaking, isWaking, () => false);
+  return (
+    <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center px-4">
+      {waking && (
+        <p className="rounded-full bg-card px-5 py-3 text-[15px] shadow-[0_14px_30px_-12px_rgb(var(--shadow)/0.5),0_0_0_1px_var(--line)]">
+          <span aria-hidden className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-tutor align-middle" />
+          Waking up the server. The first visit in a while can take up to a minute.
+        </p>
+      )}
+    </div>
+  );
+}
 
 // A session summary as a postcard: the words used as stamps, what to watch,
 // and one thing to try next time. No scores.

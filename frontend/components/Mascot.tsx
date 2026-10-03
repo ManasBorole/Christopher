@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import PATCHES from "../lib/mascotPatches.json";
+import { nextMouth, type Mouth } from "../lib/mouth";
 
 export type MascotPose =
   | "idle"
@@ -16,9 +17,8 @@ export type MascotPose =
   | "postcard"
   | "empty";
 
-// Pose -> file in public/mascot. The three speak-* frames were generated
-// separately and don't line up, so talking uses one open-mouth frame plus
-// motion rather than frame swaps.
+// Pose -> file in public/mascot. While he talks, the mouth is an aligned patch
+// (open / half / closed) picked from the loudness of his voice (lib/mouth.ts).
 const FILE: Record<MascotPose, string> = {
   idle: "idle",
   wave: "wave",
@@ -39,39 +39,43 @@ const still = (p: MascotPose) => `/mascot/${FILE[p]}.webp`;
 const VIDEO: Partial<Record<MascotPose, string>> = {};
 
 type Layer = { pose: MascotPose; id: number };
-type Mouth = "open" | "half" | "closed";
 
-// Speech-like mouth rhythm: short syllables with a pause every few, never a
-// metronome. Without real audio levels this is the closest honest stand-in.
-function useMouth(talking: boolean): Mouth {
-  const [mouth, setMouth] = useState<Mouth>("closed");
+// The mouth follows the loudness of his voice: each animation frame reads the
+// level and, only when the frame changes, sets data-mouth on the frame element
+// (CSS shows the matching patch). No React render per frame. Reduced motion
+// gets just open and closed, held a little longer so it stays gentle.
+function useMouth(
+  frame: React.RefObject<HTMLDivElement | null>,
+  talking: boolean,
+  level: React.RefObject<(() => number) | undefined>
+) {
   useEffect(() => {
-    if (!talking) {
-      setMouth("closed");
+    const el = frame.current;
+    if (!el) return;
+    if (!talking || !level.current) {
+      el.dataset.mouth = talking ? "open" : "closed";
       return;
     }
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setMouth("open");
-      return;
-    }
-    let t: ReturnType<typeof setTimeout>;
-    let left = 0; // syllables until the next breath
-    const next = () => {
-      if (left <= 0) {
-        left = 4 + Math.floor(Math.random() * 6);
-        setMouth("closed");
-        t = setTimeout(next, 240 + Math.random() * 300);
-        return;
-      }
-      left--;
-      const r = Math.random();
-      setMouth(r < 0.45 ? "open" : r < 0.82 ? "half" : "closed");
-      t = setTimeout(next, 95 + Math.random() * 85);
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const hold = reduced ? 180 : 60; // ms a frame stays before it may change
+    let mouth: Mouth = "closed";
+    let since = 0;
+    let raf = 0;
+    el.dataset.mouth = mouth;
+    const tick = (now: number) => {
+      raf = requestAnimationFrame(tick);
+      const next = nextMouth(mouth, level.current?.() ?? 0, reduced);
+      if (next === mouth || now - since < hold) return;
+      mouth = next;
+      since = now;
+      el.dataset.mouth = mouth;
     };
-    next();
-    return () => clearTimeout(t);
-  }, [talking]);
-  return mouth;
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.dataset.mouth = "closed";
+    };
+  }, [frame, talking, level]);
 }
 const FADE_MS = 560;
 
@@ -118,23 +122,28 @@ function useTilt(frame: React.RefObject<HTMLDivElement | null>) {
 }
 
 // Christopher, framed like a photo on a postcard. Pose changes dissolve;
-// `talking` moves his mouth and adds a speech bob while the tutor's audio plays.
+// `talking` adds a speech bob while the tutor's audio plays; `level` (his voice
+// loudness, 0..1) moves his mouth with it. Without a level the mouth stays open.
 export default function Mascot({
   pose,
   talking = false,
+  level,
   priority = false,
   className = "",
 }: {
   pose: MascotPose;
   talking?: boolean;
+  level?: () => number;
   priority?: boolean;
   className?: string;
 }) {
   const [layers, setLayers] = useState<Layer[]>([{ pose, id: 0 }]);
-  const mouth = useMouth(talking && pose === "speak");
   const settleRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
+  const levelRef = useRef(level);
+  levelRef.current = level;
   useTilt(frameRef);
+  useMouth(frameRef, talking && pose === "speak", levelRef);
 
   // Decode the next pose before fading to it, so the swap never shows a
   // half-loaded image; a newer pose request wins over a slower older one.
@@ -201,7 +210,6 @@ export default function Mascot({
                   key={l.id}
                   pose={l.pose}
                   state={layers.length > 1 ? (i === layers.length - 1 ? "is-entering" : "is-leaving") : ""}
-                  mouth={mouth}
                   priority={priority && i === 0}
                 />
               ))}
@@ -216,7 +224,7 @@ export default function Mascot({
 
 // One pose: its looping clip if there is one, otherwise the still, plus the
 // mouth patches when it's the speaking pose.
-function PoseLayer({ pose, state, mouth, priority }: { pose: MascotPose; state: string; mouth: Mouth; priority: boolean }) {
+function PoseLayer({ pose, state, priority }: { pose: MascotPose; state: string; priority: boolean }) {
   const cls = `mascot-layer ${state}`;
   const clip = VIDEO[pose];
   if (clip) {
@@ -243,7 +251,7 @@ function PoseLayer({ pose, state, mouth, priority }: { pose: MascotPose; state: 
               src={`/mascot/patch/speak-${m}.webp`}
               alt=""
               draggable={false}
-              className={`mascot-mouth ${mouth === m ? "is-on" : ""}`}
+              className={`mascot-mouth mascot-mouth-${m}`}
               style={{ left: `${box.left}%`, top: `${box.top}%`, width: `${box.width}%`, height: `${box.height}%` }}
             />
           );

@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
@@ -15,6 +16,8 @@ model Course {
   userName           String    @default("")
   nativeLanguage     String    @default("")
   level              String    @default("A1")
+  stage              Int? // how much target language Christopher speaks: 1 mostly English .. 4 all target; null = not known yet
+  goal               Int       @default(0) // index into the course path (shared/src/curriculum.ts)
   vocabulary         String[]  @default([])
   meanings           Json      @default("{}") // term -> English meaning, cached so learned words always show a translation
   pronunciationNotes String[]  @default([])
@@ -33,6 +36,7 @@ model Session {
   startedAt DateTime  @default(now())
   endedAt   DateTime?
   summary   Json? // saved Summary object once the session ends
+  goalMet   Int? // the course goal the learner used on their own in this conversation
   turns     Turn[]
 
   @@index([courseId])
@@ -52,11 +56,12 @@ model Turn {
 
 // Free-trial usage, tracked per owner (clerk:<id> or guest:<uuid>) server-side.
 model Usage {
-  ownerId      String   @id
-  sessionsUsed Int      @default(0)
-  secondsUsed  Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  ownerId         String   @id
+  sessionsUsed    Int      @default(0)
+  secondsUsed     Int      @default(0)
+  unheardConnects Int      @default(0) // connections handed out where Christopher never heard them
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // Waitlist email + feedback collected when a trial ends.

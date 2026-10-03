@@ -50,6 +50,12 @@ html.lenis body {
   height: 100lvh;
   display: block;
   z-index: 0;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+/* the scene fades in under the copy once its first frame is drawn */
+.am #gl.on {
+  opacity: 1;
 }
 .am #track {
   position: relative;
@@ -103,7 +109,7 @@ html.lenis body {
   border-radius: 50%;
   border: 2px solid var(--paper);
   box-sizing: border-box;
-  background: #c6a590 url(/mascot/idle.webp) 57% 3% / 171% auto no-repeat;
+  background: #c6a590 url(/airmail/avatar.webp?v=1) 57% 3% / 171% auto no-repeat; /* v: ART_V in art.ts */
 }
 .am .signin {
   appearance: none;
@@ -129,10 +135,13 @@ html.lenis body {
   pointer-events: none;
   visibility: hidden;
 }
-.am .beat.on {
+.am .beat.on,
+.am:not(.live) .hero {
   visibility: visible;
 }
-.am .beat.on .hit {
+/* until the scene takes over the choreography, the hero is plain server HTML */
+.am .beat.on .hit,
+.am:not(.live) .hero .hit {
   pointer-events: auto;
 }
 .am .ln,
@@ -391,19 +400,22 @@ html.lenis body {
   position: fixed;
   inset: 0;
   z-index: 10;
-  background: #123a40;
   display: flex;
   align-items: center;
   justify-content: center;
   perspective: 900px;
-  transition: background-color 0.6s ease, opacity 0.6s ease;
-}
-.am #pre.done {
-  background-color: rgba(18, 58, 64, 0);
   pointer-events: none;
+  /* a fixed, short timeline that needs no script: the card drops, its border
+     draws, it flies off at .82s (preloader.ts reads this) and the harbour shows.
+     Only transforms and opacity, so it stays smooth while scripts start up. */
+  animation: am-pregone 0s 1.44s forwards;
 }
-.am #pre.gone {
-  opacity: 0;
+.am #pre::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #123a40;
+  animation: am-fade 0.6s ease 0.82s forwards;
 }
 .am .pc {
   position: relative;
@@ -412,9 +424,9 @@ html.lenis body {
   background: #f0e4cc;
   box-shadow: 0 18px 40px rgba(4, 20, 24, 0.45);
   transform-origin: 50% 0;
-  animation: am-pcdrop 0.42s cubic-bezier(0.2, 0.75, 0.25, 1) both;
+  animation: am-pcdrop 0.42s cubic-bezier(0.2, 0.75, 0.25, 1) both, am-pcfly 0.62s cubic-bezier(0.5, 0, 0.75, 0.4) 0.82s forwards;
 }
-.am .pc canvas,
+.am .pc img,
 .am .pc svg {
   position: absolute;
   inset: 0;
@@ -423,7 +435,37 @@ html.lenis body {
   display: block;
 }
 .am #pcs {
-  transition: stroke-dashoffset 0.35s ease-out;
+  animation: am-pcstripe 0.55s ease-out 0.15s both;
+}
+@keyframes am-pcstripe {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes am-pcfly {
+  to {
+    transform: translate(26vw, -30vh) rotate(14deg) rotateX(48deg) scale(0.22);
+    opacity: 0;
+  }
+}
+@keyframes am-fade {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes am-pregone {
+  to {
+    visibility: hidden;
+  }
+}
+@keyframes am-prerm {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
 }
 @keyframes am-pcdrop {
   0% {
@@ -449,12 +491,6 @@ html.lenis body {
 /* the scene module failed to load: drop the cold open, show the hero as plain markup */
 .am.flat #pre {
   display: none;
-}
-.am.flat .hero {
-  visibility: visible;
-}
-.am.flat .hero .hit {
-  pointer-events: auto;
 }
 @media (max-height: 760px) and (min-width: 761px) {
   .am .row {
@@ -547,11 +583,17 @@ html.lenis body {
 }
 @media (prefers-reduced-motion: reduce) {
   .am .states li,
-  .am #pre,
-  .am #pcs {
+  .am #gl {
     transition: none;
   }
-  .am .pc {
+  .am .pc,
+  .am #pcs {
     animation: none;
+  }
+  .am #pcs {
+    stroke-dashoffset: 0;
+  }
+  .am #pre {
+    animation: am-prerm 0s 0.5s forwards;
   }
 }

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "check": "tsc --noEmit && tsx src/pronounce.selfcheck.ts",
+    "check": "tsc --noEmit && tsx src/pronounce.selfcheck.ts && tsx src/profile.selfcheck.ts && tsx src/trial.selfcheck.ts && tsx src/translate.selfcheck.ts && tsx src/curriculum.selfcheck.ts",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push"

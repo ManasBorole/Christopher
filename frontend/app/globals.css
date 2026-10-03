@@ -243,7 +243,8 @@ body {
   transition: opacity 70ms linear;
   pointer-events: none;
 }
-.mascot-mouth.is-on {
+.mascot[data-mouth="half"] .mascot-mouth-half,
+.mascot[data-mouth="closed"] .mascot-mouth-closed {
   opacity: 1;
 }
 /* Both poses move during the change: the old one softens and settles back
@@ -501,20 +502,19 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-/* one tiny stamp per word collected */
-.word-stamp {
-  display: inline-block;
-  width: 15px;
-  height: 19px;
+/* stage meter on a tag: four airmail stripe segments */
+.stage-seg {
+  flex: 1;
+  height: 8px;
   border-radius: 2px;
-  background: var(--tag-edge);
-  box-shadow: 0 0 0 2px var(--card), 0 1px 3px 1px rgb(var(--shadow) / 0.25);
+  background: var(--card-2);
+  transition: background-color 0.5s ease;
 }
-.word-stamp:nth-child(odd) {
-  transform: rotate(-4deg);
+.stage-seg.is-on:nth-child(odd) {
+  background: var(--stamp);
 }
-.word-stamp:nth-child(even) {
-  transform: rotate(3deg);
+.stage-seg.is-on:nth-child(even) {
+  background: var(--correct);
 }
 @keyframes tag-drop {
   from {

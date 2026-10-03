@@ -3,7 +3,7 @@ import { env } from "../env.js";
 import { prisma } from "../db.js";
 import { ah } from "../http.js";
 import { owner, type OwnedRequest } from "../owner.js";
-import { SummarySchema, type Summary } from "@vta/shared";
+import { CURRICULUM, MET_TO_ADVANCE, SummarySchema, type Summary } from "@vta/shared";
 
 export const sessionsRouter = Router();
 sessionsRouter.use(owner);
@@ -44,6 +44,44 @@ sessionsRouter.post(
       data: { sessionId: s.id, role, text, at: BigInt(at ?? 0) },
     });
     res.json({ ok: true });
+  })
+);
+
+// The learner corrects one of their own lines that speech-to-text misheard.
+// A turn is found by when it took its place (`at`, as saved), so the edit
+// updates that record and the summary reads the corrected words.
+const MAX_EDIT = 500;
+sessionsRouter.patch(
+  "/sessions/:id/turns/:at",
+  ah(async (req: OwnedRequest, res) => {
+    const s = await ownedSession(req.params.id, req.ownerId);
+    if (!s) return res.status(404).json({ error: "not found" });
+    const at = Number(req.params.at);
+    const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+    if (!Number.isSafeInteger(at) || !text || text.length > MAX_EDIT) return res.status(400).json({ error: "bad edit" });
+    const { count } = await prisma.turn.updateMany({
+      where: { sessionId: s.id, role: "user", at: BigInt(at) },
+      data: { text },
+    });
+    if (!count) return res.status(404).json({ error: "not found" });
+    res.json({ ok: true });
+  })
+);
+
+// Christopher saw the learner use this lesson's goal on their own. Counted once
+// per conversation; met in MET_TO_ADVANCE conversations moves the course on.
+sessionsRouter.post(
+  "/sessions/:id/goal",
+  ah(async (req: OwnedRequest, res) => {
+    const s = await ownedSession(req.params.id, req.ownerId);
+    if (!s) return res.status(404).json({ error: "not found" });
+    const goal = s.course.goal;
+    if (s.goalMet !== goal) await prisma.session.update({ where: { id: s.id }, data: { goalMet: goal } });
+    const met = await prisma.session.count({ where: { courseId: s.course.id, goalMet: goal } });
+    // Guarded on the goal it read, so two calls at once advance it only one step.
+    const advance = met >= MET_TO_ADVANCE && goal < CURRICULUM.length - 1;
+    if (advance) await prisma.course.updateMany({ where: { id: s.course.id, goal }, data: { goal: goal + 1 } });
+    res.json({ ok: true, advanced: advance });
   })
 );
 

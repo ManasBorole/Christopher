@@ -1,0 +1,559 @@
+/* ------------------------------------------------------------------ */
+/* Your sky: the progress night over the harbour (SkyView), and its   */
+/* little window on Home (SkyStrip). The sky is always night, so its  */
+/* colours are fixed; only the strip's frame follows the app theme.   */
+/* ------------------------------------------------------------------ */
+/* the airmail stripe belongs to the paper pages, not the night */
+html:has(.sky) .airmail-edge {
+  display: none;
+}
+.sky {
+  --sky-paper: #f3e8d2;
+  --sky-dim: #b9b2a2;
+  --sky-deep: #020a0f;
+  --sky-g: clamp(16px, 4vw, 56px);
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 40;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--sky-deep);
+  color: var(--sky-paper);
+  color-scheme: dark;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+.sky-gl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+.sky-gl.drag {
+  cursor: grabbing;
+}
+.sky-gl.hot {
+  cursor: pointer;
+}
+.sky-vig {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 42%, transparent 55%, rgba(1, 6, 9, 0.55) 100%);
+}
+.sky-ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.sky-ui .hit {
+  pointer-events: auto;
+}
+.sky-ui::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 150px;
+  background: linear-gradient(rgba(2, 10, 15, 0.55), transparent);
+}
+.sky-ov {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.sky-lbls {
+  transition: opacity 0.6s;
+}
+.sky-lbl {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 27px;
+  line-height: 1;
+  white-space: nowrap;
+  text-align: center;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.sky-lbl small {
+  display: block;
+  margin-top: 5px;
+  font: 500 12px/1.2 var(--font-sans), sans-serif;
+  color: var(--sky-dim);
+}
+.sky-tip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #071a1f;
+  border: 1px solid rgba(243, 232, 210, 0.14);
+  font-size: 14px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.sky-tip b {
+  display: block;
+  font-weight: 600;
+  font-size: 15px;
+}
+.sky-tip span {
+  color: var(--sky-dim);
+}
+.sky-tip.on {
+  opacity: 1;
+}
+.sky-word {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  font: 600 24px/1.1 var(--font-display), var(--font-jp), sans-serif;
+  color: #fff8e8;
+  will-change: transform, opacity;
+}
+.sky-sb {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  opacity: 0;
+}
+.sky-sb:focus-visible {
+  opacity: 1;
+  outline: 2px solid #e8b23a;
+  outline-offset: 2px;
+}
+
+/* chrome */
+.sky-top {
+  position: absolute;
+  left: var(--sky-g);
+  top: calc(22px + env(safe-area-inset-top, 0px));
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+.sky-btn {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 6px;
+  border: 1.5px solid rgba(243, 232, 210, 0.35);
+  background: rgba(2, 10, 15, 0.8);
+  color: var(--sky-paper);
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+.sky-btn:hover {
+  border-color: var(--sky-paper);
+}
+.sky-btn:focus-visible,
+.sky-chip:focus-visible {
+  outline: 3px solid #e8b23a;
+  outline-offset: 3px;
+}
+.sky-ttl h1 {
+  margin: 0;
+  font: 650 26px/1.05 var(--font-display), sans-serif;
+  letter-spacing: -0.03em;
+}
+.sky-ttl p {
+  margin: 5px 0 0;
+  font-size: 15px;
+  color: var(--sky-dim);
+}
+.sky-when {
+  position: absolute;
+  left: 50%;
+  top: calc(24px + env(safe-area-inset-top, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: opacity 0.5s;
+  text-shadow: 0 1px 14px rgba(2, 10, 15, 0.8);
+}
+.sky-when b {
+  display: block;
+  font: 650 24px/1.05 var(--font-display), sans-serif;
+  letter-spacing: -0.02em;
+  animation: sky-flip 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.sky-when span {
+  display: block;
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--sky-dim);
+  animation: sky-flip 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.sky-when .sky-chip {
+  margin-top: 12px;
+}
+@keyframes sky-flip {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+}
+.sky-stats {
+  position: absolute;
+  left: var(--sky-g);
+  bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  gap: 34px;
+  align-items: baseline;
+  text-shadow: 0 1px 16px rgba(2, 10, 15, 0.7);
+  transition: opacity 0.4s;
+}
+.sky-stats b {
+  font: 650 44px/1 var(--font-display), sans-serif;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.sky-stats span {
+  margin-left: 7px;
+  font-size: 16px;
+  color: #d6cfbf;
+}
+.sky-ctrl {
+  position: absolute;
+  right: var(--sky-g);
+  bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  transition: opacity 0.4s;
+}
+.sky-chips {
+  display: flex;
+  gap: 8px;
+  max-width: min(720px, 62vw);
+  overflow-x: auto;
+  scrollbar-width: none;
+  justify-content: safe center;
+  padding: 2px;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+}
+.sky-chips::-webkit-scrollbar {
+  display: none;
+}
+/* edge fades show only on the side with more chips to scroll to */
+.sky-chips.fl {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 32px);
+  mask-image: linear-gradient(90deg, transparent, #000 32px);
+}
+.sky-chips.fr {
+  -webkit-mask-image: linear-gradient(270deg, transparent, #000 32px);
+  mask-image: linear-gradient(270deg, transparent, #000 32px);
+}
+.sky-chips.fl.fr {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+}
+.sky-chip {
+  flex: none;
+  scroll-snap-align: start;
+  white-space: nowrap;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(243, 232, 210, 0.28);
+  background: rgba(2, 10, 15, 0.82);
+  color: var(--sky-paper);
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.25s, border-color 0.25s, color 0.25s;
+}
+.sky-chip:hover {
+  border-color: rgba(243, 232, 210, 0.7);
+}
+.sky-chip[aria-pressed="true"] {
+  background: var(--sky-paper);
+  color: #1e2b30;
+  border-color: var(--sky-paper);
+}
+.sky-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  vertical-align: 1px;
+}
+.sky-note {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  transform: translate(-50%, -50%);
+  width: min(30rem, calc(100% - 2 * var(--sky-g)));
+  text-align: center;
+  font: 400 26px/1.2 var(--font-hand), cursive;
+  color: var(--sky-paper);
+  text-shadow: 0 1px 16px rgba(2, 10, 15, 0.8);
+}
+.sky-note p {
+  margin: 0;
+}
+.sky-note .sky-btn {
+  margin-top: 16px;
+  font-family: var(--font-sans), sans-serif;
+}
+.sky-note.small {
+  font: 500 15px/1.4 var(--font-sans), sans-serif;
+  color: var(--sky-dim);
+}
+
+/* the day card */
+.sky-panel {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  bottom: 18px;
+  width: 400px;
+  padding: 30px 30px 26px;
+  border-radius: 14px;
+  background: #06161b;
+  border: 1px solid rgba(243, 232, 210, 0.1);
+  overflow: auto;
+  animation: sky-in 0.55s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.sky-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: repeating-linear-gradient(135deg, #d64545 0 12px, var(--sky-paper) 12px 17px, #2f5da8 17px 29px, var(--sky-paper) 29px 34px);
+  opacity: 0.85;
+}
+@keyframes sky-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+.sky-panel h2 {
+  margin: 26px 0 0;
+  font: 650 32px/1.04 var(--font-display), sans-serif;
+  letter-spacing: -0.03em;
+  outline: none;
+}
+.sky-meta {
+  margin: 8px 0 0;
+  font-size: 16px;
+  color: #d6cfbf;
+}
+.sky-panel h3 {
+  margin: 28px 0 8px;
+  font: 600 14px/1 var(--font-sans), sans-serif;
+  color: var(--sky-dim);
+}
+.sky-chats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sky-chats li {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 10px;
+  padding: 11px 0;
+  border-top: 1px solid rgba(243, 232, 210, 0.1);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.sky-chats li span:first-child {
+  color: var(--sky-dim);
+}
+.sky-words-l {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.7;
+  color: #e7dfcf;
+}
+.sky-wait {
+  margin: 22px 0 0;
+  font: 400 23px/1.2 var(--font-hand), cursive;
+}
+.sky-open .sky-ctrl {
+  opacity: 0;
+  visibility: hidden;
+}
+.sky-open .sky-when {
+  opacity: 0;
+  pointer-events: none;
+}
+.sky-nogl {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  color: var(--sky-paper);
+}
+
+@media (max-width: 719px) {
+  .sky-top {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    gap: 12px;
+  }
+  .sky-ttl h1 {
+    font-size: 22px;
+    margin-top: 10px;
+  }
+  .sky-ttl p {
+    display: none;
+  }
+  .sky-when {
+    top: calc(72px + env(safe-area-inset-top, 0px));
+  }
+  .sky-when b {
+    font-size: 20px;
+  }
+  .sky-when span {
+    font-size: 13px;
+  }
+  /* the stats come down to the harbour, in one row above the language chips */
+  .sky-stats {
+    left: var(--sky-g);
+    right: var(--sky-g);
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+    gap: 18px;
+    justify-content: center;
+  }
+  .sky-stats b {
+    font-size: 24px;
+  }
+  .sky-stats span {
+    font-size: 13px;
+    margin-left: 5px;
+  }
+  .sky-ctrl {
+    left: var(--sky-g);
+    right: var(--sky-g);
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    align-items: stretch;
+  }
+  .sky-chips {
+    gap: 6px;
+    max-width: 100%;
+    justify-content: flex-start;
+  }
+  .sky-chip {
+    padding: 0 15px;
+    font-size: 14px;
+  }
+  .sky-lbl {
+    font-size: 24px;
+  }
+  .sky-word {
+    font-size: 19px;
+  }
+  .sky-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: 50%;
+    border-radius: 18px 18px 0 0;
+    padding: 22px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+    animation-name: sky-up;
+  }
+  .sky-panel h2 {
+    font-size: 26px;
+    margin-top: 16px;
+  }
+  .sky-open .sky-stats,
+  .sky-open .sky-ttl {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@keyframes sky-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sky *,
+  .sky-strip * {
+    animation: none !important;
+    transition-duration: 0.01s !important;
+  }
+}
+
+/* ---------- the strip on Home: a night window set into the paper page ---------- */
+.sky-strip {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 140px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: #06171c;
+  box-shadow: 0 1px 0 rgb(var(--shadow) / 0.05), 0 14px 28px -20px rgb(var(--shadow) / 0.6);
+  color: #f3e8d2;
+  text-align: left;
+  cursor: pointer;
+}
+.sky-strip canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.sky-strip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(243, 232, 210, 0.08);
+  background: linear-gradient(90deg, rgba(2, 10, 15, 0.6), rgba(2, 10, 15, 0.15) 45%, transparent 65%);
+  pointer-events: none;
+}
+.sky-strip-copy {
+  position: absolute;
+  left: 22px;
+  bottom: 18px;
+  z-index: 1;
+}
+.sky-strip-copy b {
+  display: block;
+  font: 650 22px/1.1 var(--font-display), sans-serif;
+  letter-spacing: -0.02em;
+}
+.sky-strip-copy span {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  color: #d9d2c2;
+}
+.sky-strip:hover {
+  border-color: var(--ink);
+}
+.sky-strip:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}

@@ -1,5 +1,5 @@
 import { rng } from "./math";
-import { C, FONT, grain, miniPostmark, paperFill, stamp, stripeBorder, type Ctx2D } from "./paper";
+import { C, FONT, miniPostmark, paperFill, stamp, stripeBorder, type Ctx2D } from "./paper";
 
 // The story's postcards, drawn once into canvases and used as textures.
 
@@ -91,19 +91,20 @@ export function drawAfter(c: Ctx2D, img: Img) {
   }
 }
 
-// a printed photo of Christopher with a handwritten caption; the grain is baked once per canvas
-const grains = new WeakMap<HTMLCanvasElement, ImageData>();
+// a printed photo of Christopher with a handwritten caption
 export function drawPolaroid(c: Ctx2D, img: Img, caption: string) {
   const W = c.canvas.width, H = c.canvas.height;
-  const g0 = grains.get(c.canvas);
-  if (g0) c.putImageData(g0, 0, 0);
-  else {
-    c.fillStyle = "#f4ecdc";
-    c.fillRect(0, 0, W, H);
-    grain(c, 0, 0, W, H, 0.85, 1.5, caption.length * 31);
-    grains.set(c.canvas, c.getImageData(0, 0, W, H));
-  }
-  const m = W * 0.06, pw = W - 2 * m, ph = pw * 1.2;
+  paperFill(c, 0, 0, W, H, "#f4ecdc", 0.85, 1.5, caption.length * 31);
+  const { m, ph } = drawPolaroidPhoto(c, img);
+  c.fillStyle = C.ink;
+  c.font = `${Math.round(W * 0.085)}px ${FONT.hand}`;
+  c.textAlign = "left";
+  c.fillText(caption, m + 6, m + ph + (H - m - ph) * 0.62);
+}
+
+// just the photo, so a baked polaroid can swap frames while Christopher talks
+export function drawPolaroidPhoto(c: Ctx2D, img: Img) {
+  const W = c.canvas.width, m = W * 0.06, pw = W - 2 * m, ph = pw * 1.2;
   if (img) c.drawImage(img, m, m, pw, ph);
   else {
     c.fillStyle = "#c6a590";
@@ -114,10 +115,7 @@ export function drawPolaroid(c: Ctx2D, img: Img, caption: string) {
   g.addColorStop(1, "rgba(0,0,0,.06)");
   c.fillStyle = g;
   c.fillRect(m, m, pw, ph);
-  c.fillStyle = C.ink;
-  c.font = `${Math.round(W * 0.085)}px ${FONT.hand}`;
-  c.textAlign = "left";
-  c.fillText(caption, m + 6, m + ph + (H - m - ph) * 0.62);
+  return { m, ph };
 }
 
 // the hero card's picture side: greetings from Japanese, with Christopher's photo glued on
@@ -269,4 +267,36 @@ export function drawHeroBack(c: Ctx2D, mask: Ctx2D | null, img: Img, withInk: bo
       mask.fillRect(s.x, s.y, s.w, s.h);
     }
   }
+}
+
+// the cold open's postcard face
+export function drawPreCard(x: Ctx2D, wave: Img) {
+  const W = x.canvas.width, H = x.canvas.height;
+  paperFill(x, 0, 0, W, H, "#f0e4cc", 1, 1.5, 55);
+  x.fillStyle = C.teal;
+  x.font = `${H * 0.1}px ${FONT.hand}`;
+  x.textAlign = "left";
+  x.fillText("Greetings from", W * 0.08, H * 0.36);
+  x.fillStyle = C.ink;
+  x.font = `700 ${H * 0.13}px ${FONT.display}`;
+  x.fillText("Christopher", W * 0.08, H * 0.54);
+  x.fillStyle = C.pen;
+  x.font = `${H * 0.065}px ${FONT.hand}`;
+  x.fillText("say it out loud.", W * 0.08, H * 0.74);
+  x.save();
+  x.translate(W * 0.78, H * 0.48);
+  x.rotate(0.06);
+  const pw = W * 0.24, ph = pw * 1.2, b = pw * 0.06;
+  x.shadowColor = "rgba(60,40,20,.25)";
+  x.shadowBlur = 14;
+  x.shadowOffsetY = 5;
+  x.fillStyle = "#faf6ec";
+  x.fillRect(-pw / 2 - b, -ph / 2 - b, pw + 2 * b, ph + 2 * b);
+  x.shadowColor = "transparent";
+  if (wave) x.drawImage(wave, -pw / 2, -ph / 2, pw, ph);
+  else {
+    x.fillStyle = "#c6a590";
+    x.fillRect(-pw / 2, -ph / 2, pw, ph);
+  }
+  x.restore();
 }

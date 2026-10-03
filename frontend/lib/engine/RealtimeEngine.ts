@@ -1,5 +1,8 @@
 import type { ConversationEngine, ConversationEvents } from "./ConversationEngine";
 import { ownerHeaders } from "../auth";
+import { LineTracker } from "./lines";
+import { stageNote, type Stage } from "../stage";
+import { smoothLevel } from "../mouth";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8787";
 const OPENAI_RT = "https://api.openai.com/v1/realtime/calls";
@@ -27,21 +30,33 @@ async function getMic(): Promise<MediaStream> {
 //
 // Turn-taking is SERVER-DRIVEN (session turn_detection.create_response=true): the
 // server VAD decides when the learner has stopped and auto-generates the tutor's
-// reply, and it maintains the conversation. The client only kicks off the opening
-// greeting and relays the update_profile tool. Pronunciation is judged by the
+// reply, and it maintains the conversation. The learner speaks first: the client
+// never asks for a reply itself (beyond acking update_profile), so a connection
+// where nobody talks costs nothing. Christopher's greeting is his answer to the
+// learner's first words. Pronunciation is judged by the
 // audio-native model itself, spoken as natural coaching - no separate capture/score.
 export class RealtimeEngine implements ConversationEngine {
   private pc?: RTCPeerConnection;
   private dc?: RTCDataChannel;
   private mic?: MediaStream;
   private audioEl?: HTMLAudioElement;
+  private audioCtx?: AudioContext;
+  private meter?: AnalyserNode; // taps the mic so the UI can tell a silent/wrong mic
+  private outMeter?: AnalyserNode; // taps Christopher's voice so his mouth follows it
+  private outLevel = 0;
+  private outAt = 0;
   private ev: ConversationEvents = {};
-  private greeted = false; // the tutor's opening line is requested exactly once
+  private lines = new LineTracker((l) => this.ev.onLine?.(l));
+  private stage: Stage | null = null; // last known conversation stage, for the learner's notes
 
   async connect(events: ConversationEvents, sessionId?: string): Promise<void> {
     this.ev = events;
     this.ev.onStatus?.("connecting");
     try {
+      // Made before any await, so it starts inside the click that began the
+      // conversation; browsers keep a context made later suspended.
+      this.audioCtx = typeof AudioContext === "function" ? new AudioContext() : undefined;
+      void this.audioCtx?.resume().catch(() => {});
       // Start the mic prompt and the token fetch in PARALLEL - they don't depend
       // on each other, so this shaves the "listens after a few seconds" delay.
       const micPromise = getMic();
@@ -65,15 +80,15 @@ export class RealtimeEngine implements ConversationEngine {
       this.audioEl.autoplay = true;
       pc.ontrack = (e) => {
         this.audioEl!.srcObject = e.streams[0];
+        this.outMeter = this.analyse(e.streams[0]);
       };
       // Only report "live" once the transport is actually CONNECTED. Emitting it
       // right after the SDP answer lit up "Listening…" while ICE/DTLS was still
       // negotiating, so the learner's first utterance went nowhere. Gating on
-      // `connected` means the mic is really flowing - and it's where we greet.
+      // `connected` means the mic is really flowing.
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "connected") {
           this.ev.onStatus?.("live");
-          this.maybeGreet();
         } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
           this.ev.onStatus?.("error", `connection ${pc.connectionState}`);
         }
@@ -81,11 +96,10 @@ export class RealtimeEngine implements ConversationEngine {
 
       this.mic = await micPromise;
       this.mic.getTracks().forEach((t) => pc.addTrack(t, this.mic!));
+      this.meter = this.analyse(this.mic);
 
       this.dc = pc.createDataChannel("oai-events");
       this.dc.onmessage = (m) => this.onEvent(JSON.parse(m.data));
-      // The channel and the transport can finish in either order; greet when both are ready.
-      this.dc.onopen = () => this.maybeGreet();
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -107,18 +121,18 @@ export class RealtimeEngine implements ConversationEngine {
   // Map the Realtime event stream to our engine callbacks.
   // ponytail: only the events the app needs are handled; add cases as needed.
   private onEvent(e: any) {
+    this.lines.handle(e); // the chat transcript, per conversation item
     switch (e.type) {
-      // agent transcript - GA renamed audio_transcript -> output_audio_transcript
-      case "response.output_audio_transcript.delta":
-      case "response.audio_transcript.delta":
-        this.ev.onTranscript?.("agent", e.delta ?? "", false);
+      // Server VAD heard the learner. This, not the connection, is the proof
+      // that Christopher can hear them.
+      case "input_audio_buffer.speech_started":
+        this.ev.onHeard?.();
         break;
-      case "response.output_audio_transcript.done":
-      case "response.audio_transcript.done":
-        this.ev.onTranscript?.("agent", e.transcript ?? "", true);
-        break;
-      case "conversation.item.input_audio_transcription.completed":
-        this.ev.onTranscript?.("user", e.transcript ?? "", true);
+
+      // Never swallow these silently: they are the only trace when a turn dies.
+      case "error":
+      case "conversation.item.input_audio_transcription.failed":
+        console.warn("[realtime]", e.type, e.error ?? e);
         break;
 
       // speaking indicator - output_audio_buffer.* fire on WebRTC; keep the
@@ -140,48 +154,124 @@ export class RealtimeEngine implements ConversationEngine {
     }
   }
 
-  // Tutor speaks first. Fire exactly once, and only when BOTH the transport is
-  // connected and the data channel is open (they can finish in either order).
-  // After this, the server VAD drives every reply, so we never trigger one again.
-  private maybeGreet() {
-    if (this.greeted) return;
-    if (this.pc?.connectionState !== "connected" || this.dc?.readyState !== "open") return;
-    this.greeted = true;
-    this.dc.send(JSON.stringify({ type: "response.create" }));
-  }
-
   // Tutor learned the learner's name/languages/level - bubble up + ack so the
   // model can continue its turn (a tool call pauses the response until we reply).
   private updateProfile(callId: string, argsJson: string) {
+    let name = "";
     try {
-      this.ev.onProfile?.(JSON.parse(argsJson ?? "{}"));
+      const p = JSON.parse(argsJson ?? "{}");
+      name = typeof p.userName === "string" ? p.userName.trim() : "";
+      const stage = Number(p.stage);
+      if ([1, 2, 3, 4].includes(stage)) {
+        p.stage = stage;
+        this.setStage(stage as Stage, "model");
+      } else delete p.stage;
+      this.ev.onProfile?.(p);
     } catch {
       /* ignore malformed args */
     }
     if (this.dc?.readyState !== "open") return;
+    // Echo a saved name back as the one to use, so a correction sticks over
+    // any older name in the session instructions.
+    const output = name
+      ? { ok: true, note: `Saved. The learner's name is ${name}. Use only ${name} from now on.` }
+      : { ok: true };
     this.dc.send(
       JSON.stringify({
         type: "conversation.item.create",
-        item: { type: "function_call_output", call_id: callId, output: JSON.stringify({ ok: true }) },
+        item: { type: "function_call_output", call_id: callId, output: JSON.stringify(output) },
       })
     );
     this.dc.send(JSON.stringify({ type: "response.create" }));
   }
 
+  // The stage moved. The model's own moves are only recorded; a learner's
+  // nudge reaches the live model as a system note. Adding an item never starts
+  // a reply or cuts one off, so this costs nothing and waits for his next turn.
+  // Not connected yet: nothing to send, /session reads the saved stage.
+  setStage(stage: Stage, reason: "learner" | "model") {
+    const from = this.stage;
+    this.stage = stage;
+    if (reason !== "learner" || this.dc?.readyState !== "open") return;
+    this.dc.send(
+      JSON.stringify({
+        type: "conversation.item.create",
+        item: { type: "message", role: "system", content: [{ type: "input_text", text: stageNote(stage, from) }] },
+      })
+    );
+  }
+
+  // A system note only, never response.create: an extra spoken reply costs
+  // money, and he picks the fix up on his next turn anyway.
+  noteCorrection(original: string, corrected: string) {
+    if (this.dc?.readyState !== "open") return;
+    const text = `The learner's earlier line was misheard as "${original}". They actually said: "${corrected}". Use that from now on.`;
+    this.dc.send(
+      JSON.stringify({
+        type: "conversation.item.create",
+        item: { type: "message", role: "system", content: [{ type: "input_text", text }] },
+      })
+    );
+  }
+
   interrupt() {
     if (this.dc?.readyState === "open") {
       this.dc.send(JSON.stringify({ type: "response.cancel" }));
+      // Over WebRTC the reply is often fully generated but still playing;
+      // cancel alone leaves it talking. Clearing the output buffer cuts it off.
+      this.dc.send(JSON.stringify({ type: "output_audio_buffer.clear" }));
     }
     this.ev.onSpeaking?.(false);
   }
 
+  // An analyser on a stream, as a dead end: it is never wired to the speakers,
+  // so tapping Christopher's voice leaves what the learner hears (the audio
+  // element) unchanged. Chrome only feeds a remote WebRTC stream to Web Audio
+  // while a media element is playing it, which the audio element does.
+  private analyse(stream: MediaStream): AnalyserNode | undefined {
+    try {
+      const node = this.audioCtx!.createAnalyser();
+      node.fftSize = 1024;
+      this.audioCtx!.createMediaStreamSource(stream).connect(node);
+      return node;
+    } catch {
+      /* no Web Audio: the UI simply gets no level */
+    }
+  }
+
+  // RMS of the latest mic frame. A muted, unplugged or wrong device reads ~0.
+  inputLevel(): number {
+    return rms(this.meter);
+  }
+
+  // Christopher's voice loudness, 0..1, smoothed (fast attack, slower release,
+  // noise gated). Meant to be read once per animation frame.
+  outputLevel(): number {
+    const now = performance.now();
+    this.outLevel = smoothLevel(this.outLevel, rms(this.outMeter), now - this.outAt);
+    this.outAt = now;
+    return this.outLevel;
+  }
+
   disconnect() {
+    this.lines.flush();
+    this.lines = new LineTracker((l) => this.ev.onLine?.(l));
     this.dc?.close();
     this.mic?.getTracks().forEach((t) => t.stop());
     this.pc?.close();
     if (this.audioEl) this.audioEl.srcObject = null;
-    this.pc = this.dc = this.mic = this.audioEl = undefined;
-    this.greeted = false;
+    void this.audioCtx?.close().catch(() => {});
+    this.pc = this.dc = this.mic = this.audioEl = this.audioCtx = this.meter = this.outMeter = undefined;
+    this.outLevel = 0;
     this.ev.onStatus?.("idle");
   }
+}
+
+function rms(node?: AnalyserNode): number {
+  if (!node) return 0;
+  const buf = new Float32Array(node.fftSize);
+  node.getFloatTimeDomainData(buf);
+  let sum = 0;
+  for (const v of buf) sum += v * v;
+  return Math.sqrt(sum / buf.length);
 }

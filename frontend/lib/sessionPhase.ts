@@ -10,7 +10,9 @@ export type Phase =
   | "connecting"
   | "speaking" // tutor audio is playing
   | "thinking" // learner finished a turn, tutor hasn't answered yet
+  | "invite" // live, waiting for the learner to say the first words
   | "listening"
+  | "unheard" // live, but no learner speech has reached Christopher yet
   | "handed-back" // learner just cut the tutor off
   | "dropped" // connection lost mid-conversation
   | "failed" // couldn't connect at all
@@ -24,7 +26,31 @@ export type PhaseInput = {
   ending: boolean;
   handedBack: boolean;
   mic: PermissionState | "unknown";
+  heard?: boolean; // learner speech has reached Christopher on this connection
+  unheard?: boolean; // from cannotHear()
 };
+
+// How long the line can stay quiet (no learner speech detected, no mic sound,
+// Christopher not talking) before we say he cannot hear them. The learner
+// speaks first (Christopher waits for their hello), so this runs from the
+// moment the line opens and leaves time to read the invite and start.
+export const HEAR_WAIT_MS = 10000;
+// Mic RMS that counts as "sound". Room noise after noise suppression sits well
+// below it; quiet speech (about -46 dBFS) sits above. Calibration knob.
+export const MIC_FLOOR = 0.005;
+
+// Nothing has reached Christopher on this connection, for long enough to say so.
+export function cannotHear(i: { heard: boolean; quietMs: number }): boolean {
+  return !i.heard && i.quietMs >= HEAR_WAIT_MS;
+}
+
+// Free-trial rule: the trial is used (and its clock runs) only once Christopher
+// has actually heard the learner, never just because the line connected.
+// `heardBefore` = heard at least once earlier in this conversation.
+export function trialStep(event: "live" | "heard", heardBefore: boolean): { consume: boolean; startClock: boolean } {
+  if (event === "live") return { consume: false, startClock: heardBefore };
+  return heardBefore ? { consume: false, startClock: false } : { consume: true, startClock: true };
+}
 
 export function sessionPhase(i: PhaseInput): Phase {
   if (i.ending) return "saving";
@@ -33,7 +59,8 @@ export function sessionPhase(i: PhaseInput): Phase {
     if (i.agentSpeaking) return "speaking";
     if (i.handedBack) return "handed-back";
     if (i.lastTurn === "user") return "thinking";
-    return "listening";
+    if (i.unheard) return "unheard";
+    return i.heard === false ? "invite" : "listening";
   }
   if (i.lastError) {
     if (/permission denied/i.test(i.lastError)) return "mic-blocked";

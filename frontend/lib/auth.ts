@@ -34,6 +34,20 @@ export function guestId(): string {
   return g;
 }
 
+// Who requests are made as, known synchronously (before Clerk has loaded): Clerk
+// keeps the session token in a readable __session cookie; otherwise the guest.
+// Used to keep cached screens per account.
+export function ownerKey(): string {
+  const m = document.cookie.match(/(?:^|;\s*)__session(?:_[\w-]+)?=([^;]+)/);
+  try {
+    const sub = m && JSON.parse(atob(m[1].split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).sub;
+    if (sub) return `clerk:${sub}`;
+  } catch {
+    /* not a token: treat as guest */
+  }
+  return `guest:${guestId()}`;
+}
+
 // Headers identifying the owner. Include as `headers` on every backend fetch.
 export async function ownerHeaders(): Promise<Record<string, string>> {
   const h: Record<string, string> = { "x-guest-id": guestId() };

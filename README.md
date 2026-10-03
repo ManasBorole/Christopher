@@ -138,7 +138,7 @@ Christopher/
 
 **Short-lived tokens for browser-to-OpenAI WebRTC.** The conversation has to be low-latency, so audio goes straight from the browser to OpenAI instead of through my server. That means the browser needs a credential, and the real API key cannot leave the backend. `POST /session` creates a client secret with the session's instructions, voice and tools already set ([`session.ts`](backend/src/routes/session.ts)), and the browser uses it only for the SDP handshake ([`RealtimeEngine.ts`](frontend/lib/engine/RealtimeEngine.ts)). The trade-off: the server cannot see the live audio, so everything it needs comes back as events the client forwards.
 
-**The server decides when a turn ends.** An earlier version had the client send `response.create` itself. Every misheard blip started a fresh reply, and the tutor would re-greet and loop. Turn detection now runs on OpenAI's server VAD with `create_response: true`, a 0.6 threshold to ignore room noise, 550 ms of silence so learners can pause mid-sentence, and 300 ms of prefix padding so short words keep their start. The client sends one `response.create` for the opening greeting and nothing after. The trade-off is less control over timing in exchange for a conversation that does not trip over itself.
+**The server decides when a turn ends.** An earlier version had the client send `response.create` itself. Every misheard blip started a fresh reply, and the tutor would re-greet and loop. Turn detection now runs on OpenAI's server VAD with `create_response: true`, a 0.6 threshold to ignore room noise, 550 ms of silence so learners can pause mid-sentence, and 300 ms of prefix padding so short words keep their start. The learner speaks first and the client never sends `response.create` (beyond acknowledging a tool call): Christopher's greeting is his reply to their first hello, so a connection where nobody talks costs nothing. The trade-off is less control over timing in exchange for a conversation that does not trip over itself.
 
 **Transcription locked to the language being learned.** Short target-language clips were being detected as a neighbouring language, for example Japanese transcribed as Chinese, which fed the tutor nonsense. The session uses `gpt-4o-transcribe` and pins its language when the course's language is one of the 20 names in the lookup table in `session.ts`. Other languages fall back to auto-detection.
 
@@ -152,7 +152,7 @@ Christopher/
 
 **Guest first, sign-in optional.** Every request resolves to an owner: `clerk:<userId>` from a verified Clerk token, or `guest:<uuid>` from a header the browser generates ([`owner.ts`](backend/src/owner.ts)). Nobody has to create an account to try it. Without Clerk keys, the middleware is a passthrough and the app runs guest-only. The trade-off: a guest id is just a header, so the free trial is easy to reset by clearing storage.
 
-**A trial that's only spent when the call goes live.** `/session` checks the allowance but does not consume it; the client consumes one session once the WebRTC connection is actually up ([`gate.ts`](backend/src/gate.ts)). A failed or abandoned connect never burns the learner's free conversation.
+**A trial that's only spent once Christopher hears you.** `/session` checks the allowance but does not consume it; the client consumes one session the first time the server detects the learner's speech ([`gate.ts`](backend/src/gate.ts), rules in [`trial.ts`](backend/src/trial.ts)). A failed connect or a silent microphone never burns the learner's free conversation. As a safety net, the server counts handed-out connections where the learner was never heard: after `FREE_UNHEARD_CONNECTS` of them (4, about $0.04 at most), the next connection uses the trial up front.
 
 **Shared contracts.** Types and Zod schemas for summaries, profiles, tokens and course data live in one workspace package, [`shared/src/index.ts`](shared/src/index.ts), imported by both sides as raw TypeScript. The backend validates the summary model's output against `SummarySchema` before saving it.
 
@@ -198,7 +198,7 @@ npm run dev:frontend    # app on http://localhost:3000
 
 - The backend prints `backend on http://localhost:8787`, and http://localhost:8787/health returns `{"ok":true}`.
 - http://localhost:3000 shows the landing page: a postcard drops in while the scene loads, then the harbour appears.
-- Press **Start talking in Japanese** (or pick another language first), then **Try it as a guest**, then allow the microphone. Christopher greets you and asks your name.
+- Press **Start talking in Japanese** (or pick another language first), then **Try it as a guest**, then allow the microphone. Say hello: Christopher greets you and asks your name.
 
 ### If something goes wrong
 
@@ -240,6 +240,7 @@ These run with no keys or database:
 | `OPENAI_PRONUNCIATION_MODEL` | No | `gpt-audio-mini` | Audio model behind `/pronounce` |
 | `FREE_SESSIONS` | No | `1` | Free conversations per owner |
 | `FREE_SECONDS` | No | `60` | Length of each free conversation |
+| `FREE_UNHEARD_CONNECTS` | No | `4` | Connections per owner where Christopher never hears the learner that stay free. The next connection uses the trial, or is refused once it is used. |
 | `UNLIMITED_OWNERS` | No | | Owner ids that skip the trial, comma-separated |
 | `CLERK_SECRET_KEY` | No | | Verifies signed-in users. Leave empty for guest-only. |
 

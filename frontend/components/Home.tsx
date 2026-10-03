@@ -3,54 +3,74 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CourseCard } from "@vta/shared";
 
-import { listCourses, createCourse, deleteCourse, cachedCourses } from "../lib/api";
+import { listCourses, createCourse, deleteCourse, cachedCourses, getCourse } from "../lib/api";
 import { findLanguage } from "../lib/languages";
 import { greeting } from "../lib/greetings";
+import { stageLabel } from "../lib/stage";
 import { lastChat } from "../lib/lastChat";
 import LanguagePicker from "./LanguagePicker";
+import LevelQuestion from "./LevelQuestion";
 import DeleteLanguageModal from "./DeleteLanguageModal";
 import Mascot from "./Mascot";
+import SkyStrip from "./sky/SkyStrip";
 
 // Every language the learner studies, as a luggage tag. Adding one opens the
-// picker in a sheet.
+// picker in a sheet, then asks how much of it the learner already knows.
 export default function Home({
   onOpenCourse,
+  onOpenSky,
   onContinue,
   continuing,
 }: {
   onOpenCourse: (id: string) => void;
+  onOpenSky: () => void;
   onContinue: (c: CourseCard) => void;
   continuing: string | null;
 }) {
-  // Seed from the cache so a revisit (backing out of a course) paints the tags
-  // immediately instead of flashing placeholders; still revalidate on mount.
+  // Seed from this browser's cache so a revisit or reload paints the tags on the
+  // first frame instead of placeholders; still revalidate on mount.
   const [courses, setCourses] = useState<CourseCard[] | null>(() => cachedCourses());
+  const [failed, setFailed] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [addError, setAddError] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<CourseCard | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    // Always reach a terminal state: a rejected load (backend down, network) must
-    // drop to an actionable empty state, never hang on placeholders.
+  const alive = useRef(true);
+  function load() {
+    setFailed(false);
+    // Always reach a terminal state. listCourses retries a sleeping server for
+    // about a minute; if it still fails with nothing cached, offer a retry rather
+    // than a false "no languages yet".
     listCourses()
-      .then((c) => alive && setCourses(c))
-      .catch(() => alive && setCourses([]));
+      .then((c) => alive.current && setCourses(c))
+      .catch(() => alive.current && setFailed(true));
+  }
+  useEffect(() => {
+    alive.current = true;
+    load();
     return () => {
-      alive = false;
+      alive.current = false;
     };
   }, []);
 
   const existing = useMemo(() => new Set((courses ?? []).map((c) => c.language.toLowerCase())), [courses]);
 
-  async function pick(name: string) {
+  function closeAdd() {
+    if (busy) return;
+    setAdding(false);
+    setPicked(null);
+    setAddError(false);
+  }
+
+  async function add(name: string, stage: number | null) {
     if (busy) return;
     setBusy(true);
     setAddError(false);
     try {
-      const c = await createCourse(name);
+      const c = await createCourse(name, stage ?? undefined);
       onOpenCourse(c.id);
     } catch {
       setAddError(true);
@@ -73,7 +93,18 @@ export default function Home({
 
   return (
     <section className="mx-auto max-w-5xl px-4 pb-20 pt-8 sm:px-6 sm:pt-12">
-      {courses === null ? (
+      {courses === null && failed ? (
+        <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
+          <Mascot pose="reconnecting" className="w-36 shrink-0" />
+          <div>
+            <h1 className="font-display text-3xl font-extrabold tracking-[-0.02em]">Your languages did not load</h1>
+            <p className="mt-2 max-w-[44ch] text-muted">Christopher could not reach the server. Check your connection, then try again.</p>
+            <button type="button" onClick={load} className="btn mt-5">
+              Try again
+            </button>
+          </div>
+        </div>
+      ) : courses === null ? (
         <ul className="grid gap-x-6 gap-y-4 pt-[88px] sm:grid-cols-2 lg:grid-cols-3" aria-busy aria-label="Loading your languages">
           {[0, 1, 2].map((i) => (
             <li key={i} className="tag-slot" aria-hidden>
@@ -101,6 +132,11 @@ export default function Home({
       ) : (
         <>
           <Welcome courses={courses} />
+          {courses.some((c) => c.sessionCount > 0) && (
+            <div className="mb-8">
+              <SkyStrip onOpen={onOpenSky} />
+            </div>
+          )}
 
           <ul className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
             {courses.map((c, i) => (
@@ -135,13 +171,29 @@ export default function Home({
           aria-modal="true"
           aria-labelledby="add-title"
           className="sheet-backdrop"
-          onMouseDown={(e) => e.target === e.currentTarget && !busy && setAdding(false)}
+          onMouseDown={(e) => e.target === e.currentTarget && closeAdd()}
         >
           <div className="sheet">
-            <h2 id="add-title" className="mb-4 font-display text-2xl font-extrabold tracking-[-0.02em]">
-              Add a language
-            </h2>
-            <LanguagePicker existing={existing} busy={busy} onPick={pick} onCancel={() => !busy && setAdding(false)} />
+            {picked ? (
+              <LevelQuestion
+                key={picked}
+                language={picked}
+                titleId="add-title"
+                busy={busy}
+                onAnswer={(stage) => add(picked, stage)}
+                onBack={() => {
+                  setPicked(null);
+                  setAddError(false);
+                }}
+              />
+            ) : (
+              <>
+                <h2 id="add-title" className="mb-4 font-display text-2xl font-extrabold tracking-[-0.02em]">
+                  Add a language
+                </h2>
+                <LanguagePicker existing={existing} onPick={setPicked} onCancel={closeAdd} />
+              </>
+            )}
             {busy && (
               <p role="status" className="mt-3 text-sm text-muted">
                 Setting it up…
@@ -186,39 +238,45 @@ function Tag({
   const l = findLanguage(c.language);
   const hello = greeting(l?.code);
   const started = c.sessionCount > 0;
-  const shown = Math.min(c.vocabCount, 5);
+  const words = `${c.vocabCount} ${c.vocabCount === 1 ? "word" : "words"}`;
   return (
     <li className="tag-slot group/tag" style={{ ["--i" as string]: index }}>
       <div className="tag-hang">
         <div className="tag">
           {/* full-tag open target sits under the delete button */}
-          <button type="button" onClick={onOpen} aria-label={`Open ${c.language}`} className="tag-open absolute inset-0 z-[1]" />
+          <button
+            type="button"
+            onClick={onOpen}
+            // start loading the course page as soon as the learner reaches for it
+            onPointerEnter={() => getCourse(c.id)}
+            onFocus={() => getCourse(c.id)}
+            aria-label={`Open ${c.language}`}
+            className="tag-open absolute inset-0 z-[1]"
+          />
           <div className="pointer-events-none relative z-[2] flex flex-1 flex-col">
             <p lang={l?.code} dir={l?.rtl ? "rtl" : undefined} className="pr-24 font-display text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em]">
               {l?.native ?? c.language}
             </p>
-            {l && l.native !== c.language && <p className="mt-1 text-sm text-muted">{c.language}</p>}
-            {hello && (
-              <p lang={l?.code} dir={l?.rtl ? "rtl" : undefined} className="mt-3 font-hand text-[22px] leading-none text-tutor">
-                {hello}
-              </p>
-            )}
+            <p className="mt-1 text-sm text-muted">
+              {l && l.native !== c.language ? `${c.language}, ` : ""}
+              {started ? words : "not started yet"}
+            </p>
+
+            {/* how much of the language he speaks now, as of the last conversation */}
+            <div className="mt-5 flex gap-1.5" role="img" aria-label={`Stage: ${stageLabel(c.stage, c.language)}`}>
+              {[1, 2, 3, 4].map((n) => (
+                <span key={n} className={`stage-seg ${c.stage != null && n <= c.stage ? "is-on" : ""}`} />
+              ))}
+            </div>
+            <p className={`mt-1.5 font-hand text-[19px] leading-none ${c.stage == null ? "text-muted" : "text-tutor"}`}>
+              {stageLabel(c.stage, c.language)}
+            </p>
 
             <div className="mt-auto pt-5">
-              {c.vocabCount > 0 ? (
-                <div className="flex items-center gap-2.5">
-                  <span className="flex gap-1.5" aria-hidden>
-                    {Array.from({ length: shown }, (_, k) => (
-                      <span key={k} className="word-stamp" />
-                    ))}
-                  </span>
-                  <span className="text-sm text-muted">
-                    {c.vocabCount} {c.vocabCount === 1 ? "word" : "words"} collected
-                  </span>
-                </div>
-              ) : (
-                <p className="text-sm text-muted">{started ? "No words collected yet." : `Not started yet. Say ${hello ?? "hello"}.`}</p>
-              )}
+              <div className="border-t-[1.5px] border-dashed border-line pt-3.5">
+                <p className="text-[13px] text-muted">{started ? "Next lesson" : `First lesson, say ${hello ?? "hello"}`}</p>
+                <p className="font-semibold leading-snug">{c.goal}</p>
+              </div>
               <button
                 type="button"
                 onClick={onContinue}

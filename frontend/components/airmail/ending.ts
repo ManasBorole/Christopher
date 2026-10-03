@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { lin, type Card, type Uniforms } from "./flock";
 import { clamp, lerp, rng, sm, smr } from "./math";
-import type { ImgName } from "./images";
-import { C, FONT, cv, fitFont, grain, paperFill, stripeBorder } from "./paper";
+import type { Order } from "./painter";
+import { C, FONT, cv, fitFont, grain, stripeBorder } from "./paper";
+import WORD from "./word.json";
 import { GIANT_FRAG, GIANT_VERT, LINE_FRAG, LINE_VERT, REFLECT_FRAG, STAR_FRAG, STAR_VERT } from "./shaders";
 
 /* The ending, one path: murmuration, harbour lights, the world was a postcard.
@@ -18,8 +19,8 @@ export type EndingEnv = {
   renderer: THREE.WebGLRenderer;
   shared: Uniforms;
   canvasTex: (c: HTMLCanvasElement) => THREE.Texture;
-  imgs: Partial<Record<ImgName, HTMLImageElement>>;
-  whenImg: (names: ImgName[], redraw: () => void) => void;
+  paint: (job: Order) => Promise<TexImageSource>; // paper grain, off the main thread
+  stamp: Promise<THREE.Texture>; // the big stamp, baked
   postTex: THREE.Texture; // the red postmark, shared with the after card
   ctaB: HTMLElement; // the CTA that rides the postcard's address lines
   RM: boolean;
@@ -119,7 +120,7 @@ export function createEnding(env: EndingEnv) {
     camT: V(),
     W: V(),
     Ww: 30,
-    word: null as Word | null,
+    word: WORD as Word, // the skeleton, baked (bake.ts)
   };
   const pointsGeo = (m: number) => {
     const g = new THREE.BufferGeometry();
@@ -175,7 +176,6 @@ export function createEnding(env: EndingEnv) {
     byOn.forEach((k, r) => {
       EC.ordOn[k] = r / (n - 1);
     });
-    if (!EC.word) EC.word = skeletonWord("Christopher", n);
     const word = EC.word;
     const dist = 62, visH = 2 * dist * tanH, visW = visH * asp;
     EC.Ww = Math.min(44, visW * (mob ? 0.92 : 0.8));
@@ -282,7 +282,6 @@ export function createEnding(env: EndingEnv) {
     cam: new THREE.PerspectiveCamera(35, 1, 0.1, 3000),
     card: null as THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null,
     stamp: null as THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null,
-    stampTex: null as THREE.Texture | null,
     stampHome: V(),
     d0: 10,
     Wc: 1,
@@ -302,16 +301,7 @@ export function createEnding(env: EndingEnv) {
     EB.space.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: new THREE.Color("#d9e8e4"), size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0.55 })));
   }
 
-  function stampTex() {
-    const c = cv(480, 576), tex = env.canvasTex(c);
-    drawStampTex(c, env.imgs.postcard || env.imgs.idle);
-    env.whenImg(["postcard"], () => {
-      drawStampTex(c, env.imgs.postcard);
-      tex.needsUpdate = true;
-    });
-    return tex;
-  }
-
+  let gen = 0, gone = false;
   function buildB() {
     const asp = innerWidth / innerHeight, sz = env.renderer.getDrawingBufferSize(new THREE.Vector2());
     if (!EB.rt) {
@@ -320,6 +310,21 @@ export function createEnding(env: EndingEnv) {
     } else EB.rt.setSize(sz.x, sz.y);
     EB.cam.aspect = asp;
     EB.cam.updateProjectionMatrix();
+    const d0 = EB.d0, Hp = 2 * d0 * tanH, Wp = Hp * asp, m = 0.075 * Math.min(Hp, Wp);
+    const Wc = Wp + 2 * m, Hc = Hp + 2 * m;
+    const aspC = Wc / Hc, bw = aspC >= 1 ? 2048 : 1200, bh = Math.round(bw / aspC), my = ++gen;
+    // the card is sized to the screen, so its paper is painted here, then written on once the fonts are in
+    Promise.all([
+      env.paint({ w: bw, h: bh, paper: ["#f0e4cc", 1, 2, 909] }),
+      document.fonts.load(`40px ${FONT.hand}`, "say it out loud. Christopher"),
+      document.fonts.load(`700 30px ${FONT.sans}`, "To"),
+      env.stamp,
+    ]).then(([paper, , , stamp]) => {
+      if (my === gen && !gone) dressB(paper, stamp, Wc, Hc, m, aspC, bw, bh);
+    }, () => {});
+  }
+  function dressB(paper: TexImageSource, stamp: THREE.Texture, Wc: number, Hc: number, m: number, aspC: number, bw: number, bh: number) {
+    if (!EB.rt) return;
     if (EB.card) {
       EB.space.remove(EB.card);
       EB.card.geometry.dispose();
@@ -328,11 +333,13 @@ export function createEnding(env: EndingEnv) {
       EB.stamp?.geometry.dispose();
       EB.stamp?.material.dispose();
     }
-    const d0 = EB.d0, Hp = 2 * d0 * tanH, Wp = Hp * asp, m = 0.075 * Math.min(Hp, Wp);
-    EB.Wc = Wp + 2 * m;
-    EB.Hc = Hp + 2 * m;
-    const aspC = EB.Wc / EB.Hc, bw = aspC >= 1 ? 2048 : 1200, bc = cv(bw, Math.round(bw / aspC));
-    const L = drawGiantBack(bc.getContext("2d")!, aspC);
+    EB.Wc = Wc;
+    EB.Hc = Hc;
+    const bc = cv(bw, bh), x = bc.getContext("2d")!;
+    x.setTransform(1, 0, 0, -1, 0, bh); // the painter hands pictures over upside down, for WebGL
+    x.drawImage(paper as CanvasImageSource, 0, 0, bw, bh);
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    const L = drawGiantBack(x, aspC);
     EB.card = new THREE.Mesh(
       new THREE.PlaneGeometry(EB.Wc, EB.Hc, 64, 40),
       new THREE.ShaderMaterial({
@@ -354,12 +361,11 @@ export function createEnding(env: EndingEnv) {
         fragmentShader: GIANT_FRAG,
       })
     );
-    EB.card.position.set(0, 0, -d0);
+    EB.card.position.set(0, 0, -EB.d0);
     EB.card.frustumCulled = false;
     EB.space.add(EB.card);
     const swd = L.stamp[2] * EB.Wc, sht = swd * 1.2;
-    EB.stampTex ??= stampTex();
-    EB.stamp = new THREE.Mesh(new THREE.PlaneGeometry(swd, sht), new THREE.MeshBasicMaterial({ map: EB.stampTex, transparent: true, side: THREE.DoubleSide }));
+    EB.stamp = new THREE.Mesh(new THREE.PlaneGeometry(swd, sht), new THREE.MeshBasicMaterial({ map: stamp, transparent: true, side: THREE.DoubleSide }));
     EB.stamp.rotation.y = Math.PI;
     EB.stampHome.set((0.5 - (L.stamp[0] + L.stamp[2] / 2)) * EB.Wc, (0.5 - L.stamp[1]) * EB.Hc - sht / 2, -0.02);
     EB.card.add(EB.stamp);
@@ -439,6 +445,7 @@ export function createEnding(env: EndingEnv) {
   }
 
   function dispose() {
+    gone = true;
     EB.rt?.dispose();
     EB.space.traverse((o) => {
       const m = o as THREE.Mesh;
@@ -456,7 +463,6 @@ export function createEnding(env: EndingEnv) {
 type Layout = { stamp: [number, number, number]; pm: [number, number, number]; cta: [number, number] };
 function drawGiantBack(c: CanvasRenderingContext2D, aspC: number): Layout {
   const W = c.canvas.width, H = c.canvas.height, land = aspC >= 1;
-  paperFill(c, 0, 0, W, H, "#f0e4cc", 1, 2, 909);
   stripeBorder(c, 0, 0, W, H, Math.min(W, H) * 0.034);
   c.strokeStyle = "rgba(80,60,40,.32)";
   c.lineWidth = 3;
@@ -513,7 +519,7 @@ function drawGiantBack(c: CanvasRenderingContext2D, aspC: number): Layout {
 }
 
 // the big stamp: Christopher with his postcard, denomination 183 languages
-function drawStampTex(c: HTMLCanvasElement, img: HTMLImageElement | null | undefined) {
+export function drawStampTex(c: HTMLCanvasElement, img: HTMLImageElement | null | undefined) {
   const x = c.getContext("2d")!;
   x.globalCompositeOperation = "source-over";
   x.clearRect(0, 0, 480, 576);
@@ -556,7 +562,7 @@ const hillAt = (a: number) => 0.012 + 0.009 * Math.sin(a * 4 + 1.3) + 0.006 * Ma
 
 /* ---------- constellation: the word in Gochi Hand, thinned to stroke centrelines, stars spaced by arc length ---------- */
 type Pt = [number, number];
-type Word = { stars: Pt[]; strokes: Pt[][]; big: boolean[] };
+export type Word = { stars: Pt[]; strokes: Pt[][]; big: boolean[] };
 
 function zhangSuen(B: Uint8Array, w: number, h: number) {
   const del: number[] = [];
@@ -661,7 +667,7 @@ function traceGlyph(ch: string, fp: number) {
   return { polys: polys.map((pl) => pl.map(([a, b]): Pt => [a - pad, b])), marks, adv };
 }
 
-function skeletonWord(text: string, n: number): Word {
+export function skeletonWord(text: string, n: number): Word {
   const fp = 320, gap = fp * 0.12;
   const polys: Pt[][] = [], dot: boolean[] = [];
   let ox = 0, prev = "";

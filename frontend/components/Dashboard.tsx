@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CourseDetail, SessionMeta } from "@vta/shared";
-import { getCourse, startSession } from "../lib/api";
+import { cachedCourse, getCourse, startSession } from "../lib/api";
 import { findLanguage } from "../lib/languages";
 import { timeAgo, SummaryCard } from "./ui";
 import Mascot from "./Mascot";
@@ -18,17 +18,20 @@ export default function Dashboard({
   onBack: () => void;
   onStartSession: (sessionId: string, language: string, userName: string) => void;
 }) {
-  // undefined = loading, null = failed to load
-  const [c, setC] = useState<CourseDetail | null | undefined>(undefined);
+  // undefined = loading, null = failed to load. Starts from this browser's last
+  // copy of the page so a revisit paints at once, then refreshes underneath.
+  const [c, setC] = useState<CourseDetail | null | undefined>(() => cachedCourse(courseId) ?? undefined);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState(false);
   const [wordsOpen, setWordsOpen] = useState(false);
 
   function load() {
-    setC(undefined);
+    const shown = cachedCourse(courseId);
+    setC(shown ?? undefined);
+    // A failed refresh keeps the copy on screen; the error page is only for nothing to show.
     getCourse(courseId)
-      .then(setC)
-      .catch(() => setC(null));
+      .then((fresh) => setC(fresh ?? shown))
+      .catch(() => setC(shown));
   }
   useEffect(load, [courseId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -56,8 +59,25 @@ export default function Dashboard({
     return (
       <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6" aria-busy>
         {back}
-        <div className="h-12 w-48 animate-pulse rounded-xl bg-card-2" />
-        <div className="mt-4 h-5 w-72 animate-pulse rounded-lg bg-card-2" />
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="h-14 w-56 animate-pulse rounded-xl bg-card-2" />
+            <div className="mt-4 h-5 w-72 max-w-full animate-pulse rounded-lg bg-card-2" />
+          </div>
+          <div className="h-12 w-60 animate-pulse rounded-full bg-card-2" />
+        </div>
+        <div className="mt-14 h-7 w-44 animate-pulse rounded-lg bg-card-2" />
+        <div className="mt-4 flex flex-wrap gap-2">
+          {[64, 88, 52, 76, 60].map((w, i) => (
+            <div key={i} className="h-8 animate-pulse rounded-[4px] bg-card-2" style={{ width: w }} />
+          ))}
+        </div>
+        <div className="mt-14 h-7 w-40 animate-pulse rounded-lg bg-card-2" />
+        <div className="mt-4 grid gap-3">
+          {[0, 1].map((i) => (
+            <div key={i} className="h-[72px] animate-pulse rounded-2xl bg-card-2" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -97,6 +117,10 @@ export default function Dashboard({
           <p className="mt-3 text-muted">
             {l && l.native !== c.language ? `${c.language}. ` : ""}
             {words.length} {words.length === 1 ? "word" : "words"}, {completed} {completed === 1 ? "conversation" : "conversations"}, {last}.
+          </p>
+          <p className="mt-4">
+            <span className="block text-sm text-muted">{completed ? "Next lesson" : "First lesson"}</span>
+            <span className="font-display text-xl font-extrabold tracking-[-0.01em]">{c.goal}</span>
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
