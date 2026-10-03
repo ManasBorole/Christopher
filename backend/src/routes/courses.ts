@@ -4,7 +4,7 @@ import { env } from "../env.js";
 import { ah } from "../http.js";
 import { owner, type OwnedRequest } from "../owner.js";
 import { profileFields, pickStage } from "../profile.js";
-import { goalAt, startGoal, type CourseCard, type CourseDetail, type Summary } from "@vta/shared";
+import { goalAt, startGoal, type CourseCard, type CourseDetail, type SkyCourse, type Summary } from "@vta/shared";
 
 export const coursesRouter = Router();
 coursesRouter.use(owner);
@@ -125,6 +125,46 @@ coursesRouter.get(
       updatedAt: c.updatedAt.toISOString(),
     }));
     res.json(cards);
+  })
+);
+
+// The progress sky: every conversation the learner spoke in, per language.
+// Length comes from the first and last saved line, in one grouped query.
+coursesRouter.get(
+  "/sky",
+  ah(async (req: OwnedRequest, res) => {
+    const [courses, spans] = await Promise.all([
+      prisma.course.findMany({
+        where: { ownerId: req.ownerId },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          language: true,
+          createdAt: true,
+          sessions: { orderBy: { startedAt: "asc" }, select: { id: true, startedAt: true, summary: true } },
+        },
+      }),
+      prisma.turn.groupBy({
+        by: ["sessionId"],
+        where: { session: { course: { ownerId: req.ownerId } } },
+        _min: { at: true },
+        _max: { at: true },
+      }),
+    ]);
+    const span = new Map(spans.map((t) => [t.sessionId, Number((t._max.at ?? 0n) - (t._min.at ?? 0n))]));
+    const sky: SkyCourse[] = courses.map((c) => ({
+      id: c.id,
+      language: c.language,
+      createdAt: c.createdAt.toISOString(),
+      sessions: c.sessions
+        .filter((s) => span.has(s.id)) // never spoke: no star
+        .map((s) => ({
+          at: s.startedAt.toISOString(),
+          minutes: Math.max(1, Math.round(span.get(s.id)! / 60000)),
+          words: ((s.summary as Summary | null)?.vocabulary ?? []).map((v) => v.term).slice(0, 3),
+        })),
+    }));
+    res.json(sky);
   })
 );
 

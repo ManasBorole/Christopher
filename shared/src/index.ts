@@ -57,6 +57,24 @@ export type CourseDetail = {
   sessions: SessionMeta[];
 };
 
+// ---- GET /sky (the progress sky: one star per day spoken) ----
+
+// One conversation the learner actually spoke in. The page groups these into
+// days in the learner's own time zone.
+export type SkySession = {
+  at: string; // ISO start
+  minutes: number; // first to last line, at least 1
+  words: string[]; // a few words from its postcard
+};
+
+// One language, in the order the learner added it (that order picks its colour).
+export type SkyCourse = {
+  id: string;
+  language: string;
+  createdAt: string;
+  sessions: SkySession[]; // oldest first
+};
+
 export type StoredTurn = { role: "user" | "agent"; text: string; at: number };
 
 // ---- POST /session (ephemeral realtime token) ----
