@@ -1,7 +1,7 @@
 import type { ConversationEngine, ConversationEvents } from "./ConversationEngine";
 import { ownerHeaders } from "../auth";
 import { LineTracker } from "./lines";
-import { stageNote, type Stage } from "../stage";
+import { modelStage, stageNote, type Stage } from "../stage";
 import { smoothLevel } from "../mouth";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8787";
@@ -48,6 +48,7 @@ export class RealtimeEngine implements ConversationEngine {
   private ev: ConversationEvents = {};
   private lines = new LineTracker((l) => this.ev.onLine?.(l));
   private stage: Stage | null = null; // last known conversation stage, for the learner's notes
+  private turnsAtStage = 0; // learner turns since the stage last moved
 
   async connect(events: ConversationEvents, sessionId?: string): Promise<void> {
     this.ev = events;
@@ -128,6 +129,9 @@ export class RealtimeEngine implements ConversationEngine {
       case "input_audio_buffer.speech_started":
         this.ev.onHeard?.();
         break;
+      case "conversation.item.input_audio_transcription.completed":
+        this.turnsAtStage++;
+        break;
 
       // Never swallow these silently: they are the only trace when a turn dies.
       case "error":
@@ -158,14 +162,19 @@ export class RealtimeEngine implements ConversationEngine {
   // model can continue its turn (a tool call pauses the response until we reply).
   private updateProfile(callId: string, argsJson: string) {
     let name = "";
+    let held: Stage | null = null; // a move up refused as too early
     try {
       const p = JSON.parse(argsJson ?? "{}");
       name = typeof p.userName === "string" ? p.userName.trim() : "";
-      const stage = Number(p.stage);
-      if ([1, 2, 3, 4].includes(stage)) {
+      const asked = Number(p.stage);
+      const stage = [1, 2, 3, 4].includes(asked) ? modelStage(this.stage, asked as Stage, this.turnsAtStage) : null;
+      if (stage) {
         p.stage = stage;
-        this.setStage(stage as Stage, "model");
-      } else delete p.stage;
+        this.setStage(stage, "model");
+      } else {
+        if ([1, 2, 3, 4].includes(asked)) held = this.stage;
+        delete p.stage;
+      }
       this.ev.onProfile?.(p);
     } catch {
       /* ignore malformed args */
@@ -173,9 +182,11 @@ export class RealtimeEngine implements ConversationEngine {
     if (this.dc?.readyState !== "open") return;
     // Echo a saved name back as the one to use, so a correction sticks over
     // any older name in the session instructions.
-    const output = name
-      ? { ok: true, note: `Saved. The learner's name is ${name}. Use only ${name} from now on.` }
-      : { ok: true };
+    const notes = [
+      name && `Saved. The learner's name is ${name}. Use only ${name} from now on.`,
+      held && `Stage not changed: stay at stage ${held} until they have said 3 more sentences of their own.`,
+    ].filter(Boolean);
+    const output = notes.length ? { ok: true, note: notes.join(" ") } : { ok: true };
     this.dc.send(
       JSON.stringify({
         type: "conversation.item.create",
@@ -189,9 +200,11 @@ export class RealtimeEngine implements ConversationEngine {
   // nudge reaches the live model as a system note. Adding an item never starts
   // a reply or cuts one off, so this costs nothing and waits for his next turn.
   // Not connected yet: nothing to send, /session reads the saved stage.
-  setStage(stage: Stage, reason: "learner" | "model") {
+  // "saved" = the course's stored stage, known before he says anything.
+  setStage(stage: Stage, reason: "learner" | "model" | "saved") {
     const from = this.stage;
     this.stage = stage;
+    if (from !== stage) this.turnsAtStage = 0;
     if (reason !== "learner" || this.dc?.readyState !== "open") return;
     this.dc.send(
       JSON.stringify({
