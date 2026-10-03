@@ -118,6 +118,10 @@ export default function Dashboard({
             {l && l.native !== c.language ? `${c.language}. ` : ""}
             {words.length} {words.length === 1 ? "word" : "words"}, {completed} {completed === 1 ? "conversation" : "conversations"}, {last}.
           </p>
+          <p className="mt-4">
+            <span className="block text-sm text-muted">{completed ? "Next lesson" : "First lesson"}</span>
+            <span className="font-display text-xl font-extrabold tracking-[-0.01em]">{c.goal}</span>
+          </p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <button type="button" onClick={begin} disabled={starting} className="btn text-[17px]">

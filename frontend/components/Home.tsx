@@ -6,6 +6,7 @@ import type { CourseCard } from "@vta/shared";
 import { listCourses, createCourse, deleteCourse, cachedCourses, getCourse } from "../lib/api";
 import { findLanguage } from "../lib/languages";
 import { greeting } from "../lib/greetings";
+import { stageLabel } from "../lib/stage";
 import { lastChat } from "../lib/lastChat";
 import LanguagePicker from "./LanguagePicker";
 import LevelQuestion from "./LevelQuestion";
@@ -229,7 +230,7 @@ function Tag({
   const l = findLanguage(c.language);
   const hello = greeting(l?.code);
   const started = c.sessionCount > 0;
-  const shown = Math.min(c.vocabCount, 5);
+  const words = `${c.vocabCount} ${c.vocabCount === 1 ? "word" : "words"}`;
   return (
     <li className="tag-slot group/tag" style={{ ["--i" as string]: index }}>
       <div className="tag-hang">
@@ -248,28 +249,26 @@ function Tag({
             <p lang={l?.code} dir={l?.rtl ? "rtl" : undefined} className="pr-24 font-display text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em]">
               {l?.native ?? c.language}
             </p>
-            {l && l.native !== c.language && <p className="mt-1 text-sm text-muted">{c.language}</p>}
-            {hello && (
-              <p lang={l?.code} dir={l?.rtl ? "rtl" : undefined} className="mt-3 font-hand text-[22px] leading-none text-tutor">
-                {hello}
-              </p>
-            )}
+            <p className="mt-1 text-sm text-muted">
+              {l && l.native !== c.language ? `${c.language}, ` : ""}
+              {started ? words : "not started yet"}
+            </p>
+
+            {/* how much of the language he speaks now, as of the last conversation */}
+            <div className="mt-5 flex gap-1.5" role="img" aria-label={`Stage: ${stageLabel(c.stage, c.language)}`}>
+              {[1, 2, 3, 4].map((n) => (
+                <span key={n} className={`stage-seg ${c.stage != null && n <= c.stage ? "is-on" : ""}`} />
+              ))}
+            </div>
+            <p className={`mt-1.5 font-hand text-[19px] leading-none ${c.stage == null ? "text-muted" : "text-tutor"}`}>
+              {stageLabel(c.stage, c.language)}
+            </p>
 
             <div className="mt-auto pt-5">
-              {c.vocabCount > 0 ? (
-                <div className="flex items-center gap-2.5">
-                  <span className="flex gap-1.5" aria-hidden>
-                    {Array.from({ length: shown }, (_, k) => (
-                      <span key={k} className="word-stamp" />
-                    ))}
-                  </span>
-                  <span className="text-sm text-muted">
-                    {c.vocabCount} {c.vocabCount === 1 ? "word" : "words"} collected
-                  </span>
-                </div>
-              ) : (
-                <p className="text-sm text-muted">{started ? "No words collected yet." : `Not started yet. Say ${hello ?? "hello"}.`}</p>
-              )}
+              <div className="border-t-[1.5px] border-dashed border-line pt-3.5">
+                <p className="text-[13px] text-muted">{started ? "Next lesson" : `First lesson, say ${hello ?? "hello"}`}</p>
+                <p className="font-semibold leading-snug">{c.goal}</p>
+              </div>
               <button
                 type="button"
                 onClick={onContinue}
