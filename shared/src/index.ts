@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./curriculum";
+
 // ---- Session / learner state (mirrored to Neon) ----
 
 export const CEFR = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
@@ -21,6 +23,7 @@ export type CourseCard = {
   userName: string;
   level: string;
   stage: number | null; // 1 mostly English .. 4 all target language; null = not asked yet
+  goal: string; // the next lesson on the course path (see curriculum.ts)
   vocabCount: number;
   sessionCount: number;
   updatedAt: string;
@@ -43,6 +46,7 @@ export type CourseDetail = {
   nativeLanguage: string;
   level: string;
   stage: number | null;
+  goal: string; // the next lesson on the course path
   vocabulary: string[];
   // term -> English meaning, derived from session summaries. Not every learned
   // word has one (the pronunciation scorer records words without a translation),
@@ -72,6 +76,8 @@ export const ProfileSchema = z.object({
   targetLanguage: z.string().optional(),
   currentLevel: z.enum(CEFR).optional(),
   stage: z.number().int().min(1).max(4).optional(),
+  // The learner used this lesson's goal on their own (marks the session, see curriculum.ts).
+  goalMet: z.boolean().optional(),
 });
 export type Profile = z.infer<typeof ProfileSchema>;
 
