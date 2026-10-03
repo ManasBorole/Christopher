@@ -3,7 +3,7 @@ import { env } from "../env.js";
 import { prisma } from "../db.js";
 import { ah } from "../http.js";
 import { owner, type OwnedRequest } from "../owner.js";
-import { CURRICULUM, MET_TO_ADVANCE, SummarySchema, type Summary } from "@vta/shared";
+import { CURRICULUM, MET_TO_ADVANCE, SummarySchema, goalAt, type Summary } from "@vta/shared";
 
 export const sessionsRouter = Router();
 sessionsRouter.use(owner);
@@ -68,20 +68,25 @@ sessionsRouter.patch(
   })
 );
 
-// Christopher saw the learner use this lesson's goal on their own. Counted once
-// per conversation; met in MET_TO_ADVANCE conversations moves the course on.
+// The learner used this lesson's goal on their own. Counted once per
+// conversation; met in MET_TO_ADVANCE conversations moves the course on.
+// Guarded on the goal it read, so two marks at once advance it only one step.
+async function markGoal(s: { id: string; goalMet: number | null; course: { id: string; goal: number } }): Promise<boolean> {
+  const goal = s.course.goal;
+  if (s.goalMet !== goal) await prisma.session.update({ where: { id: s.id }, data: { goalMet: goal } });
+  const met = await prisma.session.count({ where: { courseId: s.course.id, goalMet: goal } });
+  const advance = met >= MET_TO_ADVANCE && goal < CURRICULUM.length - 1;
+  if (advance) await prisma.course.updateMany({ where: { id: s.course.id, goal }, data: { goal: goal + 1 } });
+  return advance;
+}
+
+// Christopher saw it live (his update_profile goalMet).
 sessionsRouter.post(
   "/sessions/:id/goal",
   ah(async (req: OwnedRequest, res) => {
     const s = await ownedSession(req.params.id, req.ownerId);
     if (!s) return res.status(404).json({ error: "not found" });
-    const goal = s.course.goal;
-    if (s.goalMet !== goal) await prisma.session.update({ where: { id: s.id }, data: { goalMet: goal } });
-    const met = await prisma.session.count({ where: { courseId: s.course.id, goalMet: goal } });
-    // Guarded on the goal it read, so two calls at once advance it only one step.
-    const advance = met >= MET_TO_ADVANCE && goal < CURRICULUM.length - 1;
-    if (advance) await prisma.course.updateMany({ where: { id: s.course.id, goal }, data: { goal: goal + 1 } });
-    res.json({ ok: true, advanced: advance });
+    res.json({ ok: true, advanced: await markGoal(s) });
   })
 );
 
@@ -93,6 +98,7 @@ sessionsRouter.post(
     if (!s) return res.status(404).json({ error: "not found" });
 
     const lang = s.course.language || "the target language";
+    const goal = goalAt(s.course.goal);
     const transcript = s.turns
       .map((t) => `${t.role}: ${t.text}`)
       .join("\n")
@@ -106,7 +112,9 @@ sessionsRouter.post(
       `translation = its plain English meaning - ALWAYS include the English translation), ` +
       `mistakes (string[] of recurring pronunciation/grammar mistakes, in English), ` +
       `grammarTips (string[] of 1-3 concise tips, in English), ` +
-      `nextLesson (one English sentence on what to practice next). ` +
+      `nextLesson (one English sentence on what to practice next), ` +
+      `goalMet (true only if the learner, on their own and not just repeating the tutor, correctly used ` +
+      `this lesson's goal "${goal.title}" (${goal.patterns}) at least once). ` +
       `Only list vocabulary actually used. Empty arrays are fine. Be encouraging and specific.`;
     const user =
       `Language: ${lang}. Level: ${s.course.level}.\n` +
@@ -160,6 +168,8 @@ sessionsRouter.post(
         data: { vocabulary },
       }),
     ]);
+    // The postcard backs up his live mark: the realtime model often forgets the tool call.
+    if (summary.goalMet) await markGoal(s).catch(console.error);
     res.json(summary);
   })
 );

@@ -113,6 +113,8 @@ export const SummarySchema = z.object({
   mistakes: z.array(z.string()),
   grammarTips: z.array(z.string()),
   nextLesson: z.string(),
+  // the learner used this lesson's goal correctly on their own (judged at the end)
+  goalMet: z.boolean().optional(),
 });
 export type Summary = z.infer<typeof SummarySchema>;
 
