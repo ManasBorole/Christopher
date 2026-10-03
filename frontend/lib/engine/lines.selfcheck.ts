@@ -55,6 +55,20 @@ assert.equal(turns().length, 4, "unheard reply and failed transcription dropped"
 const finals = seen.filter((l) => l.done).map((l) => l.id);
 assert.equal(new Set(finals).size, finals.length, "one final per item");
 
+// 5. The learner corrects a misheard line: only their own finished lines, and
+//    the fix sticks in place (same slot, marked edited).
+const edit = useSession.getState().editTurn;
+assert.equal(edit("a1", "x"), null, "Christopher's lines are not editable");
+assert.equal(edit("u2", "  Bien  "), null, "unchanged text is not an edit");
+assert.equal(edit("u2", "   "), null, "empty text is not an edit");
+assert.equal(edit("u1", " Hola,  soy   Tomás ")?.text, "Hola, soy Tom", "returns the line as it was");
+assert.deepEqual(turns().slice(0, 3), ["user:Hola, soy Tomás", "agent:¡Hola, Tom! ¿Cómo estás?", "user:Bien"], "edited in place");
+assert.equal(useSession.getState().turns[0].edited, true);
+store.putLine({ id: "u1", role: "user", text: "Hola, soy Tom", done: true });
+assert.equal(turns()[0], "user:Hola, soy Tomás", "a late update keeps the correction");
+added("u4", "user", "a2");
+assert.equal(edit("u4", "still talking"), null, "a line still being written down is not editable");
+
 assert.equal(spokenPart("abc def", 1), "abc def");
 assert.equal(spokenPart("abc def", 0), "");
 assert.equal(spokenPart("元気ですか今日は", 0.5), "元気です…", "no spaces: cut by characters");

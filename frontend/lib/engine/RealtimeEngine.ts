@@ -192,6 +192,19 @@ export class RealtimeEngine implements ConversationEngine {
     );
   }
 
+  // A system note only, never response.create: an extra spoken reply costs
+  // money, and he picks the fix up on his next turn anyway.
+  noteCorrection(original: string, corrected: string) {
+    if (this.dc?.readyState !== "open") return;
+    const text = `The learner's earlier line was misheard as "${original}". They actually said: "${corrected}". Use that from now on.`;
+    this.dc.send(
+      JSON.stringify({
+        type: "conversation.item.create",
+        item: { type: "message", role: "system", content: [{ type: "input_text", text }] },
+      })
+    );
+  }
+
   interrupt() {
     if (this.dc?.readyState === "open") {
       this.dc.send(JSON.stringify({ type: "response.cancel" }));

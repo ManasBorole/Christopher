@@ -30,6 +30,9 @@ export interface ConversationEngine {
   // The conversation stage changed (1 mostly English .. 4 all target language).
   // "learner" = they nudged it, so tell the live model; "model" = he moved it himself.
   setStage(stage: 1 | 2 | 3 | 4, reason: "learner" | "model"): void;
+  // The learner corrected a line speech-to-text misheard: tell the live model
+  // quietly, without asking for a reply.
+  noteCorrection(original: string, corrected: string): void;
   disconnect(): void;
   // Current microphone loudness (RMS, 0..1), so the UI can tell silence from a dead mic.
   inputLevel?(): number;
