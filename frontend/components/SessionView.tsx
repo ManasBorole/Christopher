@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { RealtimeEngine } from "../lib/engine/RealtimeEngine";
 import type { ConversationEngine } from "../lib/engine/ConversationEngine";
 import { useSession } from "../store/useSession";
-import { addTurn as persistTurn, patchCourse, cachedCourse, getCourse, endSession, getUsage, reportSpent, consumeUsage, translateLine } from "../lib/api";
+import { addTurn as persistTurn, editTurn, patchCourse, cachedCourse, getCourse, endSession, getUsage, reportSpent, consumeUsage, translateLine } from "../lib/api";
 import { isMeaningfulTranscript, looksEnglish } from "../lib/transcript";
 import { sessionPhase, cannotHear, trialStep, MIC_FLOOR, type Phase } from "../lib/sessionPhase";
 import Mascot, { type MascotPose } from "./Mascot";
@@ -170,7 +170,9 @@ export default function SessionView({
           if (!l.done || (before && !before.pending)) return;
           // Saved once, stamped with when the line took its place, so the
           // stored transcript keeps conversation order.
-          void persistTurn(sessionId, l.role, l.text, before?.at ?? Date.now()).catch(() => {});
+          // The same `at` as on screen, so a later correction finds this record.
+          const at = useSession.getState().turns.find((t) => t.id === l.id)?.at ?? Date.now();
+          void persistTurn(sessionId, l.role, l.text, at).catch(() => {});
           // English under what he said in the target language (shown, not spoken).
           if (l.role === "agent" && !looksEnglish(l.text)) {
             void translateLine(l.text, language).then((en) => {
@@ -202,6 +204,16 @@ export default function SessionView({
       },
       sessionId
     );
+  }
+
+  // "Did I hear you right?": the learner fixes one of their own misheard lines.
+  // Show it, save it over the stored turn, and quietly tell Christopher.
+  function fixLine(id: string, text: string) {
+    const was = s.editTurn(id, text);
+    if (!was) return;
+    const now = useSession.getState().turns.find((t) => t.id === id)!.text;
+    engineRef.current?.noteCorrection(was.text, now);
+    void editTurn(sessionId, was.at, now).catch(() => {});
   }
 
   // Learner cuts in: stop the tutor's reply and show Christopher handing the
@@ -358,12 +370,20 @@ export default function SessionView({
         <div role="log" aria-live="polite" aria-label="Transcript" className="grid gap-2.5">
           {s.turns.length === 0 ? (
             <p className="rounded-2xl bg-card-2 px-5 py-4 text-[15px] text-muted">
-              Your conversation appears here as you talk, so you can read back anything you missed.
+              Your conversation appears here as you talk, so you can read back anything you missed. If Christopher mishears you, tap your line to fix it.
             </p>
           ) : (
             <>
               {s.turns.map((t) => (
-                <Line key={t.id} role={t.role} text={t.text} pending={t.pending} translation={t.translation} />
+                <Line
+                  key={t.id}
+                  role={t.role}
+                  text={t.text}
+                  pending={t.pending}
+                  translation={t.translation}
+                  edited={t.edited}
+                  onEdit={t.role === "user" ? (text) => fixLine(t.id, text) : undefined}
+                />
               ))}
             </>
           )}
@@ -440,29 +460,106 @@ function Line({
   text,
   pending,
   translation,
+  edited,
+  onEdit,
 }: {
   role: "user" | "agent";
   text: string;
   pending?: boolean;
   translation?: string;
+  edited?: boolean;
+  onEdit?: (text: string) => void; // the learner's own lines: fix what was misheard
 }) {
   const mine = role === "user";
+  const [draft, setDraft] = useState<string | null>(null); // null = not editing
+  const lineRef = useRef<HTMLButtonElement>(null);
+  const fieldId = useId();
   // A slot with no words yet: the learner was heard and is being written down.
   if (!text && !(pending && mine)) return null;
-  return (
-    <p
-      dir="auto"
-      className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-[16px] leading-snug ${
-        mine ? "justify-self-end bg-[color-mix(in_srgb,var(--learner)_36%,var(--card))]" : "bg-card"
-      } ${pending ? "text-muted" : ""}`}
-    >
+  const bubble = `max-w-[88%] rounded-2xl px-4 py-2.5 text-[16px] leading-snug ${
+    mine ? "justify-self-end bg-[color-mix(in_srgb,var(--learner)_36%,var(--card))]" : "bg-card"
+  }`;
+
+  const close = (save: boolean) => {
+    if (save && draft !== null) onEdit?.(draft);
+    setDraft(null);
+    requestAnimationFrame(() => lineRef.current?.focus());
+  };
+  if (draft !== null) {
+    return (
+      <form
+        className={`${bubble} w-full`}
+        onSubmit={(e) => {
+          e.preventDefault();
+          close(true);
+        }}
+      >
+        <label className="sr-only" htmlFor={fieldId}>
+          What you said
+        </label>
+        <textarea
+          id={fieldId}
+          dir="auto"
+          autoFocus
+          rows={2}
+          maxLength={500}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={(e) => e.currentTarget.select()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              close(true);
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              close(false);
+            }
+          }}
+          className="block w-full resize-none rounded-xl border-[1.5px] border-line bg-paper px-3 py-2 text-ink"
+        />
+        <div className="mt-2 flex justify-end gap-2">
+          <button type="button" onClick={() => close(false)} className="btn-quiet px-4 py-2 text-[15px]">
+            Cancel
+          </button>
+          <button type="submit" disabled={!draft.trim()} className="btn px-4 py-2 text-[15px]">
+            Save
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  const words = (
+    <>
       <span className="sr-only">{mine ? "You: " : "Christopher: "}</span>
       {text || "…"}
+      {edited && <span className="ml-1.5 text-[13px] text-muted">(edited)</span>}
       {translation && (
         <span dir="ltr" lang="en" className="mt-1 block text-[14px] text-muted">
           <span className="sr-only">In English: </span>({translation})
         </span>
       )}
+    </>
+  );
+  // Speech-to-text sometimes mishears a name or a word: a tap opens the line to fix it.
+  if (onEdit && !pending) {
+    return (
+      <button
+        ref={lineRef}
+        type="button"
+        dir="auto"
+        onClick={() => setDraft(text)}
+        title="Misheard? Tap to fix it"
+        className={`${bubble} cursor-text text-start transition-shadow hover:shadow-[inset_0_0_0_1.5px_var(--learner)]`}
+      >
+        {words}
+        <span className="sr-only"> Misheard? Press to fix it.</span>
+      </button>
+    );
+  }
+  return (
+    <p dir="auto" className={`${bubble} ${pending ? "text-muted" : ""}`}>
+      {words}
     </p>
   );
 }
