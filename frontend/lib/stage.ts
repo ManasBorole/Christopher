@@ -21,6 +21,18 @@ export function stageLabel(stage: number | null, language: string): string {
   return "Finding your level";
 }
 
+// Learner turns at a stage before Christopher may raise it himself.
+export const TURNS_BEFORE_UP = 3;
+
+// The stage to keep when Christopher picks one himself, or null to refuse it.
+// His first judgement and any move down always stand; a move up waits for
+// TURNS_BEFORE_UP learner turns and climbs one step at a time, because the
+// model tends to jump a level on a single greeting.
+export function modelStage(from: number | null, to: Stage, turnsAtStage: number): Stage | null {
+  if (from == null || to <= from) return to;
+  return turnsAtStage >= TURNS_BEFORE_UP ? ((from + 1) as Stage) : null;
+}
+
 const NAMES = ["", "New: mostly English", "Building: a mix", "Conversational: the target language", "Fluent: only the target language"];
 
 // The system note the live model gets when the learner changes the stage.
