@@ -61,8 +61,16 @@ async function loadCourse(
 
   // Returning = they have actually talked in this course before. The name is
   // shared across courses, so it alone says nothing about this course.
-  const priorTalks = await prisma.session.count({
-    where: { courseId: c.id, id: { not: s.id }, turns: { some: {} } },
-  });
-  return { suffix: courseContext(c, priorTalks > 0 || c.vocabulary.length > 0), course: c };
+  // Recent postcards give the mistakes to warm up with.
+  const [priorTalks, recent] = await Promise.all([
+    prisma.session.count({ where: { courseId: c.id, id: { not: s.id }, turns: { some: {} } } }),
+    prisma.session.findMany({
+      where: { courseId: c.id, endedAt: { not: null } },
+      orderBy: { startedAt: "desc" },
+      take: 3,
+      select: { summary: true },
+    }),
+  ]);
+  const mistakes = recent.flatMap((r) => (r.summary as { mistakes?: string[] } | null)?.mistakes ?? []);
+  return { suffix: courseContext(c, priorTalks > 0 || c.vocabulary.length > 0, mistakes), course: c };
 }

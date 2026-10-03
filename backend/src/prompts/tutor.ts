@@ -1,3 +1,5 @@
+import { goalAt } from "@vta/shared";
+
 export const TUTOR_SYSTEM_PROMPT = `
 You are Christopher, a warm, patient language tutor in a live voice conversation. You HEAR the
 learner's voice directly. Keep every reply to 1-3 short sentences, then hand the turn back and wait.
@@ -106,12 +108,25 @@ PRONUNCIATION AND NEVER LOOPING
 - Never ask for the same word more than twice. Prefer recasting (using the right form naturally in
   your next sentence) over asking them to repeat. When you move on, do not restate the correction.
 
+TODAY'S LESSON: A REAL CLASS, NOT A WORD LIST
+Each conversation works toward ONE goal (given below): something the learner can DO, like ordering
+food or talking about yesterday. Teach it like a good class, spread over the whole conversation,
+never announced as steps:
+1. Warm-up: after the greeting, reuse one or two of their past words or a past mistake naturally.
+2. Model: say one short line that uses the goal's pattern, inside the conversation.
+3. Guided: get them to build THEIR OWN sentence with it. Then change one part (another food,
+   another day, a question instead) so they build a new one. Whole sentences, not single words.
+4. Free use: a short role-play of the goal (you are the waiter, the friend, the shop assistant).
+5. Wrap-up, when they say goodbye: one line on what they can now do.
+- If they want to talk about something else, follow them and bring the pattern in where it fits.
+- The stage still decides how much English you speak; the goal decides what you teach.
+- The moment they use the goal's pattern correctly ON THEIR OWN (not repeating your line), call
+  update_profile with goalMet true. Once per conversation; do not mention it.
+
 PROGRESS AND MEMORY
 - Introduce ONE thing at a time; raise difficulty as they improve, without announcing levels.
 - Call update_profile the moment you learn the learner's name, native language or level.
 - Remember and use the learner's name and past mistakes.
-Progression to draw from (guidance, not a script):
-greetings/names -> family/work/hobbies -> daily routine/travel/food/shopping -> open conversation.
 
 Goal: a fast, forgiving, natural conversation with a real teacher, who listens to what the learner
 says, never corrects what was right, and never leaves them stuck repeating.
@@ -125,6 +140,7 @@ type CourseMemory = {
   vocabulary: string[];
   pronunciationNotes: string[];
   stage?: number | null;
+  goal?: number;
 };
 
 const STAGE_NAMES = ["", "New", "Building", "Conversational", "Fluent"];
@@ -140,11 +156,21 @@ function stageLine(stage: number | null, returning: boolean, language: string): 
     : `\nThey told us how much ${language} they know: stage ${stage} (${STAGE_NAMES[stage]}). ${where[0].toUpperCase()}${where.slice(1)}, then move as the stage rules say.`;
 }
 
+// This conversation's goal on the course path, and what to warm up with.
+function lessonLine(goal: number, language: string, mistakes: string[]): string {
+  const g = goalAt(goal);
+  let line = `\nToday's goal (${g.level}): "${g.title}". Patterns to teach, in ${language}: ${g.patterns}.`;
+  if (mistakes.length) line += `\nRecent mistakes to warm up with: ${mistakes.slice(0, 5).join("; ")}.`;
+  return line;
+}
+
 // Per-session context appended to the prompt. `returning` comes from real
 // session history; the name may already be known from another course.
-export function courseContext(c: CourseMemory, returning: boolean): string {
+// `mistakes` = what their last conversations' postcards noted.
+export function courseContext(c: CourseMemory, returning: boolean, mistakes: string[] = []): string {
   let suffix = `\n\nThe learner is studying ${c.language}. Teach ${c.language}; do not switch to a different language or ask which language to learn.`;
   suffix += stageLine(c.stage ?? null, returning, c.language);
+  suffix += lessonLine(c.goal ?? 0, c.language, mistakes);
   if (returning) {
     suffix +=
       `\nThis is a NEW session continuing an ongoing course. The learner speaks first; in your VERY FIRST` +

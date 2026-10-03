@@ -65,7 +65,7 @@ export function realtimeSession(o: { model: string; voice: string; instructions:
         type: "function",
         name: "update_profile",
         description:
-          "Call this as soon as you learn the learner's name, their native language, or their level changes, and every time you move the learner to a different conversation stage. Send only the fields you learned. If the learner corrects their name, call it again with the corrected userName: it replaces the old name.",
+          "Call this as soon as you learn the learner's name, their native language, or their level changes, every time you move the learner to a different conversation stage, and with goalMet true once they use today's goal on their own. Send only the fields you learned. If the learner corrects their name, call it again with the corrected userName: it replaces the old name.",
         parameters: {
           type: "object",
           properties: {
@@ -76,6 +76,10 @@ export function realtimeSession(o: { model: string; voice: string; instructions:
               type: "integer",
               enum: [1, 2, 3, 4],
               description: "Conversation stage: 1 New, 2 Building, 3 Conversational, 4 Fluent.",
+            },
+            goalMet: {
+              type: "boolean",
+              description: "True once the learner uses today's goal pattern correctly on their own.",
             },
           },
         },
