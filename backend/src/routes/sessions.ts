@@ -47,6 +47,27 @@ sessionsRouter.post(
   })
 );
 
+// The learner corrects one of their own lines that speech-to-text misheard.
+// A turn is found by when it took its place (`at`, as saved), so the edit
+// updates that record and the summary reads the corrected words.
+const MAX_EDIT = 500;
+sessionsRouter.patch(
+  "/sessions/:id/turns/:at",
+  ah(async (req: OwnedRequest, res) => {
+    const s = await ownedSession(req.params.id, req.ownerId);
+    if (!s) return res.status(404).json({ error: "not found" });
+    const at = Number(req.params.at);
+    const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+    if (!Number.isSafeInteger(at) || !text || text.length > MAX_EDIT) return res.status(400).json({ error: "bad edit" });
+    const { count } = await prisma.turn.updateMany({
+      where: { sessionId: s.id, role: "user", at: BigInt(at) },
+      data: { text },
+    });
+    if (!count) return res.status(404).json({ error: "not found" });
+    res.json({ ok: true });
+  })
+);
+
 // End a conversation: generate + save a summary for THIS session only.
 sessionsRouter.post(
   "/sessions/:id/end",

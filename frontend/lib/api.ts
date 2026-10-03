@@ -198,8 +198,20 @@ export async function getSession(
   return r.json();
 }
 
+// Saves in flight, so an edit made right after a line lands waits for its save.
+const savingTurns = new Map<string, Promise<unknown>>();
+
 export async function addTurn(id: string, role: "user" | "agent", text: string, at: number) {
-  await call(`/sessions/${id}/turns`, { method: "POST", json: { role, text, at } });
+  const p = call(`/sessions/${id}/turns`, { method: "POST", json: { role, text, at } });
+  savingTurns.set(`${id}:${at}`, p.catch(() => {}));
+  await p;
+}
+
+// Correct one of the learner's own saved lines (found by its `at`).
+export async function editTurn(id: string, at: number, text: string) {
+  await savingTurns.get(`${id}:${at}`);
+  const r = await call(`/sessions/${id}/turns/${at}`, { method: "PATCH", json: { text } });
+  if (!r.ok) throw new Error(`edit turn ${r.status}`);
 }
 
 // English for one finished line Christopher said in the target language.
