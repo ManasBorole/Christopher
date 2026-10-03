@@ -85,7 +85,10 @@ export default function SessionView({
     stageMovedRef.current = false;
     getCourse(courseId)
       .then((c) => {
-        if (c && !stageMovedRef.current) setStage((c.stage ?? null) as Stage | null);
+        if (c && !stageMovedRef.current) {
+          setStage((c.stage ?? null) as Stage | null);
+          if (c.stage) engineRef.current?.setStage(c.stage as Stage, "saved");
+        }
       })
       .catch(() => {});
   }, [courseId]);
@@ -129,6 +132,7 @@ export default function SessionView({
     engineRef.current?.disconnect(); // a dropped connection is still open; close it first
     const engine = new RealtimeEngine();
     engineRef.current = engine;
+    if (stage) engine.setStage(stage, "saved");
     await engine.connect(
       {
         onStatus: (st, detail) => {

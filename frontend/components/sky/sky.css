@@ -87,6 +87,13 @@ html:has(.sky) .airmail-edge {
   font: 500 12px/1.2 var(--font-sans), sans-serif;
   color: var(--sky-dim);
 }
+.sky-lbl .sky-en {
+  margin-top: 3px;
+  font-size: 11px;
+}
+.sky-lbl .sky-en + small {
+  margin-top: 2px;
+}
 .sky-tip {
   position: absolute;
   left: 0;

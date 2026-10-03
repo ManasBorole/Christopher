@@ -226,7 +226,7 @@ export function createSkyScene(root: HTMLElement, first: SkyModel, startFocus: n
       const b = document.createElement("button");
       b.type = "button"; b.className = "sky-sb"; b.hidden = true;
       const l = model.langs[s.day.lang];
-      b.setAttribute("aria-label", `${fmtDay(s.day.date)}, ${l.native}, ${s.day.pending ? "tonight, not spoken yet" : `${s.day.minutes} minutes`}`);
+      b.setAttribute("aria-label", `${fmtDay(s.day.date)}, ${l.name}, ${s.day.pending ? "tonight, not spoken yet" : `${s.day.minutes} minutes`}`);
       b.addEventListener("click", () => openStar(s.i));
       b.addEventListener("focus", () => setHover(s.i));
       b.addEventListener("blur", () => { if (hover === s.i) setHover(-1); });
@@ -244,9 +244,17 @@ export function createSkyScene(root: HTMLElement, first: SkyModel, startFocus: n
       el.style.color = `rgb(${languageColor(g.lang).map((v) => Math.round(v * 255)).join(" ")})`;
       const name = document.createElement("span");
       name.lang = l.code; name.textContent = monthName(l.code, g.abs); name.style.font = hand(g.lang);
+      el.append(name);
+      // the English month underneath, for anyone who cannot read it yet
+      const en = monthName("en", g.abs);
+      if (en !== name.textContent) {
+        const tr = document.createElement("small");
+        tr.className = "sky-en"; tr.textContent = `(${en})`;
+        el.append(tr);
+      }
       const sub = document.createElement("small");
       sub.textContent = `${g.n ? `${g.n} ${g.n === 1 ? "day" : "days"}` : "tonight"}${yr !== year ? `, ${yr}` : ""}`;
-      el.append(name, sub);
+      el.append(sub);
       lblBox.appendChild(el); g.el = el; g.o = -1;
     }
     lblBox.style.opacity = "0";
@@ -341,7 +349,7 @@ export function createSkyScene(root: HTMLElement, first: SkyModel, startFocus: n
         const n = gs.reduce((a, g) => a + g.n, 0);
         sub = n ? `${n} days spoken across ${gs.length} ${gs.length === 1 ? "language" : "languages"}` : "A quiet month";
       } else {
-        const g = gs.find((g) => g.lang === focus), name = model.langs[focus].native;
+        const g = gs.find((g) => g.lang === focus), name = model.langs[focus].name;
         sub = g && g.n ? `${g.n} ${g.n === 1 ? "day" : "days"} in ${name}` : `No ${name} this month`;
       }
     }
@@ -414,7 +422,7 @@ export function createSkyScene(root: HTMLElement, first: SkyModel, startFocus: n
     if (h >= 0 && h !== opened) {
       const s = stars[h];
       tip.firstChild!.textContent = fmtDay(s.day.date);
-      tip.lastChild!.textContent = `${model.langs[s.day.lang].native}, ${s.day.pending ? "waiting for tonight" : `${s.day.minutes} minutes`}`;
+      tip.lastChild!.textContent = `${model.langs[s.day.lang].name}, ${s.day.pending ? "waiting for tonight" : `${s.day.minutes} minutes`}`;
       tip.classList.add("on");
     } else hideTip();
   }
