@@ -1,4 +1,4 @@
-import type { PronounceResult, Summary, CourseCard, CourseDetail, StoredTurn } from "@vta/shared";
+import type { PronounceResult, Summary, CourseCard, CourseDetail, StoredTurn, SkyCourse } from "@vta/shared";
 import { ownerHeaders, ownerKey } from "./auth";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8787";
@@ -187,6 +187,19 @@ export async function patchCourse(id: string, data: Record<string, unknown>) {
     if (detail) writeCache(`course:${id}`, { ...detail, stage: data.stage });
   }
   await call(`/courses/${id}`, { method: "PATCH", json: data });
+}
+
+// The progress sky. Cached like the course list so it paints at once on a revisit.
+export function cachedSky(): SkyCourse[] | null {
+  return readCache<SkyCourse[]>("sky");
+}
+export async function getSky(): Promise<SkyCourse[]> {
+  const owner = ownerKey();
+  const r = await call("/sky");
+  if (!r.ok) throw new Error(`/sky ${r.status}`);
+  const data = (await r.json()) as SkyCourse[];
+  writeCache("sky", data, owner);
+  return data;
 }
 
 // He saw the learner use this lesson's goal on their own.
