@@ -183,9 +183,9 @@ export default function SkyView({ onBack }: { onBack: () => void }) {
                 </button>
               )}
               {model.langs.map((l, i) => (
-                <button key={l.name} type="button" className="sky-chip" data-l={i} lang={l.code} aria-pressed={shownFocus === i} onClick={() => setFocus(i)}>
+                <button key={l.name} type="button" className="sky-chip" data-l={i} aria-pressed={shownFocus === i} onClick={() => setFocus(i)}>
                   <span className="sky-dot" style={{ background: languageCss(i) }} aria-hidden />
-                  {l.native}
+                  {l.name}
                 </button>
               ))}
             </div>
@@ -207,7 +207,7 @@ function DayCard({
   plural,
 }: {
   day: SkyDay;
-  lang: { native: string; code: string };
+  lang: { name: string; code: string };
   color: string;
   dateRef: React.RefObject<HTMLHeadingElement | null>;
   onClose: () => void;
@@ -224,7 +224,7 @@ function DayCard({
       </h2>
       <p className="sky-meta">
         <span className="sky-dot" style={{ background: color }} aria-hidden />
-        {day.pending ? `${lang.native}, not spoken yet` : `${lang.native}, ${plural(day.chats.length, "conversation", "conversations")}, ${plural(day.minutes, "minute", "minutes")}`}
+        {day.pending ? `${lang.name}, not spoken yet` : `${lang.name}, ${plural(day.chats.length, "conversation", "conversations")}, ${plural(day.minutes, "minute", "minutes")}`}
       </p>
       {day.pending ? (
         <p className="sky-wait">Tonight&apos;s star is waiting. Talk with Christopher and it lights up.</p>
