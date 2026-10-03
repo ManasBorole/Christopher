@@ -17,9 +17,8 @@ export type MascotPose =
   | "postcard"
   | "empty";
 
-// Pose -> file in public/mascot. The three speak-* frames were generated
-// separately and don't line up, so talking uses one open-mouth frame plus
-// motion rather than frame swaps.
+// Pose -> file in public/mascot. While he talks, the mouth is an aligned patch
+// (open / half / closed) picked from the loudness of his voice (lib/mouth.ts).
 const FILE: Record<MascotPose, string> = {
   idle: "idle",
   wave: "wave",
