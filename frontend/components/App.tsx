@@ -7,6 +7,7 @@ import Mascot from "./Mascot";
 import LevelQuestion from "./LevelQuestion";
 import AuthBar from "./AuthBar";
 import ThemeToggle from "./ThemeToggle";
+import SoundToggle from "./SoundToggle";
 import Wordmark from "./Wordmark";
 import Home from "./Home";
 import Dashboard from "./Dashboard";
@@ -112,6 +113,7 @@ export default function App({
             <span className="hidden sm:block">
               <ThemeToggle />
             </span>
+            <SoundToggle />
             {hasClerk && <AuthBar />}
           </div>
         </div>
