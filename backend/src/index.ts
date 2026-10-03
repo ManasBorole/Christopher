@@ -29,7 +29,8 @@ app.use(
 );
 app.use(express.json());
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+// The commit Render built this from, so a deploy can be checked from outside.
+app.get("/health", (_req, res) => res.json({ ok: true, commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? "local" }));
 // Opened by the site as soon as it loads, so a sleeping server and database are
 // awake by the time the learner signs in or presses Start. Never fails loudly.
 app.get("/warm", async (_req, res) => {
