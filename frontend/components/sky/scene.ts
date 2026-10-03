@@ -331,7 +331,8 @@ export function createSkyScene(root: HTMLElement, first: SkyModel, startFocus: n
   const turnTo = (t: number) => { tTarget = clamp(t, T_MIN, tNow); tVel = 0; };
   let readKey = "";
   function readout(t: number) {
-    const away = Math.abs(t - tNow) > 0.3;
+    // an empty sky has no months to turn back to
+    const away = model.days.length > 0 && Math.abs(t - tNow) > 0.3;
     let title = "Tonight", sub = model.days.length ? (PHONE ? "Swipe the sky to go back in time" : "Drag the sky to turn back through your months") : "";
     if (away) {
       const mi = clamp(Math.round(t), 0, M), gs = groups.filter((g) => g.m === mi);
