@@ -17,6 +17,7 @@ model Course {
   nativeLanguage     String    @default("")
   level              String    @default("A1")
   stage              Int? // how much target language Christopher speaks: 1 mostly English .. 4 all target; null = not known yet
+  goal               Int       @default(0) // index into the course path (shared/src/curriculum.ts)
   vocabulary         String[]  @default([])
   meanings           Json      @default("{}") // term -> English meaning, cached so learned words always show a translation
   pronunciationNotes String[]  @default([])
@@ -35,6 +36,7 @@ model Session {
   startedAt DateTime  @default(now())
   endedAt   DateTime?
   summary   Json? // saved Summary object once the session ends
+  goalMet   Int? // the course goal the learner used on their own in this conversation
   turns     Turn[]
 
   @@index([courseId])

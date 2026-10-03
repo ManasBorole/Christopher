@@ -4,7 +4,7 @@ import { env } from "../env.js";
 import { ah } from "../http.js";
 import { owner, type OwnedRequest } from "../owner.js";
 import { profileFields, pickStage } from "../profile.js";
-import type { CourseCard, CourseDetail, Summary } from "@vta/shared";
+import { goalAt, startGoal, type CourseCard, type CourseDetail, type Summary } from "@vta/shared";
 
 export const coursesRouter = Router();
 coursesRouter.use(owner);
@@ -119,6 +119,7 @@ coursesRouter.get(
       userName: c.userName,
       level: c.level,
       stage: c.stage,
+      goal: goalAt(c.goal).title,
       vocabCount: learnedWords(c.vocabulary, c.sessions).length,
       sessionCount: c._count.sessions,
       updatedAt: c.updatedAt.toISOString(),
@@ -151,14 +152,14 @@ coursesRouter.post(
       existing ??
       (await prisma.course
         .create({
-          data: { ownerId: req.ownerId!, language: norm, userName: known?.userName ?? "", stage },
+          data: { ownerId: req.ownerId!, language: norm, userName: known?.userName ?? "", stage, goal: startGoal(stage) },
           select: { id: true, stage: true },
         })
         // a double click raced us to the insert: theirs won, use it
         .catch(() => prisma.course.findUniqueOrThrow({ where: key, select: { id: true, stage: true } })));
     // An existing course that was never asked takes the answer too.
     if (existing && existing.stage == null && stage != null) {
-      await prisma.course.update({ where: { id: c.id }, data: { stage } });
+      await prisma.course.update({ where: { id: c.id }, data: { stage, goal: startGoal(stage) } });
       c.stage = stage;
     }
     res.json({ id: c.id, language: norm, stage: c.stage });
@@ -197,6 +198,7 @@ coursesRouter.get(
       nativeLanguage: c.nativeLanguage,
       level: c.level,
       stage: c.stage,
+      goal: goalAt(c.goal).title,
       vocabulary: learnedWords(c.vocabulary, c.sessions),
       meanings: await ensureMeanings(c),
       pronunciationNotes: c.pronunciationNotes,
@@ -227,9 +229,12 @@ coursesRouter.patch(
     const vocabulary = mergeUnique(c.vocabulary, b.addVocabulary);
     const pronunciationNotes = mergeUnique(c.pronunciationNotes, b.addNotes);
     const profile = profileFields(b);
+    // The first stage he judges places a new course on the path; after that
+    // only met goals move it.
+    const goal = profile.stage && c.stage == null && c.goal === 0 ? startGoal(profile.stage) : undefined;
     await prisma.course.update({
       where: { id: c.id },
-      data: { ...profile, vocabulary, pronunciationNotes },
+      data: { ...profile, goal, vocabulary, pronunciationNotes },
     });
     // The name belongs to the learner, not the course: copy it to their other
     // courses. Raw SQL so their "last chat" time (updatedAt) is left alone.
