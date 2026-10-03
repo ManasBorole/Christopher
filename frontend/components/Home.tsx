@@ -12,15 +12,18 @@ import LanguagePicker from "./LanguagePicker";
 import LevelQuestion from "./LevelQuestion";
 import DeleteLanguageModal from "./DeleteLanguageModal";
 import Mascot from "./Mascot";
+import SkyStrip from "./sky/SkyStrip";
 
 // Every language the learner studies, as a luggage tag. Adding one opens the
 // picker in a sheet, then asks how much of it the learner already knows.
 export default function Home({
   onOpenCourse,
+  onOpenSky,
   onContinue,
   continuing,
 }: {
   onOpenCourse: (id: string) => void;
+  onOpenSky: () => void;
   onContinue: (c: CourseCard) => void;
   continuing: string | null;
 }) {
@@ -129,6 +132,11 @@ export default function Home({
       ) : (
         <>
           <Welcome courses={courses} />
+          {courses.some((c) => c.sessionCount > 0) && (
+            <div className="mb-8">
+              <SkyStrip onOpen={onOpenSky} />
+            </div>
+          )}
 
           <ul className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
             {courses.map((c, i) => (
