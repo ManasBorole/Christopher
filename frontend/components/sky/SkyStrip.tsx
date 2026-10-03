@@ -93,8 +93,9 @@ function drawStrip(c: HTMLCanvasElement, m: SkyModel) {
 
   // the last two weeks of stars, every language
   const recent = m.days.filter((d) => d.key > m.today - 14);
-  const from = m.today - 13, left = w * 0.42, right = w - 18;
-  const rows = Math.max(1, m.langs.length), top = h * 0.16, span = horizon - 22 - top;
+  // wide strips keep the stars right of the words; narrow ones keep them above
+  const narrow = w < 560, from = m.today - 13, left = narrow ? 18 : w * 0.42, right = w - 18;
+  const rows = Math.max(1, m.langs.length), top = h * (narrow ? 0.12 : 0.16), span = narrow ? h * 0.36 : horizon - 22 - top;
   const at = (d: (typeof recent)[number]) => {
     const f = (d.key - from) / 13, row = rows === 1 ? 0.45 : d.lang / (rows - 1);
     return { px: left + f * (right - left), py: top + row * span * 0.75 + Math.sin(d.key * 1.7 + d.lang) * span * 0.08 };
