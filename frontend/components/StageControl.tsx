@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { stageLabel } from "../lib/stage";
 import { findLanguage } from "../lib/languages";
+import { stamp, unlockSounds } from "../lib/sfx";
 
 export type Stage = 1 | 2 | 3 | 4;
 const STOPS: Stage[] = [1, 2, 3, 4];
@@ -29,6 +30,8 @@ export default function StageControl({
 
   function choose(n: Stage) {
     setStamps((k) => k + 1);
+    unlockSounds();
+    stamp(0.12); // lands on the postmark's squash
     if (n !== stage) onChange(n);
   }
   function at(clientX: number) {
