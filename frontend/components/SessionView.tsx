@@ -230,6 +230,21 @@ export default function SessionView({
   }, [handedBack, s.turns.length]);
   useEffect(() => setHandedBack(false), [s.turns.length]);
 
+  // Leaving without pressing End (Back, the course link, closing the tab) must
+  // still hang up: an open line keeps the mic live and Christopher answering.
+  useEffect(() => {
+    const hangUp = () => {
+      engineRef.current?.disconnect();
+      engineRef.current = null;
+    };
+    window.addEventListener("pagehide", hangUp);
+    return () => {
+      window.removeEventListener("pagehide", hangUp);
+      hangUp();
+      useSession.getState().clearTimer();
+    };
+  }, []);
+
   // End the session: stop audio, record usage, save summary, show trial modal.
   async function end() {
     if (endedRef.current) return;
