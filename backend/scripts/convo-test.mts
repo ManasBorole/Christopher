@@ -130,7 +130,7 @@ const SCRIPTS: Script[] = [
       },
       {
         say: "Soy enfermero. Me gusta cocinar, y ayer cociné una paella para mis amigos.",
-        expect: { lang: "target", correct: true, answered: [/en qu[eé] trabajas|te gusta cocinar/i], stage: [3, 4] },
+        expect: { lang: "target", correct: true, answered: [/en qu[eé] trabajas|te gusta cocinar\?/i], stage: [3, 4] },
         fake: "¡Qué rico! ¿Y les gustó la paella a tus amigos?",
       },
       {
