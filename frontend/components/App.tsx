@@ -12,6 +12,7 @@ import Wordmark from "./Wordmark";
 import Home from "./Home";
 import Dashboard from "./Dashboard";
 import SessionView from "./SessionView";
+import SkyView from "./sky/SkyView";
 import { WakingNotice } from "./ui";
 
 const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -21,12 +22,14 @@ const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 export type AppScreen =
   | { v: "home" }
   | { v: "dashboard"; courseId: string }
+  | { v: "sky" }
   | { v: "session"; courseId: string; sessionId: string; language: string; userName: string };
 
 export default function App({
   screen,
   onHome,
   onOpenCourse,
+  onOpenSky,
   onStartSession,
   onBack,
   autoStart,
@@ -36,6 +39,7 @@ export default function App({
   screen: AppScreen;
   onHome: () => void;
   onOpenCourse: (courseId: string) => void;
+  onOpenSky: () => void;
   onStartSession: (sessionId: string, language: string, userName: string) => void;
   onBack: () => void;
   // Language picked on the landing: open (or create) its course and go straight
@@ -135,7 +139,9 @@ export default function App({
           <p className="font-display text-2xl font-bold">Getting your {autoStart} conversation ready…</p>
         </section>
       )}
-      {screen.v === "home" && !autoStart && <Home onOpenCourse={onOpenCourse} onContinue={continueCourse} continuing={continuing} />}
+      {screen.v === "home" && !autoStart && <Home onOpenCourse={onOpenCourse} onOpenSky={onOpenSky} onContinue={continueCourse} continuing={continuing} />}
+
+      {screen.v === "sky" && <SkyView onBack={onBack} />}
 
       {screen.v === "dashboard" && (
         <Dashboard courseId={screen.courseId} onBack={onBack} onStartSession={onStartSession} />

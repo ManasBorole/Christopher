@@ -85,6 +85,7 @@ export default function Page() {
             screen={current.screen}
             onHome={() => push({ nav: "app", screen: { v: "home" } })}
             onOpenCourse={(courseId) => push({ nav: "app", screen: { v: "dashboard", courseId } })}
+            onOpenSky={() => push({ nav: "app", screen: { v: "sky" } })}
             onStartSession={(sessionId, language, userName) =>
               push({ nav: "app", screen: { v: "session", courseId: (current.screen as { courseId: string }).courseId, sessionId, language, userName } })
             }

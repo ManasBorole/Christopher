@@ -3,6 +3,10 @@
 /* little window on Home (SkyStrip). The sky is always night, so its  */
 /* colours are fixed; only the strip's frame follows the app theme.   */
 /* ------------------------------------------------------------------ */
+/* the airmail stripe belongs to the paper pages, not the night */
+html:has(.sky) .airmail-edge {
+  display: none;
+}
 .sky {
   --sky-paper: #f3e8d2;
   --sky-dim: #b9b2a2;
