@@ -41,6 +41,7 @@ if (DRY || args.replay) process.env.OPENAI_API_KEY ||= "dry-run";
 // Same modules the backend uses, so model, voice, prompt and session match.
 const { env } = await import("../src/env.ts");
 const { TUTOR_SYSTEM_PROMPT, courseContext } = await import("../src/prompts/tutor.ts");
+const { startGoal } = await import("@vta/shared");
 const { realtimeSession, transcriptionPrompt } = await import("../src/realtime.ts");
 
 // ---- Scripts -------------------------------------------------------------------
@@ -59,9 +60,12 @@ type Expect = {
   name?: string; // update_profile saved it and he uses it
   oldName?: string; // never used again after this turn
   stage?: [number, number]; // effective stage (saved or last update_profile) within this range
+  goalMet?: boolean; // update_profile has marked today's goal met by this turn
+  notSay?: RegExp; // his reply must not contain this (e.g. a misheard word used as a name)
 };
 type Turn = { say: string; expect: Expect; fake: string; fakeProfile?: Record<string, unknown> };
-type Script = { id: string; title: string; language: string; stage: number | null; returning: boolean; voice: string; turns: Turn[] };
+// goal = index on the course path; defaults to where a course at this stage starts (as in the app)
+type Script = { id: string; title: string; language: string; stage: number | null; goal?: number; returning: boolean; voice: string; turns: Turn[] };
 
 const BEGINNER = "A beginner with an English accent, speaking at a natural, slightly careful pace.";
 const NO_HELLO = /how (do you|to|would you) say ['"“]?(hello|hi)\b|say ['"“]?hola\b|c[oó]mo (se dice|dir[ií]as) ['"“]?hello/i;
@@ -141,7 +145,7 @@ const SCRIPTS: Script[] = [
       },
       {
         say: "A veces. ¿Y tú, qué haces los fines de semana?",
-        expect: { lang: "target", correct: true, stage: [3, 4] },
+        expect: { lang: "target", correct: true, stage: [3, 4], notSay: /\bavices\b|mucho gusto,?\s+a\s?veces/i, answered: [/c[oó]mo est[aá]s|qu[eé] tal|how are you/i] },
         fake: "Me encanta leer y pasear por el parque. ¿Qué libro me recomiendas?",
       },
     ],
@@ -179,6 +183,38 @@ const SCRIPTS: Script[] = [
         say: "Sí, es durísima. Bueno, tengo que irme. ¡Hasta luego!",
         expect: { lang: "target", correct: true, notTeach: BASICS, stage: [3, 4] },
         fake: "¡Hasta luego! Ha sido un placer charlar contigo.",
+      },
+    ],
+  },
+  {
+    id: "s4",
+    title: "Building learner on the ordering food lesson",
+    language: "Spanish",
+    stage: 2,
+    goal: 3, // Order food and drinks
+    returning: true,
+    voice: BEGINNER,
+    turns: [
+      {
+        say: "Hola Christopher, estoy bien. Hoy tengo mucha hambre.",
+        expect: { correct: true, answered: [/c[oó]mo est[aá]s|qu[eé] tal|how are you/i], stage: [1, 3] },
+        fake: "¡Hola! Then today we order food. Imagine I am the waiter: '¿Qué quiere tomar?'",
+      },
+      {
+        say: "Quiero un café con leche, por favor.",
+        expect: { correct: true, stage: [1, 3] },
+        fake: "¡Muy bien! ¿Y para comer?",
+        fakeProfile: { goalMet: true },
+      },
+      {
+        say: "Quisiera una tostada con tomate. ¿Cuánto es?",
+        expect: { correct: true, goalMet: true, stage: [1, 3] },
+        fake: "Son cuatro euros. ¿Algo más?",
+      },
+      {
+        say: "No, gracias. La cuenta, por favor.",
+        expect: { correct: true, goalMet: true, stage: [1, 3] },
+        fake: "Aquí tiene. Now you can order in a café!",
       },
     ],
   },
@@ -246,7 +282,7 @@ const spend = (usd: number, what: string) => {
 
 // Exactly what POST /session sends for this script's course.
 function sessionFor(sc: Script) {
-  const course = { language: sc.language, userName: "", nativeLanguage: "", level: "A1", vocabulary: [], pronunciationNotes: [], stage: sc.stage };
+  const course = { language: sc.language, userName: "", nativeLanguage: "", level: "A1", vocabulary: [], pronunciationNotes: [], stage: sc.stage, goal: sc.goal ?? startGoal(sc.stage) };
   const session: any = realtimeSession({
     model: env.realtimeModel,
     voice: env.realtimeVoice,
@@ -634,6 +670,11 @@ function check(sc: Script, i: number, lines: string[][], profiles: string[][]): 
   if (t.notTeach) {
     const bad = said.find((s) => t.notTeach!.test(s));
     ok(!bad, `skips what they already know${bad ? `: "${bad}"` : ""}`);
+  }
+  if (t.goalMet) ok(profiles.slice(0, i + 1).flat().some((p) => /"goalMet"\s*:\s*true/.test(p)), "marks today's goal met once they use it on their own");
+  if (t.notSay) {
+    const bad = said.find((s) => t.notSay!.test(s));
+    ok(!bad, `does not say ${t.notSay.source.slice(0, 30)}${bad ? `: "${bad}"` : ""}`);
   }
   if (t.name) {
     ok(profiles[i].some((p) => has(p, t.name!)), `update_profile saved ${t.name}`);
