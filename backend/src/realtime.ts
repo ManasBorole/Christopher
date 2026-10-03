@@ -20,7 +20,8 @@ export function transcriptionPrompt(h: TranscriptionHint): string {
   let p =
     `A ${h.language} lesson. The speaker is learning ${h.language} and speaks ${h.language}, ${other}, or a mix of both. ` +
     `Write exactly what is said, word for word, in the language it is said in, ${h.language} in its usual script. ` +
-    `Never translate. Keep the learner's mistakes as spoken; do not correct them.`;
+    `Never translate: an English question stays in English ("Sorry, what does that mean?"), even in the middle of ${h.language}. ` +
+    `Keep the learner's mistakes as spoken; do not correct them.`;
   if (h.userName) p += ` The speaker's name may be ${h.userName}.`;
   const words = (h.vocabulary ?? []).slice(0, 30);
   if (words.length) p += ` Words they practise: ${words.join(", ")}.`;
