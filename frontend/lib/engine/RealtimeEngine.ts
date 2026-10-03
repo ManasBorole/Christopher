@@ -2,6 +2,7 @@ import type { ConversationEngine, ConversationEvents } from "./ConversationEngin
 import { ownerHeaders } from "../auth";
 import { LineTracker } from "./lines";
 import { stageNote, type Stage } from "../stage";
+import { smoothLevel } from "../mouth";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8787";
 const OPENAI_RT = "https://api.openai.com/v1/realtime/calls";
@@ -41,6 +42,9 @@ export class RealtimeEngine implements ConversationEngine {
   private audioEl?: HTMLAudioElement;
   private audioCtx?: AudioContext;
   private meter?: AnalyserNode; // taps the mic so the UI can tell a silent/wrong mic
+  private outMeter?: AnalyserNode; // taps Christopher's voice so his mouth follows it
+  private outLevel = 0;
+  private outAt = 0;
   private ev: ConversationEvents = {};
   private lines = new LineTracker((l) => this.ev.onLine?.(l));
   private stage: Stage | null = null; // last known conversation stage, for the learner's notes
@@ -49,6 +53,10 @@ export class RealtimeEngine implements ConversationEngine {
     this.ev = events;
     this.ev.onStatus?.("connecting");
     try {
+      // Made before any await, so it starts inside the click that began the
+      // conversation; browsers keep a context made later suspended.
+      this.audioCtx = typeof AudioContext === "function" ? new AudioContext() : undefined;
+      void this.audioCtx?.resume().catch(() => {});
       // Start the mic prompt and the token fetch in PARALLEL - they don't depend
       // on each other, so this shaves the "listens after a few seconds" delay.
       const micPromise = getMic();
@@ -72,6 +80,7 @@ export class RealtimeEngine implements ConversationEngine {
       this.audioEl.autoplay = true;
       pc.ontrack = (e) => {
         this.audioEl!.srcObject = e.streams[0];
+        this.outMeter = this.analyse(e.streams[0]);
       };
       // Only report "live" once the transport is actually CONNECTED. Emitting it
       // right after the SDP answer lit up "Listening…" while ICE/DTLS was still
@@ -87,7 +96,7 @@ export class RealtimeEngine implements ConversationEngine {
 
       this.mic = await micPromise;
       this.mic.getTracks().forEach((t) => pc.addTrack(t, this.mic!));
-      this.startMeter(this.mic);
+      this.meter = this.analyse(this.mic);
 
       this.dc = pc.createDataChannel("oai-events");
       this.dc.onmessage = (m) => this.onEvent(JSON.parse(m.data));
@@ -215,13 +224,16 @@ export class RealtimeEngine implements ConversationEngine {
     this.ev.onSpeaking?.(false);
   }
 
-  private startMeter(stream: MediaStream) {
+  // An analyser on a stream, as a dead end: it is never wired to the speakers,
+  // so tapping Christopher's voice leaves what the learner hears (the audio
+  // element) unchanged. Chrome only feeds a remote WebRTC stream to Web Audio
+  // while a media element is playing it, which the audio element does.
+  private analyse(stream: MediaStream): AnalyserNode | undefined {
     try {
-      this.audioCtx = new AudioContext();
-      void this.audioCtx.resume().catch(() => {});
-      this.meter = this.audioCtx.createAnalyser();
-      this.meter.fftSize = 1024;
-      this.audioCtx.createMediaStreamSource(stream).connect(this.meter);
+      const node = this.audioCtx!.createAnalyser();
+      node.fftSize = 1024;
+      this.audioCtx!.createMediaStreamSource(stream).connect(node);
+      return node;
     } catch {
       /* no Web Audio: the UI simply gets no level */
     }
@@ -229,12 +241,16 @@ export class RealtimeEngine implements ConversationEngine {
 
   // RMS of the latest mic frame. A muted, unplugged or wrong device reads ~0.
   inputLevel(): number {
-    if (!this.meter) return 0;
-    const buf = new Float32Array(this.meter.fftSize);
-    this.meter.getFloatTimeDomainData(buf);
-    let sum = 0;
-    for (const v of buf) sum += v * v;
-    return Math.sqrt(sum / buf.length);
+    return rms(this.meter);
+  }
+
+  // Christopher's voice loudness, 0..1, smoothed (fast attack, slower release,
+  // noise gated). Meant to be read once per animation frame.
+  outputLevel(): number {
+    const now = performance.now();
+    this.outLevel = smoothLevel(this.outLevel, rms(this.outMeter), now - this.outAt);
+    this.outAt = now;
+    return this.outLevel;
   }
 
   disconnect() {
@@ -245,7 +261,17 @@ export class RealtimeEngine implements ConversationEngine {
     this.pc?.close();
     if (this.audioEl) this.audioEl.srcObject = null;
     void this.audioCtx?.close().catch(() => {});
-    this.pc = this.dc = this.mic = this.audioEl = this.audioCtx = this.meter = undefined;
+    this.pc = this.dc = this.mic = this.audioEl = this.audioCtx = this.meter = this.outMeter = undefined;
+    this.outLevel = 0;
     this.ev.onStatus?.("idle");
   }
+}
+
+function rms(node?: AnalyserNode): number {
+  if (!node) return 0;
+  const buf = new Float32Array(node.fftSize);
+  node.getFloatTimeDomainData(buf);
+  let sum = 0;
+  for (const v of buf) sum += v * v;
+  return Math.sqrt(sum / buf.length);
 }

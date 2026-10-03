@@ -36,4 +36,6 @@ export interface ConversationEngine {
   disconnect(): void;
   // Current microphone loudness (RMS, 0..1), so the UI can tell silence from a dead mic.
   inputLevel?(): number;
+  // Christopher's voice loudness (smoothed, 0..1), read each animation frame to move his mouth.
+  outputLevel?(): number;
 }
