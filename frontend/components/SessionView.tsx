@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { RealtimeEngine } from "../lib/engine/RealtimeEngine";
 import type { ConversationEngine } from "../lib/engine/ConversationEngine";
 import { useSession } from "../store/useSession";
-import { addTurn as persistTurn, editTurn, patchCourse, cachedCourse, getCourse, endSession, getUsage, reportSpent, consumeUsage, translateLine } from "../lib/api";
+import { addTurn as persistTurn, editTurn, patchCourse, markGoal, cachedCourse, getCourse, endSession, getUsage, reportSpent, consumeUsage, translateLine } from "../lib/api";
 import { isMeaningfulTranscript, looksEnglish } from "../lib/transcript";
 import { sessionPhase, cannotHear, trialStep, MIC_FLOOR, type Phase } from "../lib/sessionPhase";
 import Mascot, { type MascotPose } from "./Mascot";
@@ -188,7 +188,9 @@ export default function SessionView({
             stageMovedRef.current = true;
             setStage(p.stage as Stage);
           }
-          void patchCourse(courseId, p).catch(() => {});
+          const { goalMet, ...profile } = p;
+          if (goalMet) void markGoal(sessionId).catch(() => {});
+          if (Object.keys(profile).length) void patchCourse(courseId, profile).catch(() => {});
         },
         onPronunciation: (result, phrase) => {
           s.setFeedback({ coaching: result.coaching, accuracy: Math.round(result.accuracy), phrase });

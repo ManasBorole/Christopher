@@ -179,7 +179,19 @@ export function getCourse(id: string): Promise<CourseDetail | null> {
 }
 
 export async function patchCourse(id: string, data: Record<string, unknown>) {
+  // A new stage shows on the tag and course page at once, before any refetch.
+  if (typeof data.stage === "number") {
+    const cards = cachedCourses();
+    if (cards) writeCache("courses", cards.map((c) => (c.id === id ? { ...c, stage: data.stage as number } : c)));
+    const detail = cachedCourse(id);
+    if (detail) writeCache(`course:${id}`, { ...detail, stage: data.stage });
+  }
   await call(`/courses/${id}`, { method: "PATCH", json: data });
+}
+
+// He saw the learner use this lesson's goal on their own.
+export async function markGoal(sessionId: string) {
+  await call(`/sessions/${sessionId}/goal`, { method: "POST" });
 }
 
 export async function startSession(courseId: string): Promise<string> {
